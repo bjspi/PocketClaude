@@ -477,18 +477,18 @@ async def stream_reply(
         # with a short placeholder when it thinks no response is needed
         # (intended for agentic runs, not chat). Detect those and surface
         # an error to the app instead of saving a useless message.
-        SKIP_TURN_SENTINELS = (
+        #
+        # Match is intentionally narrow: only exact (case-/punctuation-
+        # normalized) matches qualify, no prefix match. A legitimate reply
+        # that happens to start with "(skip)" stays valid.
+        SKIP_TURN_SENTINELS = {
             "no response requested",
             "(no reply)",
             "(skip)",
             "(no response)",
-        )
+        }
         normalized = full_text.lower().rstrip(".").strip()
-        is_skip_turn = (
-            not full_text
-            or normalized in SKIP_TURN_SENTINELS
-            or any(normalized.startswith(s) for s in SKIP_TURN_SENTINELS)
-        )
+        is_skip_turn = not full_text or normalized in SKIP_TURN_SENTINELS
         if is_skip_turn:
             log.warning(
                 "Skip-turn / empty reply detected (text=%r). Surfacing error to client.",
