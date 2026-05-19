@@ -47,7 +47,7 @@ class ApiClient(
 
     private suspend fun baseUrl(): String {
         val s = settings.current()
-        require(s.isConfigured) { "Server-URL und Token müssen in den Einstellungen gesetzt sein." }
+        require(s.isConfigured) { "Server URL and token must be set in settings." }
         return s.serverUrl
     }
 
@@ -187,6 +187,16 @@ class ApiClient(
 
     suspend fun me(): MeDto = get("/me")
 
+    // ---------- Claude auth mode (Pro/Max | API key | Bedrock) ----------
+
+    suspend fun getClaudeAuth(): ClaudeAuthDto = get("/me/claude-auth")
+
+    suspend fun updateClaudeAuth(req: ClaudeAuthUpdateRequest): ClaudeAuthDto =
+        putJson("/me/claude-auth", req)
+
+    suspend fun getUsageStats(period: String = "month"): UsageStatsDto =
+        get("/me/usage?period=$period")
+
     // ---------- Image Generation (Gemini) ----------
 
     suspend fun imagesConfig(): ImageConfigDto = get("/images/config")
@@ -226,7 +236,7 @@ class ApiClient(
             ?.addQueryParameter("q", query)
             ?.addQueryParameter("limit", limit.toString())
             ?.build()
-            ?: error("Ungültige Server-URL für Suche.")
+            ?: error("Invalid server URL for search.")
         val req = Request.Builder()
             .url(url)
             .header("Authorization", authHeader())
@@ -517,7 +527,7 @@ class ApiClient(
         val base = baseUrl()
         val auth = authHeader()
         val url = "$base/conversations/$conversationId/messages".toHttpUrlOrNull()
-            ?: error("Ungültige Server-URL: $base")
+            ?: error("Invalid server URL: $base")
 
         val req = Request.Builder()
             .url(url)

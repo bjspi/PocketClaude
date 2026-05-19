@@ -89,12 +89,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import android.app.Activity
 import de.smartzone.pocketclaude.data.BillingStatusDto
+import de.smartzone.pocketclaude.data.ClaudeAuthUpdateRequest
 import de.smartzone.pocketclaude.data.LocalePrefs
 import de.smartzone.pocketclaude.data.SystemPromptMode
 import de.smartzone.pocketclaude.data.ThemeMode
@@ -121,10 +123,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Einstellungen", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(stringResource(de.smartzone.pocketclaude.R.string.title_settings), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -180,31 +182,47 @@ fun SettingsScreen(
             //  nur das auf, was er gerade braucht.
             // ═════════════════════════════════════════════════════════════
 
+            // Claude-Backend-Provider + Token-Usage — insert BEFORE TTS
             ExpandableSection(
-                title = "Vorlesen",
-                subtitle = "Provider, Stimme, Auto-Vorlesen",
+                title = stringResource(de.smartzone.pocketclaude.R.string.section_claude_connection),
+                subtitle = when (vm.claudeAuth.collectAsState().value?.mode) {
+                    "api_key" -> stringResource(de.smartzone.pocketclaude.R.string.claude_mode_api_key)
+                    "bedrock" -> stringResource(de.smartzone.pocketclaude.R.string.claude_mode_bedrock)
+                    else      -> stringResource(de.smartzone.pocketclaude.R.string.claude_mode_pro_max)
+                },
                 initiallyExpanded = false,
-                infoTitle = "Sprachausgabe — drei Setup-Pfade",
+            ) {
+                ClaudeAuthSection(vm = vm)
+            }
+
+            ExpandableSection(
+                title = stringResource(de.smartzone.pocketclaude.R.string.section_token_usage),
+                subtitle = stringResource(de.smartzone.pocketclaude.R.string.usage_this_month),
+                initiallyExpanded = false,
+            ) {
+                UsageStatsSection(vm = vm)
+            }
+
+            ExpandableSection(
+                title = stringResource(de.smartzone.pocketclaude.R.string.settings_section_vorlesen),
+                subtitle = stringResource(de.smartzone.pocketclaude.R.string.settings_subtitle_vorlesen),
+                initiallyExpanded = false,
+                infoTitle = stringResource(de.smartzone.pocketclaude.R.string.settings_info_tts_title),
                 infoBody = {
                     InfoParagraph(
-                        "Pocket Claude kann Claude-Antworten vorlesen lassen. Drei Provider " +
-                            "stehen zur Auswahl — von \"Zero-Setup\" bis \"Premium-Voice-Qualität\"."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_tts_intro)
                     )
                     InfoBulletParagraph(
-                        "Edge (Default, kein Setup):",
-                        "Microsoft-Edge-Vorlesestimmen. Komplett gratis, ohne API-Key oder " +
-                            "Service-Account. Klangqualität ist mechanischer als Gemini/Chirp, " +
-                            "aber perfekt um TTS sofort auszuprobieren."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_tts_edge_label),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_tts_edge_body)
                     )
                     InfoBulletParagraph(
-                        "Gemini API (mit AI-Studio-Key):",
-                        "Free Tier: 10 Calls/Tag pro Key — mit 1 Key knapp, mit Multi-Key-Pool " +
-                            "gut. Paid: $0,50/M Input + $10/M Audio-Output. Beste Modell-Inferenz."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_tts_gemini_label),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_tts_gemini_body)
                     )
                     InfoBulletParagraph(
-                        "Cloud TTS (mit Service-Account):",
-                        "1 Mio Zeichen/Monat KOSTENLOS bei Chirp 3 HD (≈ 20 h Audio). Beste " +
-                            "Voice-Qualität. Setup komplexer (Cloud-Projekt + Service-Account-JSON)."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_tts_cloud_label),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_tts_cloud_body)
                     )
                 },
             ) {
@@ -212,29 +230,27 @@ fun SettingsScreen(
             }
 
             ExpandableSection(
-                title = "Bilder generieren",
-                subtitle = "Gemini Nano Banana — Text-zu-Bild + Editing",
+                title = stringResource(de.smartzone.pocketclaude.R.string.settings_section_images_title),
+                subtitle = stringResource(de.smartzone.pocketclaude.R.string.settings_subtitle_images),
                 initiallyExpanded = false,
-                infoTitle = "Bild-Generierung einrichten",
+                infoTitle = stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_title),
                 infoBody = {
                     InfoParagraph(
-                        "Für die Bild-Generierung brauchst Du einen API-Key von Google AI " +
-                            "Studio. Der wird pro Profil server-seitig gespeichert und kann " +
-                            "optional auch für die Gemini-Sprachausgabe mitverwendet werden."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_intro)
                     )
-                    InfoBulletParagraph("1.", "https://aistudio.google.com → mit Google-Konto anmelden.")
+                    InfoBulletParagraph(stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_step1), stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_step1_body))
                     InfoBulletParagraph(
-                        "2.", "Links \"API keys\" → \"Create API key\". Key beginnt mit \"AIza…\"."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_step2),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_step2_body)
                     )
-                    InfoBulletParagraph("3.", "Key hier ins Feld unten kopieren.")
+                    InfoBulletParagraph(stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_step3), stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_step3_body))
                     InfoBulletParagraph(
-                        "Free Tier:",
-                        "Möglich ohne Kreditkarte (bei der Key-Erstellung „Create in new project\" " +
-                            "wählen). 15 Calls/Min, 1.500 Calls/Tag."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_free_label),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_free_body)
                     )
                     InfoBulletParagraph(
-                        "Paid Tier:",
-                        "Höhere Rate-Limits, kein Training. Nano-Banana ca. \$0.04/Bild."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_paid_label),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_images_paid_body)
                     )
                 },
             ) {
@@ -245,9 +261,7 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f),
                     ) {
                         Text(
-                            "💡 Derselbe Key funktioniert auch für die Gemini-TTS-Sprachausgabe " +
-                                "(Sektion „Vorlesen\"). Wenn dort kein separater Key eingetragen " +
-                                "ist, nutzt der Server automatisch diesen.",
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_images_shared_key_hint),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(10.dp),
                         )
@@ -259,9 +273,9 @@ fun SettingsScreen(
             ExpandableSection(
                 title = stringResource(de.smartzone.pocketclaude.R.string.section_appearance),
                 subtitle = when (settings.themeMode) {
-                    ThemeMode.SYSTEM -> "Theme: System"
-                    ThemeMode.LIGHT -> "Theme: Hell"
-                    ThemeMode.DARK -> "Theme: Dunkel"
+                    ThemeMode.SYSTEM -> stringResource(de.smartzone.pocketclaude.R.string.settings_theme_system)
+                    ThemeMode.LIGHT -> stringResource(de.smartzone.pocketclaude.R.string.settings_theme_light)
+                    ThemeMode.DARK -> stringResource(de.smartzone.pocketclaude.R.string.settings_theme_dark)
                 },
                 initiallyExpanded = false,
             ) {
@@ -271,42 +285,38 @@ fun SettingsScreen(
             }
 
             ExpandableSection(
-                title = "Daten sichern",
-                subtitle = "Chats + Einstellungen exportieren/importieren",
+                title = stringResource(de.smartzone.pocketclaude.R.string.settings_section_data),
+                subtitle = stringResource(de.smartzone.pocketclaude.R.string.settings_subtitle_data),
                 initiallyExpanded = false,
-                infoTitle = "Zwei verschiedene Backup-Typen",
+                infoTitle = stringResource(de.smartzone.pocketclaude.R.string.settings_data_info_title),
                 infoBody = {
                     InfoBulletParagraph(
-                        "Chat-Backup:",
-                        "Alle Konversationen + Anhänge als verschlüsseltes ZIP (AES-256). " +
-                            "Beim Import: \"Ersetzen\" überschreibt, \"Zusammenführen\" kombiniert."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_data_chat_backup_label),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_data_chat_backup_body)
                     )
                     InfoBulletParagraph(
-                        "Einstellungs-Backup:",
-                        "TTS-Provider, der komplette API-Key-Pool, Image-API-Key, Skills, " +
-                            "Voice, Theme, Effort, System-Prompt — als JSON. ACHTUNG: API-Keys " +
-                            "stehen im KLARTEXT drin, behandele die Datei wie ein Passwort."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_data_settings_backup_label),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_data_settings_backup_body)
                     )
                     InfoParagraph(
-                        "Beide Bundles enthalten KEINE Profile (Server-URL, Username, Token) — " +
-                            "die bleiben pro Gerät."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_data_no_profiles_body)
                     )
                 },
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     // Sub-Sektion: Chat-Backup
-                    SubsectionLabel("Konversationen (ZIP)")
+                    SubsectionLabel(stringResource(de.smartzone.pocketclaude.R.string.settings_data_subsection_chats))
                     BackupSection(vm = vm)
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     // Sub-Sektion: Settings-Backup
-                    SubsectionLabel("Einstellungen + API-Keys (JSON)")
+                    SubsectionLabel(stringResource(de.smartzone.pocketclaude.R.string.settings_data_subsection_settings))
                     SettingsTransferSection(vm = vm)
                 }
             }
 
             ExpandableSection(
-                title = "Über",
-                subtitle = "Pocket Claude",
+                title = stringResource(de.smartzone.pocketclaude.R.string.settings_section_about),
+                subtitle = stringResource(de.smartzone.pocketclaude.R.string.settings_subtitle_about),
                 initiallyExpanded = false,
             ) {
                 AboutCard()
@@ -339,24 +349,19 @@ private fun ProfileAndServerCard(
     val sessionOk = settings.serverToken.isNotBlank()
 
     SectionHeader(
-        text = "Profil & Server",
-        infoTitle = "Wie ist mein Handy mit dem Server verbunden?",
+        text = stringResource(de.smartzone.pocketclaude.R.string.settings_section_profile_card_title),
+        infoTitle = stringResource(de.smartzone.pocketclaude.R.string.settings_info_profile_server_title),
     ) {
         InfoParagraph(
-            "Jedes Profil ist ein eigener Server-Endpoint mit eigenem Username. " +
-                "Du kannst mehrere Profile parallel anlegen (z.B. zuhause + unterwegs) " +
-                "und unten in der Liste umschalten."
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_profile_server_para1)
         )
         InfoBulletParagraph(
-            "Server-URL:",
-            "Wenn der Server auf Deinem Mac läuft, startet er normalerweise einen " +
-                "Cloudflare-Quick-Tunnel mit URL wie https://abc-xyz-123.trycloudflare.com. " +
-                "Im Heim-WLAN geht auch http://<Mac-IP>:8787."
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_profile_server_url_label),
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_profile_server_url_body)
         )
         InfoBulletParagraph(
-            "Anmeldung:",
-            "Erst-Login mit dem Initial-Passwort des Server-Admins. Server zwingt " +
-                "Dich dann zu einem eigenen Passwort. Kein API-Key aufs Handy."
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_profile_server_login_label),
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_profile_server_login_body)
         )
     }
 
@@ -374,8 +379,8 @@ private fun ProfileAndServerCard(
             OutlinedTextField(
                 value = settings.serverUrl,
                 onValueChange = vm::setServerUrl,
-                label = { Text("Server-URL") },
-                placeholder = { Text("https://pocket-claude.deine-domain.de") },
+                label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_server_url_label)) },
+                placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_server_url_placeholder)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -392,18 +397,18 @@ private fun ProfileAndServerCard(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
-                    "Benutzername",
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_username),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    activeUsername.ifBlank { "(noch nicht angemeldet)" },
+                    activeUsername.ifBlank { stringResource(de.smartzone.pocketclaude.R.string.settings_not_logged_in) },
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (activeUsername.isNotBlank()) FW.Medium else FW.Normal,
                 )
                 Text(
-                    if (sessionOk) "✓ Session aktiv"
-                    else "Nicht angemeldet — bitte unten anmelden.",
+                    if (sessionOk) stringResource(de.smartzone.pocketclaude.R.string.settings_session_active)
+                    else stringResource(de.smartzone.pocketclaude.R.string.settings_not_logged_in_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (sessionOk) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.error,
@@ -419,20 +424,20 @@ private fun ProfileAndServerCard(
                     onClick = vm::testConnection,
                     enabled = settings.isConfigured && testResult !is ConnectionTestResult.Testing,
                     shape = RoundedCornerShape(12.dp),
-                ) { Text("Verbindung testen") }
+                ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_test_connection)) }
                 FilledTonalButton(
                     onClick = { reLoginOpen = true },
                     enabled = activeUsername.isNotBlank() && settings.serverUrl.isNotBlank(),
                     shape = RoundedCornerShape(12.dp),
-                ) { Text(if (sessionOk) "Neu anmelden" else "Anmelden") }
+                ) { Text(if (sessionOk) stringResource(de.smartzone.pocketclaude.R.string.settings_relogin) else stringResource(de.smartzone.pocketclaude.R.string.settings_login)) }
                 FilledTonalButton(
                     onClick = { changePwOpen = true },
                     enabled = sessionOk,
                     shape = RoundedCornerShape(12.dp),
-                ) { Text("Passwort ändern") }
+                ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_change_password)) }
                 if (sessionOk) {
                     TextButton(onClick = { vm.logoutActiveProfile() }) {
-                        Text("Abmelden", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(de.smartzone.pocketclaude.R.string.settings_logout), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -459,27 +464,20 @@ private fun ClaudeBehaviorCard(
     settings: de.smartzone.pocketclaude.data.AppSettings,
 ) {
     SectionHeader(
-        text = "Claude",
-        infoTitle = "Denktiefe, Persona, Skills",
+        text = stringResource(de.smartzone.pocketclaude.R.string.settings_section_claude_card_title),
+        infoTitle = stringResource(de.smartzone.pocketclaude.R.string.settings_info_claude_title),
     ) {
         InfoBulletParagraph(
-            "Denktiefe:",
-            "Wie ausführlich Claude vor der Antwort intern reasoned. Höher = bessere " +
-                "Qualität bei komplexen Fragen, längere Wartezeit. `xhigh` ist Opus-4.7-only " +
-                "und liegt zwischen `high` und `max`."
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_claude_effort_label),
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_claude_effort_body)
         )
         InfoBulletParagraph(
-            "System-Prompt:",
-            "Standard = Anthropic-Default wie auf claude.ai. Freizügig = neutrale Adult-" +
-                "to-Adult-Variante mit weniger Hedging. Ultra-Liberal = minimaler Refusal-" +
-                "Layer, nur harte Hard-Limits (Minor-Safety, Illegal-Synthesis/Malware). " +
-                "Eigener = komplett selbst vorgegeben."
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_claude_prompt_label),
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_claude_prompt_body)
         )
         InfoBulletParagraph(
-            "Skills:",
-            "Welche Tools darf Claude nutzen — WebSearch, WebFetch, Code-Ausführung. " +
-                "Diese Werte sind der Standard für neue Chats. Pro-Chat-Override via ⋮-Menü " +
-                "oben rechts im Chat."
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_claude_skills_label),
+            stringResource(de.smartzone.pocketclaude.R.string.settings_info_claude_skills_body)
         )
     }
     Card(
@@ -489,7 +487,7 @@ private fun ClaudeBehaviorCard(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             // Denktiefe
-            SubsectionLabel("Denktiefe")
+            SubsectionLabel(stringResource(de.smartzone.pocketclaude.R.string.settings_subsection_effort))
             EffortChips(
                 selected = settings.effort,
                 onSelect = vm::setEffort,
@@ -498,7 +496,7 @@ private fun ClaudeBehaviorCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             // System-Prompt
-            SubsectionLabel("System-Prompt")
+            SubsectionLabel(stringResource(de.smartzone.pocketclaude.R.string.settings_subsection_system_prompt))
             SystemPromptModeChips(
                 selected = settings.systemPromptMode,
                 onSelect = vm::setSystemPromptMode,
@@ -507,15 +505,15 @@ private fun ClaudeBehaviorCard(
                 OutlinedTextField(
                     value = settings.customSystemPrompt,
                     onValueChange = vm::setCustomSystemPrompt,
-                    label = { Text("Eigener System-Prompt") },
-                    placeholder = { Text("Hier kompletten System-Prompt einfügen…") },
+                    label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_custom_system_prompt_label)) },
+                    placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_custom_system_prompt_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 4,
                     maxLines = 14,
                     shape = RoundedCornerShape(14.dp),
                 )
                 Text(
-                    "Leer = Standard-Prompt greift.",
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_custom_system_prompt_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -524,7 +522,7 @@ private fun ClaudeBehaviorCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             // Skills (Default für alle neuen Chats)
-            SubsectionLabel("Skills — Standard für neue Chats")
+            SubsectionLabel(stringResource(de.smartzone.pocketclaude.R.string.settings_subsection_skills_defaults))
             SkillsDefaultsSection(vm = vm)
         }
     }
@@ -542,7 +540,7 @@ private fun ThemeCard(
         shape = RoundedCornerShape(20.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SubsectionLabel("Theme")
+            SubsectionLabel(stringResource(de.smartzone.pocketclaude.R.string.settings_theme_label))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeMode.entries.forEach { mode ->
                     FilterChip(
@@ -551,9 +549,9 @@ private fun ThemeCard(
                         label = {
                             Text(
                                 when (mode) {
-                                    ThemeMode.SYSTEM -> "System"
-                                    ThemeMode.LIGHT -> "Hell"
-                                    ThemeMode.DARK -> "Dunkel"
+                                    ThemeMode.SYSTEM -> stringResource(de.smartzone.pocketclaude.R.string.theme_system)
+                                    ThemeMode.LIGHT -> stringResource(de.smartzone.pocketclaude.R.string.settings_light)
+                                    ThemeMode.DARK -> stringResource(de.smartzone.pocketclaude.R.string.settings_dark)
                                 }
                             )
                         },
@@ -572,12 +570,11 @@ private fun ThemeCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Lange eigene Nachrichten einklappen",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_collapse_long_user_messages),
                         style = MaterialTheme.typography.titleSmall,
                     )
                     Text(
-                        "Ab ~6 Zeilen wird Dein Input abgeschnitten mit „Mehr anzeigen\". Spart " +
-                            "Scrollarbeit beim Lesen langer Antworten. Tap auf die Bubble klappt sie auf.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_collapse_long_user_messages_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -658,6 +655,264 @@ private fun LanguageCard() {
     }
 }
 
+/**
+ * Provider picker for the Claude backend (Pro/Max OAuth | Anthropic API |
+ * AWS Bedrock). Per-user setting. Pro/Max is the default and needs no
+ * credentials — the others reveal their respective form fields.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ClaudeAuthSection(vm: SettingsViewModel) {
+    val auth by vm.claudeAuth.collectAsState()
+    val busy by vm.claudeAuthBusy.collectAsState()
+    val current = auth?.mode ?: "pro_max"
+
+    val modes = listOf(
+        "pro_max" to stringResource(de.smartzone.pocketclaude.R.string.claude_mode_pro_max),
+        "api_key" to stringResource(de.smartzone.pocketclaude.R.string.claude_mode_api_key),
+        "bedrock" to stringResource(de.smartzone.pocketclaude.R.string.claude_mode_bedrock),
+    )
+
+    var apiKeyInput by remember(auth?.apiKeyMasked) { mutableStateOf("") }
+    var awsRegion by remember(auth?.awsRegion) { mutableStateOf(auth?.awsRegion.orEmpty()) }
+    var awsAkid by remember(auth?.awsAccessKeyIdMasked) { mutableStateOf("") }
+    var awsSecret by remember(auth?.awsSecretAccessKeyMasked) { mutableStateOf("") }
+    var awsSession by remember(auth?.awsSessionTokenMasked) { mutableStateOf("") }
+    var opusModel by remember(auth?.bedrockOpusModel) { mutableStateOf(auth?.bedrockOpusModel.orEmpty()) }
+    var sonnetModel by remember(auth?.bedrockSonnetModel) { mutableStateOf(auth?.bedrockSonnetModel.orEmpty()) }
+    var haikuModel by remember(auth?.bedrockHaikuModel) { mutableStateOf(auth?.bedrockHaikuModel.orEmpty()) }
+    var aliasMenuOpen by remember { mutableStateOf(false) }
+    val alias = auth?.bedrockModelAlias ?: "opus"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                modes.forEachIndexed { idx, (key, label) ->
+                    SegmentedButton(
+                        selected = current == key,
+                        onClick = {
+                            vm.updateClaudeAuth(ClaudeAuthUpdateRequest(mode = key))
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index = idx, count = modes.size),
+                    ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                }
+            }
+
+            // Hint per mode
+            val hintRes = when (current) {
+                "api_key" -> de.smartzone.pocketclaude.R.string.claude_mode_api_key_hint
+                "bedrock" -> de.smartzone.pocketclaude.R.string.claude_mode_bedrock_hint
+                else      -> de.smartzone.pocketclaude.R.string.claude_mode_pro_max_hint
+            }
+            Text(
+                stringResource(hintRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            when (current) {
+                "api_key" -> {
+                    val currentLabel = if (auth?.apiKeySet == true) auth?.apiKeyMasked
+                        else stringResource(de.smartzone.pocketclaude.R.string.not_configured)
+                    Text(
+                        stringResource(de.smartzone.pocketclaude.R.string.current_value_label, currentLabel.orEmpty()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = apiKeyInput,
+                        onValueChange = { apiKeyInput = it },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.anthropic_api_key)) },
+                        placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.anthropic_api_key_hint)) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            enabled = !busy && apiKeyInput.isNotBlank(),
+                            onClick = {
+                                vm.updateClaudeAuth(ClaudeAuthUpdateRequest(apiKey = apiKeyInput.trim()))
+                                apiKeyInput = ""
+                            },
+                        ) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_save)) }
+                        TextButton(
+                            enabled = !busy && auth?.apiKeySet == true,
+                            onClick = { vm.updateClaudeAuth(ClaudeAuthUpdateRequest(apiKey = "")) },
+                        ) { Text(stringResource(de.smartzone.pocketclaude.R.string.clear)) }
+                    }
+                }
+
+                "bedrock" -> {
+                    OutlinedTextField(
+                        value = awsRegion,
+                        onValueChange = { awsRegion = it },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.aws_region)) },
+                        placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.aws_region_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    val akidCurrent = if (auth?.awsAccessKeySet == true) auth?.awsAccessKeyIdMasked
+                        else stringResource(de.smartzone.pocketclaude.R.string.not_configured)
+                    Text(
+                        stringResource(de.smartzone.pocketclaude.R.string.current_value_label, akidCurrent.orEmpty()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = awsAkid,
+                        onValueChange = { awsAkid = it },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.aws_access_key_id)) },
+                        placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.aws_access_key_id_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = awsSecret,
+                        onValueChange = { awsSecret = it },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.aws_secret_access_key)) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = awsSession,
+                        onValueChange = { awsSession = it },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.aws_session_token)) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = opusModel,
+                        onValueChange = { opusModel = it },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.bedrock_opus_model)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = sonnetModel,
+                        onValueChange = { sonnetModel = it },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.bedrock_sonnet_model)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = haikuModel,
+                        onValueChange = { haikuModel = it },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.bedrock_haiku_model)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    // Default-model alias picker
+                    SubsectionLabel(stringResource(de.smartzone.pocketclaude.R.string.bedrock_model_alias))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            "opus" to stringResource(de.smartzone.pocketclaude.R.string.bedrock_alias_opus),
+                            "sonnet" to stringResource(de.smartzone.pocketclaude.R.string.bedrock_alias_sonnet),
+                            "haiku" to stringResource(de.smartzone.pocketclaude.R.string.bedrock_alias_haiku),
+                        ).forEach { (key, label) ->
+                            FilterChip(
+                                selected = alias == key,
+                                onClick = {
+                                    vm.updateClaudeAuth(ClaudeAuthUpdateRequest(bedrockModelAlias = key))
+                                },
+                                label = { Text(label) },
+                                shape = RoundedCornerShape(12.dp),
+                            )
+                        }
+                    }
+
+                    Button(
+                        enabled = !busy,
+                        onClick = {
+                            vm.updateClaudeAuth(
+                                ClaudeAuthUpdateRequest(
+                                    awsRegion = awsRegion.trim().ifBlank { null },
+                                    awsAccessKeyId = awsAkid.trim().ifBlank { null },
+                                    awsSecretAccessKey = awsSecret.trim().ifBlank { null },
+                                    awsSessionToken = awsSession.trim().ifBlank { null },
+                                    bedrockOpusModel = opusModel.trim().ifBlank { null },
+                                    bedrockSonnetModel = sonnetModel.trim().ifBlank { null },
+                                    bedrockHaikuModel = haikuModel.trim().ifBlank { null },
+                                ),
+                            )
+                            awsAkid = ""; awsSecret = ""; awsSession = ""
+                        },
+                    ) { Text(stringResource(de.smartzone.pocketclaude.R.string.apply)) }
+                }
+            }
+        }
+    }
+}
+
+/** Token-usage widget: this-month aggregate fetched from /me/usage. */
+@Composable
+private fun UsageStatsSection(vm: SettingsViewModel) {
+    val usage by vm.usage.collectAsState()
+    val auth by vm.claudeAuth.collectAsState()
+    val isProMax = (auth?.mode ?: "pro_max") == "pro_max"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (usage == null) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+            } else {
+                val u = usage!!
+                UsageRow(stringResource(de.smartzone.pocketclaude.R.string.usage_input), u.inputTokens)
+                UsageRow(stringResource(de.smartzone.pocketclaude.R.string.usage_output), u.outputTokens)
+                UsageRow(stringResource(de.smartzone.pocketclaude.R.string.usage_cache_create), u.cacheCreateTokens)
+                UsageRow(stringResource(de.smartzone.pocketclaude.R.string.usage_cache_read), u.cacheReadTokens)
+                UsageRow(stringResource(de.smartzone.pocketclaude.R.string.usage_requests), u.requestCount)
+                if (u.provider.isNotEmpty()) {
+                    UsageRowText(stringResource(de.smartzone.pocketclaude.R.string.usage_provider), u.provider)
+                }
+                if (isProMax) {
+                    Text(
+                        stringResource(de.smartzone.pocketclaude.R.string.usage_pro_max_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            TextButton(onClick = { vm.refreshUsage() }) {
+                Text(stringResource(de.smartzone.pocketclaude.R.string.usage_refresh))
+            }
+        }
+    }
+}
+
+@Composable
+private fun UsageRow(label: String, value: Long) {
+    UsageRowText(label, formatNumber(value))
+}
+
+@Composable
+private fun UsageRowText(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FW.Medium)
+    }
+}
+
+private fun formatNumber(n: Long): String {
+    if (n < 1_000) return n.toString()
+    if (n < 1_000_000) return "%.1fK".format(n / 1_000.0)
+    return "%.2fM".format(n / 1_000_000.0)
+}
+
 /** Über-Sektion — minimal, nur App-Name + Beschreibung. */
 @Composable
 private fun AboutCard() {
@@ -668,11 +923,11 @@ private fun AboutCard() {
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(
-                "Pocket Claude",
+                stringResource(de.smartzone.pocketclaude.R.string.app_name),
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                "Persönliches Chat-Frontend für Deinen Pocket-Claude-Server.",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_about_app_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -758,10 +1013,10 @@ private fun SystemPromptModeChips(
     onSelect: (SystemPromptMode) -> Unit,
 ) {
     val options = listOf(
-        SystemPromptMode.STANDARD to "Standard (Anthropic)",
-        SystemPromptMode.PERMISSIVE to "Freizügig",
-        SystemPromptMode.ULTRA_LIBERAL to "Ultra-Liberal",
-        SystemPromptMode.CUSTOM to "Eigener Prompt",
+        SystemPromptMode.STANDARD to stringResource(de.smartzone.pocketclaude.R.string.settings_sysprompt_standard),
+        SystemPromptMode.PERMISSIVE to stringResource(de.smartzone.pocketclaude.R.string.settings_sysprompt_permissive),
+        SystemPromptMode.ULTRA_LIBERAL to stringResource(de.smartzone.pocketclaude.R.string.settings_sysprompt_ultra_liberal),
+        SystemPromptMode.CUSTOM to stringResource(de.smartzone.pocketclaude.R.string.settings_sysprompt_custom),
     )
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -808,23 +1063,23 @@ private fun QuickSetupBanner(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                "Einrichtung",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_quick_setup_header),
                 style = MaterialTheme.typography.titleSmall,
             )
             QuickSetupRow(
                 done = hasProfile,
-                text = if (hasProfile) "Profil angelegt" else "Profil hinzufügen (unten)",
+                text = if (hasProfile) stringResource(de.smartzone.pocketclaude.R.string.settings_quick_setup_profile_added) else stringResource(de.smartzone.pocketclaude.R.string.settings_quick_setup_profile_add),
             )
             QuickSetupRow(
                 done = isLoggedIn,
-                text = if (isLoggedIn) "Server-Login aktiv"
-                    else if (hasProfile) "Mit Server-Konto anmelden (unten)"
-                    else "Anmelden — kommt nach Schritt 1",
+                text = if (isLoggedIn) stringResource(de.smartzone.pocketclaude.R.string.settings_quick_setup_login_active)
+                    else if (hasProfile) stringResource(de.smartzone.pocketclaude.R.string.settings_quick_setup_login_needed)
+                    else stringResource(de.smartzone.pocketclaude.R.string.settings_quick_setup_login_pending),
             )
             QuickSetupRow(
                 done = ttsReady,
-                text = if (ttsReady) "Vorlesen einsatzbereit"
-                    else "Vorlesen — optional, Edge-Default braucht kein Setup",
+                text = if (ttsReady) stringResource(de.smartzone.pocketclaude.R.string.settings_quick_setup_tts_ready)
+                    else stringResource(de.smartzone.pocketclaude.R.string.settings_quick_setup_tts_optional),
             )
         }
     }
@@ -904,7 +1159,7 @@ private fun ExpandableSection(
             }
             Icon(
                 imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = if (expanded) "Einklappen" else "Aufklappen",
+                contentDescription = if (expanded) stringResource(de.smartzone.pocketclaude.R.string.settings_collapse) else stringResource(de.smartzone.pocketclaude.R.string.settings_expand),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -977,7 +1232,7 @@ private fun TtsSection(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
 
             Text(
-                "Provider & Setup",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_setup_title),
                 style = MaterialTheme.typography.titleMedium,
             )
 
@@ -985,30 +1240,24 @@ private fun TtsSection(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Provider",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_label),
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.weight(1f),
                     )
                     InfoButton(
-                        title = "TTS-Provider — drei Optionen",
+                        title = stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_info_title),
                     ) {
                         InfoBulletParagraph(
-                            "Edge (Default, kein Setup):",
-                            "Microsoft Edge's Vorlesestimmen. Komplett gratis, " +
-                                "kein API-Key, kein Service-Account. Klangqualität schwächer als " +
-                                "Gemini/Chirp, aber für schnelles Vorlesen völlig okay."
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_edge_label),
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_edge_body)
                         )
                         InfoBulletParagraph(
-                            "Gemini API:",
-                            "API-Key von Google AI Studio. Free Tier: 10 Calls/Tag pro Key — " +
-                                "mit 1 Key sehr begrenzt, mit Multi-Key-Pool nutzbar. Paid: " +
-                                "$0,50/1M Input + $10/1M Audio-Output. Beste Modell-Inferenz."
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_gemini_label),
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_gemini_body)
                         )
                         InfoBulletParagraph(
-                            "Cloud TTS:",
-                            "Service-Account-JSON von Google Cloud. 1 Mio Zeichen/Monat gratis " +
-                                "(~20h Audio) mit Chirp 3 HD. Beste Voice-Quality-Bandbreite, " +
-                                "Setup komplexer (Cloud-Projekt + Service-Account)."
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_cloud_label),
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_cloud_body)
                         )
                     }
                 }
@@ -1052,58 +1301,39 @@ private fun TtsSection(
                 val chunkOn = ttsStatus?.chunkingEnabled ?: false
                 val hint = when {
                     isEdge -> Hint(
-                        "✓ Edge-TTS aktiv — gratis, kein Setup. Klangqualität ist standard " +
-                            "(Microsoft-Edge-Stimmen). Für mehr Qualität später auf Gemini API " +
-                            "oder Cloud TTS wechseln.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_status_edge_active),
                         emphasis = false,
                     )
                     isGemini && keyCount >= 2 && chunkOn -> Hint(
-                        "✓ $keyCount Keys im Pool, Chunking AN. Pro Antwort wird der Text " +
-                            "in mehrere parallele Chunks gesplittet — diese werden per " +
-                            "Round-Robin auf alle Keys verteilt. Effektiver Burst: " +
-                            "≈${keyCount * 3} parallele TTS-Calls (3 RPM pro Key). Schnellster " +
-                            "Stream-Start, aber verbraucht das Tageskontingent rasch.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_status_gemini_pool_chunk_on, keyCount, keyCount * 3),
                         emphasis = false,
                     )
                     isGemini && keyCount >= 2 && !chunkOn -> Hint(
-                        "✓ $keyCount Keys im Pool, Chunking AUS. Pro Antwort wird genau " +
-                            "1 Key (Round-Robin reihum) verwendet — also keine Burst-Auslastung. " +
-                            "Schonend fürs Tageskontingent. Chunking unten anschalten, " +
-                            "wenn Du den schnelleren Stream-Start willst.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_status_gemini_pool_chunk_off, keyCount),
                         emphasis = false,
                     )
                     isGemini && ttsStatus?.geminiApiConfigured == true && keySource == "tts" -> Hint(
-                        "✓ Gemini API mit 1 TTS-Key. Free-Tier: 3 RPM / 10 RPD pro Key. " +
-                            "Mit Chunking AN (s.u.) brennt eine lange Antwort das Tagesbudget " +
-                            "schnell ab. Weitere Keys unten hinzufügen für mehr Throughput.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_status_gemini_1key_tts),
                         emphasis = false,
                     )
                     isGemini && ttsStatus?.geminiApiConfigured == true && keySource == "image" -> Hint(
-                        "ⓘ Aktuell wird der Bilder-API-Key für TTS mitgenutzt. Trag unten " +
-                            "einen separaten Free-Tier-Key (oder mehrere) ein, damit TTS- und " +
-                            "Image-Quota nicht konkurrieren.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_status_gemini_image_shared),
                         emphasis = false,
                     )
                     isGemini -> Hint(
-                        "⚠ Kein API-Key gesetzt. Trag unten Deinen AI-Studio-Key ein " +
-                            "(Free-Tier reicht, siehe ⓘ neben dem Feld).",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_status_gemini_no_key),
                         emphasis = true,
                     )
                     isCloud && ttsStatus?.cloudTtsConfigured == true && chunkOn -> Hint(
-                        "✓ Cloud TTS aktiv + Chunking AN. 1 Mio Zeichen/Monat Free " +
-                            "(Chirp 3 HD), keine relevante RPM-Bremse — Chunking bringt " +
-                            "schnelleren Stream-Start ohne Nachteile.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_status_cloud_chunk_on),
                         emphasis = false,
                     )
                     isCloud && ttsStatus?.cloudTtsConfigured == true -> Hint(
-                        "✓ Cloud TTS aktiv. 1 Mio Zeichen/Monat Free (Chirp 3 HD). " +
-                            "Du könntest Chunking aktivieren (s.u.) — bringt bei Cloud TTS " +
-                            "schnelleren Stream-Start ohne Limit-Risiko.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_status_cloud_ok),
                         emphasis = false,
                     )
                     else -> Hint(
-                        "⚠ Kein Service-Account-JSON geladen. Admin muss eines in der " +
-                            "Server-GUI hochladen (Cloud-Projekt mit aktivem Billing-Account).",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_status_cloud_no_json),
                         emphasis = true,
                     )
                 }
@@ -1125,18 +1355,20 @@ private fun TtsSection(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Chunking (parallele Audio-Synthese)",
+                                stringResource(de.smartzone.pocketclaude.R.string.settings_tts_chunking_label),
                                 style = MaterialTheme.typography.titleSmall,
                             )
+                            val ttsCloudLabel = stringResource(de.smartzone.pocketclaude.R.string.settings_tts_for_cloud_tts)
+                            val ttsGeminiRateHint = stringResource(de.smartzone.pocketclaude.R.string.settings_tts_gemini_rate_hint)
                             val sub = when {
                                 chunkingExplicit && chunkOn ->
-                                    "Manuell aktiviert."
+                                    stringResource(de.smartzone.pocketclaude.R.string.settings_tts_chunking_manual_on)
                                 chunkingExplicit && !chunkOn ->
-                                    "Manuell deaktiviert."
+                                    stringResource(de.smartzone.pocketclaude.R.string.settings_tts_chunking_manual_off)
                                 chunkOn ->
-                                    "Auto-Default: AN (für ${if (isCloud) "Cloud TTS" else provider})."
+                                    stringResource(de.smartzone.pocketclaude.R.string.settings_tts_auto_default_on, if (isCloud) ttsCloudLabel else provider)
                                 else ->
-                                    "Auto-Default: AUS (für ${if (isGemini) "Gemini API — schont 10 RPD/Key" else provider})."
+                                    stringResource(de.smartzone.pocketclaude.R.string.settings_tts_auto_default_off, if (isGemini) ttsGeminiRateHint else provider)
                             }
                             Text(
                                 sub,
@@ -1144,25 +1376,17 @@ private fun TtsSection(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        InfoButton(title = "Was ist Chunking?") {
+                        InfoButton(title = stringResource(de.smartzone.pocketclaude.R.string.settings_tts_chunking_info_title)) {
                             InfoParagraph(
-                                "Lange Antworten werden in Teile aufgeteilt und parallel " +
-                                    "an die TTS-API geschickt. Das Audio startet schneller, " +
-                                    "weil der erste Chunk schon spielt während die anderen " +
-                                    "noch synthetisiert werden."
+                                stringResource(de.smartzone.pocketclaude.R.string.settings_tts_chunking_info_intro)
                             )
                             InfoBulletParagraph(
-                                "Bei Cloud TTS:",
-                                "Empfohlen AN — kein nennenswertes Rate-Limit, schnellerer " +
-                                    "Stream-Start ohne Nachteile."
+                                stringResource(de.smartzone.pocketclaude.R.string.settings_tts_chunking_info_cloud_label),
+                                stringResource(de.smartzone.pocketclaude.R.string.settings_tts_chunking_info_cloud_body)
                             )
                             InfoBulletParagraph(
-                                "Bei Gemini API:",
-                                "Default AUS. Jeder Chunk = ein API-Call. Bei Free-Tier-Keys " +
-                                    "(10 RPD pro Key) verbraucht eine gechunkte Antwort schnell " +
-                                    "das Tagesbudget. Mit großem Multi-Key-Pool kannst Du es " +
-                                    "manuell aktivieren — dann verteilt der Server die Chunks " +
-                                    "per Round-Robin auf alle Keys."
+                                stringResource(de.smartzone.pocketclaude.R.string.settings_tts_chunking_info_gemini_label),
+                                stringResource(de.smartzone.pocketclaude.R.string.settings_tts_chunking_info_gemini_body)
                             )
                         }
                         Switch(
@@ -1176,7 +1400,7 @@ private fun TtsSection(
                             onClick = { vm.setTtsChunking(null) },
                             enabled = !ttsBusy,
                         ) {
-                            Text("Zurück auf Auto-Default")
+                            Text(stringResource(de.smartzone.pocketclaude.R.string.settings_tts_back_to_default))
                         }
                     }
                 }
@@ -1200,9 +1424,7 @@ private fun TtsSection(
                     color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f),
                 ) {
                     Text(
-                        "💡 Tipp: Der TTS-Key kann derselbe AI-Studio-Key wie der für Bilder " +
-                            "sein. Wenn Du hier keinen einträgst, nutzt der Server automatisch " +
-                            "den Bilder-Key (siehe Sektion „Bilder\" unten).",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_image_shared_key_tip),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(10.dp),
                     )
@@ -1224,8 +1446,8 @@ private fun TtsSection(
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            if (configured) "Aktueller Provider bereit"
-                            else "Aktueller Provider nicht einsatzbereit",
+                            if (configured) stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_ready)
+                            else stringResource(de.smartzone.pocketclaude.R.string.settings_tts_provider_not_ready),
                             style = MaterialTheme.typography.titleSmall,
                         )
                         if (configured && isCloud) {
@@ -1242,7 +1464,7 @@ private fun TtsSection(
                     // Lösch-Button für Cloud-TTS-Credentials nur bei Cloud-Provider.
                     if (ttsStatus?.cloudTtsConfigured == true && isCloud) {
                         IconButton(onClick = { vm.deleteTtsCredentials() }, enabled = !ttsBusy) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Cloud-TTS-Credentials entfernen")
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.settings_tts_remove_credentials))
                         }
                     }
                 }
@@ -1265,13 +1487,13 @@ private fun TtsSection(
                     }
                     Icon(Icons.Filled.Upload, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (ttsStatus?.cloudTtsConfigured == true) "Cloud-TTS-Credentials ersetzen" else "Cloud-TTS Service-Account-JSON einfügen")
+                    Text(if (ttsStatus?.cloudTtsConfigured == true) stringResource(de.smartzone.pocketclaude.R.string.settings_tts_replace_cloud_credentials) else stringResource(de.smartzone.pocketclaude.R.string.settings_tts_paste_cloud_credentials))
                 }
             }
 
             if (!settings.isConfigured) {
                 Text(
-                    "Bitte erst Server-URL und Token speichern, dann kannst Du das TTS-JSON hochladen.",
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_tts_need_server_config),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1283,7 +1505,7 @@ private fun TtsSection(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
-                TextButton(onClick = vm::clearTtsError) { Text("OK") }
+                TextButton(onClick = vm::clearTtsError) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_ok)) }
             }
 
             // Cloud-Billing-Widget: Spend, Budget, AI-Pro-Credit-Restwert.
@@ -1306,7 +1528,7 @@ private fun TtsSection(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
 
             Text(
-                "Stimme & Wiedergabe",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_voice_playback_title),
                 style = MaterialTheme.typography.titleMedium,
             )
 
@@ -1331,11 +1553,11 @@ private fun TtsSection(
                         provider !in currentVoice.compatible_providers
                     OutlinedTextField(
                         value = if (currentVoiceIncompatible)
-                            "⚠ ${currentVoice.label} (nicht mit $provider kompatibel)"
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_voice_incompatible, currentVoice.label, provider)
                         else currentVoice?.label ?: settings.ttsVoice,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Stimme") },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_label)) },
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = voiceMenuOpen)
                         },
@@ -1350,13 +1572,13 @@ private fun TtsSection(
                     ) {
                         val tierOrder = listOf("edge", "gemini", "chirp3hd", "studio", "neural2", "wavenet", "standard")
                         val tierLabels = mapOf(
-                            "edge" to "Edge (gratis, kein Setup nötig)",
-                            "gemini" to "Gemini (KI-Stimmen — Modell unten wählbar)",
-                            "chirp3hd" to "Chirp 3 HD (1 Mio Zeichen/Monat gratis, dann 30 \$/M)",
-                            "studio" to "Studio (Premium — 1 Mio Zeichen/Monat gratis, dann 160 \$/M)",
-                            "neural2" to "Neural2 (1 Mio gratis, dann 16 \$/M)",
-                            "wavenet" to "Wavenet (4 Mio gratis, dann 4 \$/M)",
-                            "standard" to "Standard (4 Mio gratis, dann 4 \$/M)",
+                            "edge" to stringResource(de.smartzone.pocketclaude.R.string.settings_tier_label_edge),
+                            "gemini" to stringResource(de.smartzone.pocketclaude.R.string.settings_tier_label_gemini),
+                            "chirp3hd" to stringResource(de.smartzone.pocketclaude.R.string.settings_tier_label_chirp3hd),
+                            "studio" to stringResource(de.smartzone.pocketclaude.R.string.settings_tier_label_studio),
+                            "neural2" to stringResource(de.smartzone.pocketclaude.R.string.settings_tier_label_neural2),
+                            "wavenet" to stringResource(de.smartzone.pocketclaude.R.string.settings_tier_label_wavenet),
+                            "standard" to stringResource(de.smartzone.pocketclaude.R.string.settings_tier_label_standard),
                         )
                         val grouped = voices.groupBy { it.tier }
                         val orderedTiers = tierOrder.filter { grouped.containsKey(it) } +
@@ -1390,12 +1612,12 @@ private fun TtsSection(
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Geschwindigkeit",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_speed_label),
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        "${"%.2f".format(settings.ttsSpeed)}x",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_speed_value, "%.2f".format(settings.ttsSpeed)),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -1419,11 +1641,11 @@ private fun TtsSection(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text("0,25x", style = MaterialTheme.typography.bodySmall,
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_speed_min), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("1,00x", style = MaterialTheme.typography.bodySmall,
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_speed_one), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("2,00x", style = MaterialTheme.typography.bodySmall,
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_speed_max), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -1434,9 +1656,9 @@ private fun TtsSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Antworten automatisch vorlesen", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_auto_speak_label), style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "Sobald Claude antwortet, startet die Wiedergabe — bequem im Auto / unterwegs.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_auto_speak_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1457,7 +1679,7 @@ private fun TtsSection(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Test-Vorlesung")
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_tts_test_btn))
                 }
                 Spacer(Modifier.width(8.dp))
                 FilledTonalButton(
@@ -1466,7 +1688,7 @@ private fun TtsSection(
                 ) {
                     Icon(Icons.Filled.Stop, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Stopp")
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_tts_stop_btn))
                 }
             }
             when (val t = ttsTest) {
@@ -1501,7 +1723,7 @@ private fun TtsSection(
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(
-                    "Gemini-TTS-Modell",
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_gemini_tts_model_title),
                     style = MaterialTheme.typography.titleMedium,
                 )
                 run {
@@ -1511,28 +1733,25 @@ private fun TtsSection(
                 val currentModel = availableModels.firstOrNull { it.id == currentModelId }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "TTS-Modell",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_tts_model_label),
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f),
                     )
-                    InfoButton(title = "TTS-Modell wählen") {
+                    InfoButton(title = stringResource(de.smartzone.pocketclaude.R.string.settings_tts_model_picker_title)) {
                         InfoParagraph(
-                            "Das Modell bestimmt die Generation der Gemini-TTS-Engine. " +
-                                "Die Stimme klingt je nach Modell unterschiedlich — Pacing, " +
-                                "Pitch-Stabilität und Emotional-Range variieren."
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_model_picker_intro)
                         )
                         InfoBulletParagraph(
-                            "Gemini 2.5 Flash TTS:",
-                            "Aktueller Default. Sehr gute Qualität, am günstigsten."
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_model_25_flash_label),
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_model_25_flash_body)
                         )
                         InfoBulletParagraph(
-                            "Gemini 3.1 Flash TTS:",
-                            "Neuere Generation, lebendiger. Free-Tier-Limit: 10 Calls/Tag/Key."
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_model_31_flash_label),
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_model_31_flash_body)
                         )
                         InfoBulletParagraph(
-                            "Gemini 2.5 Pro TTS:",
-                            "Pro-Modell, langsamer + teurer. Nur wählen wenn der Mehrpreis " +
-                                "tatsächlich hörbar besser klingt."
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_model_25_pro_label),
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_tts_model_25_pro_body)
                         )
                     }
                 }
@@ -1546,7 +1765,7 @@ private fun TtsSection(
                         value = currentModel?.label ?: currentModelId,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Modell") },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_model_label)) },
                         supportingText = {
                             if (priceText.isNotEmpty()) Text(priceText)
                         },
@@ -1595,12 +1814,11 @@ private fun TtsSection(
     if (showJsonDialog) {
         AlertDialog(
             onDismissRequest = { showJsonDialog = false },
-            title = { Text("Service-Account-JSON einfügen") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_sa_dialog_title)) },
             text = {
                 Column {
                     Text(
-                        "Inhalt der Google-Cloud-Service-Account-JSON-Datei hier einfügen. " +
-                                "Erstellbar unter console.cloud.google.com → IAM → Service-Konten.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_sa_dialog_body),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1608,7 +1826,7 @@ private fun TtsSection(
                     OutlinedTextField(
                         value = jsonText,
                         onValueChange = { jsonText = it },
-                        placeholder = { Text("{ \"type\": \"service_account\", ... }") },
+                        placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_sa_dialog_placeholder)) },
                         maxLines = 12,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -1623,10 +1841,10 @@ private fun TtsSection(
                             showJsonDialog = false
                         }
                     },
-                ) { Text("Hochladen") }
+                ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_sa_upload_btn)) }
             },
             dismissButton = {
-                TextButton(onClick = { showJsonDialog = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showJsonDialog = false }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
@@ -1639,7 +1857,7 @@ private fun TestResultIndicator(state: ConnectionTestResult) {
         ConnectionTestResult.Testing -> Row(verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(8.dp))
-            Text("teste…", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(de.smartzone.pocketclaude.R.string.settings_testing), style = MaterialTheme.typography.bodySmall)
         }
         is ConnectionTestResult.Success -> Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -1650,7 +1868,7 @@ private fun TestResultIndicator(state: ConnectionTestResult) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                "OK · ${state.model}",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_ok_with_model, state.model),
                 style = MaterialTheme.typography.bodySmall,
                 color = PocketTheme.colors.success,
             )
@@ -1690,7 +1908,7 @@ private fun BackupSection(vm: SettingsViewModel) {
             } catch (e: Exception) {
                 android.widget.Toast.makeText(
                     context,
-                    "Datei konnte nicht gelesen werden: ${e.message}",
+                    context.getString(de.smartzone.pocketclaude.R.string.settings_backup_file_read_failed, e.message ?: ""),
                     android.widget.Toast.LENGTH_LONG,
                 ).show()
             }
@@ -1716,8 +1934,7 @@ private fun BackupSection(vm: SettingsViewModel) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                "Alle Chats vom Server als ZIP exportieren (für Google Drive, Telegram …) " +
-                    "oder ein bestehendes Backup hier importieren.",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_backup_intro),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1735,7 +1952,7 @@ private fun BackupSection(vm: SettingsViewModel) {
                 ) {
                     Icon(Icons.Filled.Upload, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Exportieren")
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_btn_export))
                 }
                 FilledTonalButton(
                     onClick = {
@@ -1754,7 +1971,7 @@ private fun BackupSection(vm: SettingsViewModel) {
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Importieren")
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_btn_import))
                 }
             }
             if (busy) {
@@ -1766,9 +1983,9 @@ private fun BackupSection(vm: SettingsViewModel) {
                     Spacer(Modifier.width(8.dp))
                     Text(
                         when (state) {
-                            is SettingsViewModel.BackupState.Importing -> "Importiere…"
-                            is SettingsViewModel.BackupState.Verifying -> "Prüfe Backup…"
-                            else -> "Lade vom Server…"
+                            is SettingsViewModel.BackupState.Importing -> stringResource(de.smartzone.pocketclaude.R.string.settings_backup_importing)
+                            is SettingsViewModel.BackupState.Verifying -> stringResource(de.smartzone.pocketclaude.R.string.settings_backup_checking)
+                            else -> stringResource(de.smartzone.pocketclaude.R.string.settings_backup_loading)
                         },
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -1782,29 +1999,26 @@ private fun BackupSection(vm: SettingsViewModel) {
     if (ready != null) {
         AlertDialog(
             onDismissRequest = { vm.resetBackupState() },
-            title = { Text("Backup importieren") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_import_title)) },
             text = {
                 Column {
                     val m = ready.manifest
                     Text(
-                        "Erstellt: ${m.createdAt.substringBefore('T')}",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_backup_created, m.createdAt.substringBefore('T')),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        "${m.conversationCount} Chats · ${m.messageCount} Nachrichten · " +
-                            "${m.attachmentCount} Anhänge",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_backup_stats, m.conversationCount, m.messageCount, m.attachmentCount),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        "Server-Version ${m.serverVersion} · Schema v${m.schemaVersion}",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_backup_versions, m.serverVersion, m.schemaVersion),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Replace = aktueller Server-Stand wird komplett überschrieben " +
-                            "(vorher wird automatisch ein internes Backup gespeichert).\n\n" +
-                            "Merge = nur Chats, die hier noch nicht existieren, werden hinzugefügt.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_backup_replace_or_merge),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -1812,15 +2026,15 @@ private fun BackupSection(vm: SettingsViewModel) {
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { vm.confirmImport("merge") }) {
-                        Text("Merge")
+                        Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_btn_merge))
                     }
                     TextButton(onClick = { vm.confirmImport("replace") }) {
-                        Text("Replace", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_btn_replace), color = MaterialTheme.colorScheme.error)
                     }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { vm.resetBackupState() }) { Text("Abbrechen") }
+                TextButton(onClick = { vm.resetBackupState() }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
@@ -1829,24 +2043,21 @@ private fun BackupSection(vm: SettingsViewModel) {
     if (success != null) {
         AlertDialog(
             onDismissRequest = { vm.resetBackupState() },
-            title = { Text("Import erfolgreich") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_import_success_title)) },
             text = {
                 Column {
                     val r = success.response
                     Text(
                         if (r.mode == "replace")
-                            "${r.conversationsAdded} Chats / ${r.messagesImported} Nachrichten" +
-                                " geladen.\nServer-Stand komplett ersetzt."
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_backup_replace_result, r.conversationsAdded, r.messagesImported)
                         else
-                            "${r.conversationsAdded} neue Chats hinzugefügt, " +
-                                "${r.conversationsSkipped} bereits vorhanden (übersprungen).",
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_backup_merge_result, r.conversationsAdded, r.conversationsSkipped),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     if (r.restartRecommended) {
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "Bitte den Server kurz neu starten (im Server-Manager auf " +
-                                "dem Mini-PC), damit alle DB-Connections die neue Datei nutzen.",
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_backup_restart_recommended),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
@@ -1854,7 +2065,7 @@ private fun BackupSection(vm: SettingsViewModel) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { vm.resetBackupState() }) { Text("OK") }
+                TextButton(onClick = { vm.resetBackupState() }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_ok)) }
             },
         )
     }
@@ -1863,10 +2074,10 @@ private fun BackupSection(vm: SettingsViewModel) {
     if (failure != null) {
         AlertDialog(
             onDismissRequest = { vm.resetBackupState() },
-            title = { Text("Fehler") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_error_title)) },
             text = { Text(failure.reason, style = MaterialTheme.typography.bodyMedium) },
             confirmButton = {
-                TextButton(onClick = { vm.resetBackupState() }) { Text("OK") }
+                TextButton(onClick = { vm.resetBackupState() }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_ok)) }
             },
         )
     }
@@ -1877,13 +2088,11 @@ private fun BackupSection(vm: SettingsViewModel) {
         var showPw by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { vm.resetBackupState() },
-            title = { Text("Backup verschlüsseln?") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_encrypt_title)) },
             text = {
                 Column {
                     Text(
-                        "Optional: Passwort für AES-256-Verschlüsselung. Wenn Du das Backup auf " +
-                            "Google Drive oder per Messenger weitergibst, sind alle Chats damit " +
-                            "geschützt. Leer lassen für ein unverschlüsseltes ZIP.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_backup_encrypt_body),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1891,7 +2100,7 @@ private fun BackupSection(vm: SettingsViewModel) {
                     OutlinedTextField(
                         value = pw,
                         onValueChange = { pw = it },
-                        label = { Text("Passwort (optional)") },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_password_label_optional)) },
                         singleLine = true,
                         visualTransformation = if (showPw) VisualTransformation.None
                                                else PasswordVisualTransformation(),
@@ -1900,8 +2109,8 @@ private fun BackupSection(vm: SettingsViewModel) {
                                 Icon(
                                     if (showPw) Icons.Filled.VisibilityOff
                                     else Icons.Filled.Visibility,
-                                    contentDescription = if (showPw) "Passwort verbergen"
-                                                         else "Passwort anzeigen",
+                                    contentDescription = if (showPw) stringResource(de.smartzone.pocketclaude.R.string.settings_backup_password_hide)
+                                                         else stringResource(de.smartzone.pocketclaude.R.string.settings_backup_password_show),
                                 )
                             }
                         },
@@ -1912,11 +2121,11 @@ private fun BackupSection(vm: SettingsViewModel) {
             },
             confirmButton = {
                 TextButton(onClick = { vm.runExport(pw) }) {
-                    Text(if (pw.isNotBlank()) "Verschlüsselt exportieren" else "Exportieren")
+                    Text(if (pw.isNotBlank()) stringResource(de.smartzone.pocketclaude.R.string.settings_backup_encrypted_export) else stringResource(de.smartzone.pocketclaude.R.string.settings_backup_export_button))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { vm.resetBackupState() }) { Text("Abbrechen") }
+                TextButton(onClick = { vm.resetBackupState() }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
@@ -1928,14 +2137,14 @@ private fun BackupSection(vm: SettingsViewModel) {
         var showPw by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { vm.resetBackupState() },
-            title = { Text("Backup ist verschlüsselt") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_encrypted_title)) },
             text = {
                 Column {
                     Text(
                         if (pwPrompt.previousAttemptFailed)
-                            "Passwort war falsch. Bitte erneut eingeben."
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_backup_wrong_password)
                         else
-                            "Dieses Backup wurde mit einem Passwort geschützt. Bitte eingeben.",
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_backup_encrypted_body),
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (pwPrompt.previousAttemptFailed) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurface,
@@ -1944,7 +2153,7 @@ private fun BackupSection(vm: SettingsViewModel) {
                     OutlinedTextField(
                         value = pw,
                         onValueChange = { pw = it },
-                        label = { Text("Passwort") },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_password_label)) },
                         singleLine = true,
                         visualTransformation = if (showPw) VisualTransformation.None
                                                else PasswordVisualTransformation(),
@@ -1966,10 +2175,10 @@ private fun BackupSection(vm: SettingsViewModel) {
                 TextButton(
                     onClick = { vm.retryImportWithPassword(pw) },
                     enabled = pw.isNotBlank(),
-                ) { Text("Entsperren") }
+                ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_backup_unlock_btn)) }
             },
             dismissButton = {
-                TextButton(onClick = { vm.resetBackupState() }) { Text("Abbrechen") }
+                TextButton(onClick = { vm.resetBackupState() }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
@@ -1988,13 +2197,13 @@ private fun shareBackupZip(context: android.content.Context, bytes: ByteArray, f
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
             type = "application/zip"
             putExtra(android.content.Intent.EXTRA_STREAM, uri)
-            putExtra(android.content.Intent.EXTRA_SUBJECT, "Pocket Claude Backup")
+            putExtra(android.content.Intent.EXTRA_SUBJECT, context.getString(de.smartzone.pocketclaude.R.string.settings_backup_share_subject))
             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(android.content.Intent.createChooser(intent, "Backup teilen"))
+        context.startActivity(android.content.Intent.createChooser(intent, context.getString(de.smartzone.pocketclaude.R.string.settings_backup_share_chooser)))
     } catch (e: Exception) {
         android.widget.Toast.makeText(
-            context, "Teilen fehlgeschlagen: ${e.message}", android.widget.Toast.LENGTH_LONG,
+            context, context.getString(de.smartzone.pocketclaude.R.string.settings_backup_share_failed, e.message ?: ""), android.widget.Toast.LENGTH_LONG,
         ).show()
     }
 }
@@ -2013,7 +2222,7 @@ private fun ProfilesCard(vm: SettingsViewModel, settings: de.smartzone.pocketcla
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (settings.profiles.isEmpty()) {
                 Text(
-                    "Noch kein Profil — leg unten URL + Token an, dann wird automatisch ein „Standard\"-Profil erstellt.",
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_profile_first_run),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(8.dp),
@@ -2043,24 +2252,24 @@ private fun ProfilesCard(vm: SettingsViewModel, settings: de.smartzone.pocketcla
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                p.label.ifBlank { "Profil" },
+                                p.label.ifBlank { stringResource(de.smartzone.pocketclaude.R.string.settings_profile_default) },
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = if (isActive) FW.SemiBold else FW.Normal,
                             )
                             Text(
-                                p.serverUrl.ifBlank { "(keine URL)" },
+                                p.serverUrl.ifBlank { stringResource(de.smartzone.pocketclaude.R.string.settings_profile_no_url) },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                             )
                         }
                         IconButton(onClick = { renameId = p.id; renameLabel = p.label }) {
-                            Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = "Umbenennen",
+                            Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.settings_profile_rename),
                                 modifier = Modifier.size(18.dp))
                         }
                         if (settings.profiles.size > 1) {
                             IconButton(onClick = { confirmDeleteId = p.id }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Profil löschen",
+                                Icon(Icons.Filled.Delete, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.settings_delete_profile_cd),
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(18.dp))
                             }
@@ -2074,7 +2283,7 @@ private fun ProfilesCard(vm: SettingsViewModel, settings: de.smartzone.pocketcla
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Profil hinzufügen")
+                Text(stringResource(de.smartzone.pocketclaude.R.string.settings_add_profile))
             }
         }
     }
@@ -2089,7 +2298,7 @@ private fun ProfilesCard(vm: SettingsViewModel, settings: de.smartzone.pocketcla
     if (renameId != null) {
         AlertDialog(
             onDismissRequest = { renameId = null },
-            title = { Text("Profil umbenennen") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_profile_rename_title)) },
             text = {
                 OutlinedTextField(
                     value = renameLabel,
@@ -2102,10 +2311,10 @@ private fun ProfilesCard(vm: SettingsViewModel, settings: de.smartzone.pocketcla
                 TextButton(onClick = {
                     if (renameLabel.isNotBlank()) vm.renameProfile(renameId!!, renameLabel)
                     renameId = null
-                }) { Text("Speichern") }
+                }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { renameId = null }) { Text("Abbrechen") }
+                TextButton(onClick = { renameId = null }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
@@ -2114,18 +2323,18 @@ private fun ProfilesCard(vm: SettingsViewModel, settings: de.smartzone.pocketcla
         val p = settings.profiles.firstOrNull { it.id == confirmDeleteId }
         AlertDialog(
             onDismissRequest = { confirmDeleteId = null },
-            title = { Text("Profil löschen?") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_delete_profile_title)) },
             text = {
-                Text("Profil „${p?.label}\" wird lokal entfernt. Die Daten auf dem Server bleiben unangetastet — Du kannst Dich mit demselben Benutzernamen jederzeit wieder anmelden.")
+                Text(stringResource(de.smartzone.pocketclaude.R.string.settings_delete_profile_body, p?.label ?: ""))
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDeleteId?.let { vm.deleteProfile(it) }
                     confirmDeleteId = null
-                }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDeleteId = null }) { Text("Abbrechen") }
+                TextButton(onClick = { confirmDeleteId = null }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
@@ -2165,13 +2374,13 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
 
     AlertDialog(
         onDismissRequest = { if (!working) onDismiss() },
-        title = { Text("Profil hinzufügen") },
+        title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_add_profile_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text("Anzeige-Name (z.B. „Marie“)") },
+                    label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_label_display_name)) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     enabled = !working,
@@ -2179,7 +2388,7 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    label = { Text("Server-URL") },
+                    label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_label_server_url)) },
                     placeholder = { Text("https://…trycloudflare.com") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -2189,7 +2398,7 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
                 OutlinedTextField(
                     value = username,
                     onValueChange = { username = it },
-                    label = { Text("Benutzername") },
+                    label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_label_username)) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     enabled = !working,
@@ -2197,7 +2406,7 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Passwort") },
+                    label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_label_password)) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
@@ -2206,7 +2415,7 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
                         IconButton(onClick = { showPw = !showPw }) {
                             Icon(
                                 if (showPw) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = if (showPw) "Verbergen" else "Anzeigen",
+                                contentDescription = if (showPw) stringResource(de.smartzone.pocketclaude.R.string.settings_label_hide) else stringResource(de.smartzone.pocketclaude.R.string.settings_label_show),
                             )
                         }
                     },
@@ -2226,7 +2435,7 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                        Text("Anmeldung …", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(de.smartzone.pocketclaude.R.string.settings_signing_in), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -2240,10 +2449,10 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
                         vm.addProfileAndLogin(label, url, username, password)
                     }
                 },
-            ) { Text("Anmelden") }
+            ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_sign_in_btn)) }
         },
         dismissButton = {
-            TextButton(onClick = { if (!working) onDismiss() }) { Text("Abbrechen") }
+            TextButton(onClick = { if (!working) onDismiss() }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
         },
     )
 }
@@ -2269,17 +2478,17 @@ private fun ReLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = { if (!working) onDismiss() },
-        title = { Text("Erneut anmelden") },
+        title = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_relogin_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Profil „${active?.label ?: ""}“ als „${active?.username ?: "?"}“",
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_relogin_subtitle, active?.label ?: "", active?.username ?: "?"),
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Passwort") },
+                    label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_label_password)) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
@@ -2303,7 +2512,7 @@ private fun ReLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                        Text("Anmeldung …", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(de.smartzone.pocketclaude.R.string.settings_signing_in), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -2315,10 +2524,10 @@ private fun ReLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) {
                     loginAttempted = true
                     vm.relogActiveProfile(password)
                 },
-            ) { Text("Anmelden") }
+            ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_sign_in_btn)) }
         },
         dismissButton = {
-            TextButton(onClick = { if (!working) onDismiss() }) { Text("Abbrechen") }
+            TextButton(onClick = { if (!working) onDismiss() }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
         },
     )
 }
@@ -2357,21 +2566,24 @@ fun ChangePasswordDialog(vm: SettingsViewModel, forced: Boolean, onDone: () -> U
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    val errPwMin = stringResource(de.smartzone.pocketclaude.R.string.settings_pw_min_chars)
+    val errPwMismatch = stringResource(de.smartzone.pocketclaude.R.string.settings_password_mismatch)
+    val errPwEnterOld = stringResource(de.smartzone.pocketclaude.R.string.settings_pw_enter_old)
     AlertDialog(
         onDismissRequest = { if (!forced && !working) onDone() },
-        title = { Text(if (forced) "Passwort jetzt setzen" else "Passwort ändern") },
+        title = { Text(if (forced) stringResource(de.smartzone.pocketclaude.R.string.settings_password_dialog_force_title) else stringResource(de.smartzone.pocketclaude.R.string.settings_password_dialog_change_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (forced) {
                     Text(
-                        "Beim ersten Login musst Du ein neues Passwort vergeben.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_pw_change_info_first_login),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 } else {
                     OutlinedTextField(
                         value = oldPw,
                         onValueChange = { oldPw = it },
-                        label = { Text("Aktuelles Passwort") },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_pw_current_label)) },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
@@ -2382,7 +2594,7 @@ fun ChangePasswordDialog(vm: SettingsViewModel, forced: Boolean, onDone: () -> U
                 OutlinedTextField(
                     value = newPw,
                     onValueChange = { newPw = it },
-                    label = { Text("Neues Passwort (min. 8 Zeichen)") },
+                    label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_pw_new_label)) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
@@ -2400,7 +2612,7 @@ fun ChangePasswordDialog(vm: SettingsViewModel, forced: Boolean, onDone: () -> U
                 OutlinedTextField(
                     value = newPw2,
                     onValueChange = { newPw2 = it },
-                    label = { Text("Neues Passwort wiederholen") },
+                    label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_pw_new_repeat_label)) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
@@ -2413,7 +2625,7 @@ fun ChangePasswordDialog(vm: SettingsViewModel, forced: Boolean, onDone: () -> U
                 if (working) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                        Text("Speichere …", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(de.smartzone.pocketclaude.R.string.settings_pw_saving), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -2422,9 +2634,9 @@ fun ChangePasswordDialog(vm: SettingsViewModel, forced: Boolean, onDone: () -> U
             TextButton(
                 enabled = !working,
                 onClick = {
-                    if (newPw.length < 8) { error = "Min. 8 Zeichen."; return@TextButton }
-                    if (newPw != newPw2) { error = "Passwörter stimmen nicht überein."; return@TextButton }
-                    if (!forced && oldPw.isBlank()) { error = "Altes Passwort eingeben."; return@TextButton }
+                    if (newPw.length < 8) { error = errPwMin; return@TextButton }
+                    if (newPw != newPw2) { error = errPwMismatch; return@TextButton }
+                    if (!forced && oldPw.isBlank()) { error = errPwEnterOld; return@TextButton }
                     error = null
                     working = true
                     vm.changePassword(
@@ -2436,10 +2648,10 @@ fun ChangePasswordDialog(vm: SettingsViewModel, forced: Boolean, onDone: () -> U
                             .onFailure { e -> error = e.message ?: e::class.java.simpleName }
                     }
                 },
-            ) { Text("Speichern") }
+            ) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_save)) }
         },
         dismissButton = {
-            if (!forced) TextButton(onClick = { if (!working) onDone() }) { Text("Abbrechen") }
+            if (!forced) TextButton(onClick = { if (!working) onDone() }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
         },
     )
 }
@@ -2477,7 +2689,7 @@ private fun SettingsTransferSection(vm: SettingsViewModel) {
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
-                "Alle Settings + API-Keys als Datei. Profile bleiben raus.",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_transfer_intro),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -2492,7 +2704,7 @@ private fun SettingsTransferSection(vm: SettingsViewModel) {
                 ) {
                     Icon(Icons.Filled.Upload, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Exportieren")
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_transfer_export))
                 }
                 FilledTonalButton(
                     onClick = {
@@ -2507,7 +2719,7 @@ private fun SettingsTransferSection(vm: SettingsViewModel) {
                 ) {
                     Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Importieren")
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_transfer_import))
                 }
             }
 
@@ -2522,7 +2734,7 @@ private fun SettingsTransferSection(vm: SettingsViewModel) {
                     Spacer(Modifier.width(8.dp))
                     Text(
                         if (s == SettingsViewModel.SettingsTransferState.Exporting)
-                            "Exportiere…" else "Importiere…",
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_transfer_exporting) else stringResource(de.smartzone.pocketclaude.R.string.settings_transfer_importing),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -2532,20 +2744,19 @@ private fun SettingsTransferSection(vm: SettingsViewModel) {
                         shareSettingsJson(context, s.bytes, s.filename)
                     }
                     Text(
-                        "✓ Exportiert: ${s.filename} (${s.bytes.size} Bytes). Teilen-Dialog geöffnet.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_transfer_exported_msg, s.filename, s.bytes.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    TextButton(onClick = vm::resetSettingsTransfer) { Text("OK") }
+                    TextButton(onClick = vm::resetSettingsTransfer) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_ok)) }
                 }
                 is SettingsViewModel.SettingsTransferState.ImportSuccess -> {
                     Text(
-                        "✓ Import erfolgreich: ${s.appliedServer} Server-Settings übernommen, " +
-                            "${s.ttsKeysImported} API-Keys importiert.",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_transfer_import_success, s.appliedServer, s.ttsKeysImported),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    TextButton(onClick = vm::resetSettingsTransfer) { Text("OK") }
+                    TextButton(onClick = vm::resetSettingsTransfer) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_ok)) }
                 }
                 is SettingsViewModel.SettingsTransferState.Failure -> {
                     Text(
@@ -2553,7 +2764,7 @@ private fun SettingsTransferSection(vm: SettingsViewModel) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
-                    TextButton(onClick = vm::resetSettingsTransfer) { Text("OK") }
+                    TextButton(onClick = vm::resetSettingsTransfer) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_ok)) }
                 }
             }
         }
@@ -2578,7 +2789,7 @@ private fun shareSettingsJson(
         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     context.startActivity(
-        android.content.Intent.createChooser(send, "Settings-Export teilen")
+        android.content.Intent.createChooser(send, context.getString(de.smartzone.pocketclaude.R.string.settings_transfer_share_chooser))
     )
 }
 
@@ -2606,15 +2817,15 @@ private fun SkillsDefaultsSection(vm: SettingsViewModel) {
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    "Lade Skills-Einstellungen…",
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_skills_loading),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
             SkillToggleRow(
-                label = "WebSearch",
-                description = "Aktuelle Infos aus dem Web suchen.",
+                label = stringResource(de.smartzone.pocketclaude.R.string.chat_skill_web_search_label),
+                description = stringResource(de.smartzone.pocketclaude.R.string.settings_skill_websearch_desc),
                 enabled = !busy,
                 checked = current.webSearch,
                 onCheckedChange = {
@@ -2622,8 +2833,8 @@ private fun SkillsDefaultsSection(vm: SettingsViewModel) {
                 },
             )
             SkillToggleRow(
-                label = "WebFetch",
-                description = "Konkrete URLs abrufen + zusammenfassen.",
+                label = stringResource(de.smartzone.pocketclaude.R.string.chat_skill_web_fetch_label),
+                description = stringResource(de.smartzone.pocketclaude.R.string.settings_skill_webfetch_desc),
                 enabled = !busy,
                 checked = current.webFetch,
                 onCheckedChange = {
@@ -2631,8 +2842,8 @@ private fun SkillsDefaultsSection(vm: SettingsViewModel) {
                 },
             )
             SkillToggleRow(
-                label = "Code-Ausführung",
-                description = "Bash/Python in Server-Sandbox für Berechnungen.",
+                label = stringResource(de.smartzone.pocketclaude.R.string.settings_skill_code_execution_label),
+                description = stringResource(de.smartzone.pocketclaude.R.string.settings_skill_code_execution_desc),
                 enabled = !busy,
                 checked = current.codeExecution,
                 onCheckedChange = {
@@ -2696,42 +2907,29 @@ private fun TtsGeminiApiKeyField(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Gemini-API-Keys (Pool für TTS)",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_pool_section_title),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.weight(1f),
             )
-            InfoButton(title = "Multi-Key-Pool & Free-Tier-Limits") {
+            InfoButton(title = stringResource(de.smartzone.pocketclaude.R.string.settings_pool_info_title)) {
                 InfoParagraph(
-                    "Hier kannst Du mehrere AI-Studio-API-Keys hinterlegen. Der Server " +
-                        "verteilt TTS-Calls per Round-Robin + Rate-Limiter über alle Keys — " +
-                        "so umgehst Du die Per-Projekt-Limits des Free Tier."
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_pool_info_intro)
                 )
                 InfoBulletParagraph(
-                    "Warum mehrere Keys?",
-                    "Live-Test Mai 2026: Gemini 3.1 Flash TTS Preview hat im Free Tier nur " +
-                        "10 Requests pro TAG pro Projekt. Gemini 2.5 Flash TTS Preview ist " +
-                        "großzügiger (3 RPM rolling). Für eine Chat-App mit Chunking ist das " +
-                        "knapp. Mit 3-5 Keys (aus separaten Projekten) skalierst Du proportional."
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_pool_why_label),
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_pool_why_body)
                 )
                 InfoBulletParagraph(
-                    "Wie kommst Du an mehrere Keys?",
-                    "Auf aistudio.google.com pro Key ein NEUES Projekt erstellen (im selben " +
-                        "Google-Konto möglich — Tier hängt am Projekt, nicht am Account). " +
-                        "Alternativ: separater Google-Account. Beides funktioniert, beides ist " +
-                        "Free Tier, keine Kreditkarte nötig."
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_pool_how_label),
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_pool_how_body)
                 )
                 InfoBulletParagraph(
-                    "Dispatcher:",
-                    "Server merkt sich pro Key die letzten Aufrufe (sliding window), 2 RPM pro " +
-                        "Key als sichere Grenze unter dem 3-RPM-Limit. Bei einem Chunk-Aufruf " +
-                        "pickt er den Key mit den meisten freien Slots."
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_pool_dispatcher_label),
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_pool_dispatcher_body)
                 )
                 InfoBulletParagraph(
-                    "Alternative:",
-                    "Wenn Du nicht mehrere Keys verwalten willst: nimm Cloud TTS (Service-" +
-                        "Account, 1M Zeichen/Monat Free-Contingent, keine RPM-Limits) ODER " +
-                        "Paid-Tier-Gemini-Key (1 Key reicht, gedeckt von Deinem $10 AI-Pro-" +
-                        "Credit + 8 €-Hard-Cap)."
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_pool_alt_label),
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_pool_alt_body)
                 )
             }
         }
@@ -2739,14 +2937,14 @@ private fun TtsGeminiApiKeyField(
         // Aktuelle Pool-Übersicht
         if (pool.isEmpty()) {
             Text(
-                "Noch keine Keys im Pool. Trage unten den ersten ein.",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_pool_empty),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
+            val plural = if (pool.size == 1) stringResource(de.smartzone.pocketclaude.R.string.settings_pool_plural_none) else stringResource(de.smartzone.pocketclaude.R.string.settings_pool_plural_s)
             Text(
-                "${pool.size} Key${if (pool.size == 1) "" else "s"} im Pool — " +
-                    "geschätzt ${pool.size * 2} Calls/Min Throughput.",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_pool_status, pool.size, plural, pool.size * 2),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -2774,7 +2972,7 @@ private fun TtsGeminiApiKeyField(
                         }
                         if (entry.successCount > 0) {
                             Text(
-                                "${entry.successCount} TTS-Calls erfolgreich",
+                                stringResource(de.smartzone.pocketclaude.R.string.settings_pool_call_count, entry.successCount),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -2784,7 +2982,7 @@ private fun TtsGeminiApiKeyField(
                         onClick = { vm.removeTtsKey(entry.id) },
                         enabled = !ttsBusy,
                     ) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Key entfernen")
+                        Icon(Icons.Filled.Delete, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.settings_pool_remove_key))
                     }
                 }
             }
@@ -2796,7 +2994,7 @@ private fun TtsGeminiApiKeyField(
         OutlinedTextField(
             value = input,
             onValueChange = { input = it },
-            label = { Text("Neuen Key hinzufügen (AIza…)") },
+            label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_pool_new_key_label)) },
             placeholder = { Text("AIza…") },
             singleLine = true,
             visualTransformation = if (showKey) VisualTransformation.None
@@ -2806,7 +3004,7 @@ private fun TtsGeminiApiKeyField(
                     Icon(
                         imageVector = if (showKey) Icons.Filled.VisibilityOff
                                       else Icons.Filled.Visibility,
-                        contentDescription = if (showKey) "Verbergen" else "Anzeigen",
+                        contentDescription = if (showKey) stringResource(de.smartzone.pocketclaude.R.string.settings_label_hide) else stringResource(de.smartzone.pocketclaude.R.string.settings_label_show),
                     )
                 }
             },
@@ -2816,7 +3014,7 @@ private fun TtsGeminiApiKeyField(
         OutlinedTextField(
             value = labelInput,
             onValueChange = { labelInput = it },
-            label = { Text("Label (optional, z.B. \"Account 2\")") },
+            label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_pool_label_label)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
@@ -2839,7 +3037,7 @@ private fun TtsGeminiApiKeyField(
             }
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Key zum Pool hinzufügen")
+            Text(stringResource(de.smartzone.pocketclaude.R.string.settings_pool_add_btn))
         }
     }
 }
@@ -2863,7 +3061,7 @@ private fun ImageGenSection(vm: SettingsViewModel) {
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
-                "Dein eigener Google-AI-Studio-API-Key. Wird nur für Dich gespeichert.",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_image_intro),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -2874,22 +3072,22 @@ private fun ImageGenSection(vm: SettingsViewModel) {
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Icon(Icons.Filled.CheckCircle, contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                        Text("Key hinterlegt: ${c.apiKeyMasked ?: ""}",
+                        Text(stringResource(de.smartzone.pocketclaude.R.string.settings_image_configured, c.apiKeyMasked ?: ""),
                              style = MaterialTheme.typography.bodySmall)
                     }
                 } else {
-                    Text("Kein API-Key — Bild-Modus ist deaktiviert.",
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_image_no_key),
                          style = MaterialTheme.typography.bodySmall,
                          color = MaterialTheme.colorScheme.error)
                 }
-            } ?: Text("Lade Status…", style = MaterialTheme.typography.bodySmall,
+            } ?: Text(stringResource(de.smartzone.pocketclaude.R.string.settings_image_loading_status), style = MaterialTheme.typography.bodySmall,
                       color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             OutlinedTextField(
                 value = apiKey,
                 onValueChange = { apiKey = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Neuer API-Key") },
+                label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_image_new_api_key)) },
                 placeholder = { Text("AIzaSy…") },
                 singleLine = true,
                 visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
@@ -2906,11 +3104,11 @@ private fun ImageGenSection(vm: SettingsViewModel) {
                     onClick = { vm.setImageApiKey(apiKey); apiKey = "" },
                     enabled = !busy && apiKey.isNotBlank(),
                     shape = RoundedCornerShape(12.dp),
-                ) { Text("Speichern") }
+                ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_image_save_btn)) }
                 TextButton(
                     onClick = { vm.deleteImageApiKey() },
                     enabled = !busy && cfg?.configured == true,
-                ) { Text("Entfernen", color = MaterialTheme.colorScheme.error) }
+                ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_image_remove_btn), color = MaterialTheme.colorScheme.error) }
                 if (busy) {
                     Spacer(Modifier.width(8.dp))
                     CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
@@ -2918,12 +3116,11 @@ private fun ImageGenSection(vm: SettingsViewModel) {
             }
             msg?.let { m ->
                 Text(m, style = MaterialTheme.typography.bodySmall,
-                     color = if (m.startsWith("Fehler")) MaterialTheme.colorScheme.error
+                     color = if (m.startsWith("Fehler") || m.startsWith("Error")) MaterialTheme.colorScheme.error
                              else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
-                "Key holen auf aistudio.google.com/apikey. Für Bild-Generation muss das " +
-                "Cloud-Projekt einen Billing-Account haben (Free-Tier umfasst nur Text).",
+                stringResource(de.smartzone.pocketclaude.R.string.settings_image_help_text),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -2963,25 +3160,19 @@ private fun CloudBillingWidget(vm: SettingsViewModel) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Cloud-Verbrauch dieser Monat",
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_billing_widget_title),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                 )
-                InfoButton(title = "Cloud-Verbrauch — was zeigt das?") {
+                InfoButton(title = stringResource(de.smartzone.pocketclaude.R.string.settings_billing_info_widget_title)) {
                     InfoParagraph(
-                        "Hier siehst Du eine SCHÄTZUNG, wieviel Du diesen Monat über " +
-                            "Cloud TTS verbraucht hast. Die Schätzung kommt aus dem " +
-                            "Server-eigenen Zeichen-Zähler × Voice-Preis pro 1 Mio."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_billing_info_widget_para1)
                     )
                     InfoParagraph(
-                        "Der Wert ist BRUTTO — bevor Dein $10-AI-Pro-Credit angerechnet " +
-                            "wird. Solange Brutto-Spend ≤ Credit-Restwert, landet am " +
-                            "Monatsende NICHTS auf Deiner Kreditkarte."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_billing_info_widget_para2)
                     )
                     InfoParagraph(
-                        "Der genaue Stand steht in der Google Cloud Console unter " +
-                            "Abrechnung — die Anzeige hier ist nur ein App-internes " +
-                            "Hilfsmittel mit ggf. ein paar Cent Abweichung."
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_billing_info_widget_para3)
                     )
                 }
                 if (busy) {
@@ -2991,7 +3182,7 @@ private fun CloudBillingWidget(vm: SettingsViewModel) {
                     )
                 } else {
                     IconButton(onClick = { vm.refreshBillingStatus() }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Aktualisieren")
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.settings_billing_refresh_cd))
                     }
                 }
             }
@@ -3000,14 +3191,14 @@ private fun CloudBillingWidget(vm: SettingsViewModel) {
             when {
                 b == null -> {
                     Text(
-                        "Lade Status …",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_billing_loading),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 !b.available -> {
                     Text(
-                        b.error ?: "Cloud-Billing-Status nicht verfügbar.",
+                        b.error ?: stringResource(de.smartzone.pocketclaude.R.string.settings_billing_unavailable_text),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -3024,7 +3215,7 @@ private fun CloudBillingWidget(vm: SettingsViewModel) {
 
                     // Hauptzeile: Brutto-Spend, prominent
                     Text(
-                        "Diesen Monat: ${fmt(spendNet)} (Brutto, geschätzt)",
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_billing_this_month_gross, fmt(spendNet)),
                         style = MaterialTheme.typography.bodyLarge,
                     )
 
@@ -3054,8 +3245,7 @@ private fun CloudBillingWidget(vm: SettingsViewModel) {
                             Spacer(Modifier.height(4.dp))
                             val creditLeft = (b.creditRemaining ?: creditOrig).coerceAtLeast(0.0)
                             Text(
-                                "AI-Pro-Credit verbleibend: ${fmt(creditLeft)} " +
-                                    "von ${fmt(creditOrig)}",
+                                stringResource(de.smartzone.pocketclaude.R.string.settings_billing_credit_remaining, fmt(creditLeft), fmt(creditOrig)),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -3065,7 +3255,7 @@ private fun CloudBillingWidget(vm: SettingsViewModel) {
                     // Budget-Info (Hard Cap)
                     if (budgetTotal > 0.0) {
                         Text(
-                            "Budget-Cap: ${b.budgetName ?: "Budget"} = ${fmt(budgetTotal)}",
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_billing_budget_cap, b.budgetName ?: "Budget", fmt(budgetTotal)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -3074,14 +3264,13 @@ private fun CloudBillingWidget(vm: SettingsViewModel) {
                     // Real-Cost-Hinweis: wenn über Credit raus → Warnung
                     if (realCost > 0.01) {
                         Text(
-                            "⚠ Geschätzte Echtkosten am Monatsende: ${fmt(realCost)} " +
-                                "(über Credit hinaus)",
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_billing_real_cost, fmt(realCost)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
                     } else if (creditOrig > 0.0) {
                         Text(
-                            "✓ Im Credit-Rahmen — Kreditkarte wird nicht belastet.",
+                            stringResource(de.smartzone.pocketclaude.R.string.settings_billing_in_credit),
                             style = MaterialTheme.typography.bodySmall,
                             color = de.smartzone.pocketclaude.ui.theme.PocketTheme.colors.success,
                         )
@@ -3091,11 +3280,13 @@ private fun CloudBillingWidget(vm: SettingsViewModel) {
                     val proj = b.projectId
                     val updated = b.lastUpdatedAt
                     if (proj != null || updated != null) {
+                        val projLine = if (proj != null) stringResource(de.smartzone.pocketclaude.R.string.settings_billing_project_label, proj) else ""
+                        val updLine = if (updated != null) stringResource(de.smartzone.pocketclaude.R.string.settings_billing_updated_label, updated.take(16)) else ""
                         Text(
                             buildString {
-                                if (proj != null) append("Projekt: $proj")
-                                if (proj != null && updated != null) append(" · ")
-                                if (updated != null) append("Stand: ${updated.take(16)} UTC")
+                                if (projLine.isNotEmpty()) append(projLine)
+                                if (projLine.isNotEmpty() && updLine.isNotEmpty()) append(" · ")
+                                if (updLine.isNotEmpty()) append(updLine)
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,

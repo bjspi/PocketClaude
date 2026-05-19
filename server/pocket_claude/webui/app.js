@@ -1,6 +1,9 @@
 // =====================================================================
 // Pocket Claude Web-UI v2 — vanilla JS, neue DOM-Struktur.
 // =====================================================================
+// i18n helper — short alias for the global translator.
+const t = (k, ...args) => (window.PocketI18n ? window.PocketI18n.t(k, ...args) : k);
+
 const LS = {
   url:        'pc.serverUrl',
   token:      'pc.serverToken',
@@ -165,9 +168,9 @@ function enhanceCodeBlocks(root) {
     header.className = 'codeblock-header';
     header.innerHTML = `
       <span class="codeblock-lang">${escapeHtml(lang || 'code')}</span>
-      <button type="button" class="codeblock-copy" title="Kopieren">
+      <button type="button" class="codeblock-copy" title="${escapeHtml(t('copy_title'))}">
         <svg class="icon icon-sm"><use href="#icon-copy"/></svg>
-        <span>Kopieren</span>
+        <span>${escapeHtml(t('copy'))}</span>
       </button>`;
     pre.parentNode.insertBefore(wrap, pre);
     wrap.appendChild(header);
@@ -177,10 +180,10 @@ function enhanceCodeBlocks(root) {
         await navigator.clipboard.writeText(code.textContent || '');
         const lbl = header.querySelector('.codeblock-copy span');
         const old = lbl.textContent;
-        lbl.textContent = 'Kopiert';
+        lbl.textContent = t('toast_copied');
         setTimeout(() => lbl.textContent = old, 1200);
       } catch {
-        toast('Kopieren fehlgeschlagen', { error: true });
+        toast(t('toast_copy_failed'), { error: true });
       }
     });
   }
@@ -226,18 +229,18 @@ $('login-form').addEventListener('submit', async (ev) => {
   const $st = $('login-status');
   if (!url || !username || !password) {
     $st.className = 'login-status error';
-    $st.textContent = 'URL, Benutzername und Passwort erforderlich.';
+    $st.textContent = t('login_url_required');
     return;
   }
   $st.className = 'login-status';
-  $st.textContent = 'Anmeldung…';
+  $st.textContent = t('login_signing_in');
   try {
     const resp = await fetch(url + '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    if (resp.status === 401) throw new Error('Benutzername oder Passwort falsch');
+    if (resp.status === 401) throw new Error(t('login_bad_credentials'));
     if (!resp.ok) {
       const txt = await resp.text().catch(() => '');
       throw new Error('HTTP ' + resp.status + ': ' + txt.slice(0, 200));
@@ -249,7 +252,7 @@ $('login-form').addEventListener('submit', async (ev) => {
     localStorage.setItem(LS.url, url);
     localStorage.setItem(LS.token, data.token);
     $st.className = 'login-status ok';
-    $st.textContent = '✓ Angemeldet';
+    $st.textContent = t('login_signed_in');
     // Forced-Password-Change: vor dem Öffnen der App den PW-Change-Modal zeigen
     if (data.user && data.user.must_change_password) {
       $('login-password').value = '';
@@ -259,12 +262,12 @@ $('login-form').addEventListener('submit', async (ev) => {
     }
   } catch (e) {
     $st.className = 'login-status error';
-    $st.textContent = 'Fehlgeschlagen: ' + e.message;
+    $st.textContent = t('login_failed', e.message);
   }
 });
 
 els.logoutBtn.addEventListener('click', async () => {
-  if (!confirm('Aus dieser Sitzung abmelden?')) return;
+  if (!confirm(t('confirm_logout_session'))) return;
   // Server-seitig die Session beenden (best effort — funktioniert nicht immer
   // wenn der Token bereits ungültig ist, dann reicht der lokale Cleanup)
   try { await api('POST', '/auth/logout'); } catch (_) {}
@@ -282,10 +285,10 @@ let _pwChangeForced = false;
 function openPasswordChange({ forced = false } = {}) {
   _pwChangeForced = !!forced;
   const modal = $('pwchange-modal');
-  $('pwchange-title').textContent = forced ? 'Passwort jetzt setzen' : 'Passwort ändern';
+  $('pwchange-title').textContent = forced ? t('pwchange_title_set_now') : t('change_password');
   $('pwchange-text').textContent = forced
-    ? 'Bei der ersten Anmeldung musst Du ein neues Passwort vergeben.'
-    : 'Aktuelles Passwort bestätigen und neues setzen.';
+    ? t('pwchange_text_forced')
+    : t('pwchange_text_normal');
   // Altes-Passwort-Feld nur bei normaler Änderung anzeigen
   $('pwchange-old-field').style.display = forced ? 'none' : '';
   $('pwchange-old').value  = '';
@@ -308,18 +311,18 @@ $('pwchange-form').addEventListener('submit', async (ev) => {
   const newPw2 = $('pwchange-new2').value;
   const $st = $('pwchange-status');
   if (newPw.length < 8) {
-    $st.className = 'login-status error'; $st.textContent = 'Min. 8 Zeichen.'; return;
+    $st.className = 'login-status error'; $st.textContent = t('pwchange_min_chars'); return;
   }
   if (newPw !== newPw2) {
-    $st.className = 'login-status error'; $st.textContent = 'Passwörter stimmen nicht überein.'; return;
+    $st.className = 'login-status error'; $st.textContent = t('pwchange_mismatch'); return;
   }
-  $st.className = 'login-status'; $st.textContent = 'Speichere…';
+  $st.className = 'login-status'; $st.textContent = t('pwchange_saving');
   try {
     const body = _pwChangeForced
       ? { new_password: newPw }
       : { old_password: oldPw, new_password: newPw };
     await api('POST', '/auth/change-password', body);
-    $st.className = 'login-status ok'; $st.textContent = '✓ Geändert';
+    $st.className = 'login-status ok'; $st.textContent = t('pwchange_done');
     if (state.me) state.me.must_change_password = false;
     setTimeout(() => {
       closePasswordChange();
@@ -327,12 +330,12 @@ $('pwchange-form').addEventListener('submit', async (ev) => {
         _pwChangeForced = false;
         showApp();
       } else {
-        toast('Passwort geändert');
+        toast(t('toast_password_changed'));
       }
     }, 250);
   } catch (e) {
     $st.className = 'login-status error';
-    $st.textContent = 'Fehler: ' + e.message;
+    $st.textContent = t('pwchange_error_prefix', e.message);
   }
 });
 
@@ -457,7 +460,7 @@ async function refreshChatList() {
     renderChatList(list);
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) return showLogin();
-    toast('Liste fehlgeschlagen: ' + e.message, { error: true });
+    toast(t('toast_list_failed', e.message), { error: true });
   }
 }
 
@@ -466,11 +469,11 @@ function relativeDateGroup(iso) {
   const today = new Date(); today.setHours(0,0,0,0);
   const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diff = Math.round((today - dDay) / 86400000);
-  if (diff <= 0) return 'Heute';
-  if (diff === 1) return 'Gestern';
-  if (diff < 7) return 'Diese Woche';
-  if (diff < 30) return 'Letzte 30 Tage';
-  return 'Älter';
+  if (diff <= 0) return t('group_today');
+  if (diff === 1) return t('group_yesterday');
+  if (diff < 7) return t('group_this_week');
+  if (diff < 30) return t('group_last_30_days');
+  return t('group_older');
 }
 
 function renderChatList(items) {
@@ -483,7 +486,7 @@ function renderChatList(items) {
   });
   els.chatNav.innerHTML = '';
   if (!items.length) {
-    els.chatNav.innerHTML = '<div class="empty-chats">Noch keine Chats.<br>Tipp aufs Plus oben.</div>';
+    els.chatNav.innerHTML = `<div class="empty-chats">${t('no_chats_yet')}</div>`;
     return;
   }
 
@@ -491,7 +494,7 @@ function renderChatList(items) {
   const groups = new Map();
   const pinned = items.filter(c => c.pinned);
   const others = items.filter(c => !c.pinned);
-  if (pinned.length) groups.set('📌 Angepinnt', pinned);
+  if (pinned.length) groups.set(t('pinned_group'), pinned);
   for (const c of others) {
     const key = relativeDateGroup(c.last_message_at || c.created_at);
     if (!groups.has(key)) groups.set(key, []);
@@ -509,7 +512,7 @@ function renderChatList(items) {
       const li = document.createElement('div');
       li.className = 'chat-item' + (c.id === state.cid ? ' active' : '');
       li.dataset.cid = c.id;
-      li.innerHTML = `<span class="title">${escapeHtml(c.title || 'Ohne Titel')}</span>`;
+      li.innerHTML = `<span class="title">${escapeHtml(c.title || t('no_title'))}</span>`;
       li.addEventListener('click', () => openChat(c.id));
       grp.appendChild(li);
     }
@@ -537,7 +540,7 @@ async function doSearch(q) {
     const res = await api('GET', '/search?q=' + encodeURIComponent(q));
     els.searchNav.innerHTML = '';
     if (!res.hits.length) {
-      els.searchNav.innerHTML = `<div class="empty-chats">Keine Treffer für „${escapeHtml(q)}"</div>`;
+      els.searchNav.innerHTML = `<div class="empty-chats">${t('no_search_results', escapeHtml(q))}</div>`;
     } else {
       for (const h of res.hits) {
         const li = document.createElement('div');
@@ -559,7 +562,7 @@ async function doSearch(q) {
     els.searchNav.classList.remove('hidden');
     els.chatNav.classList.add('hidden');
   } catch (e) {
-    toast('Suche fehlgeschlagen: ' + e.message, { error: true });
+    toast(t('toast_search_failed', e.message), { error: true });
   }
 }
 
@@ -598,7 +601,7 @@ async function openChat(cid, opts = {}) {
     renderMessages();
     scrollToVeryBottom();
   } catch (e) {
-    toast('Chat laden fehlgeschlagen: ' + e.message, { error: true });
+    toast(t('toast_load_chat_failed', e.message), { error: true });
   }
 }
 
@@ -619,7 +622,7 @@ async function newChat() {
     history.replaceState(null, '', '#/chat/' + c.id);
     els.input.focus();
   } catch (e) {
-    toast('Neuer Chat fehlgeschlagen: ' + e.message, { error: true });
+    toast(t('toast_new_chat_failed', e.message), { error: true });
   }
 }
 
@@ -627,7 +630,7 @@ function updateTopbar(tokens) {
   els.topbarTitle.textContent = state.title || 'Pocket Claude';
   const pct = Math.round((tokens / 200000) * 100);
   if (state.messages.length) {
-    els.topbarMeta.textContent = `${state.messages.length} Nachrichten · ${pct}% Kontext`;
+    els.topbarMeta.textContent = t('messages_context_format', state.messages.length, pct);
     els.topbarMeta.classList.toggle('warn', pct >= 85);
   } else {
     els.topbarMeta.textContent = '';
@@ -679,7 +682,7 @@ els.effortMenu.addEventListener('click', (e) => {
 // More-Menü
 els.moreBtn.addEventListener('click', (e) => {
   e.stopPropagation();
-  els.pinLabel.textContent = state.pinned ? 'Lösen' : 'Anpinnen';
+  els.pinLabel.textContent = state.pinned ? t('unpin') : t('pin');
   els.moreMenu.classList.toggle('hidden');
   els.effortMenu.classList.add('hidden');
 });
@@ -691,10 +694,10 @@ els.moreMenu.addEventListener('click', async (e) => {
   if (!state.cid) return;
   try {
     if (action === 'rename') {
-      const t = prompt('Neuer Chat-Titel:', state.title);
-      if (t && t.trim()) {
-        await api('PATCH', '/conversations/' + state.cid, { title: t.trim() });
-        state.title = t.trim();
+      const newTitle = prompt(t('rename_prompt'), state.title);
+      if (newTitle && newTitle.trim()) {
+        await api('PATCH', '/conversations/' + state.cid, { title: newTitle.trim() });
+        state.title = newTitle.trim();
         updateTopbar(0);
         refreshChatList();
       }
@@ -712,7 +715,7 @@ els.moreMenu.addEventListener('click', async (e) => {
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(a.href);
     } else if (action === 'delete') {
-      if (!confirm(`Chat „${state.title}" wirklich löschen?`)) return;
+      if (!confirm(t('confirm_delete_chat', state.title))) return;
       await api('DELETE', '/conversations/' + state.cid);
       state.cid = null;
       await refreshChatList();
@@ -720,7 +723,7 @@ els.moreMenu.addEventListener('click', async (e) => {
       else newChat();
     }
   } catch (e) {
-    toast('Aktion fehlgeschlagen: ' + e.message, { error: true });
+    toast(t('toast_action_failed', e.message), { error: true });
   }
 });
 
@@ -745,8 +748,8 @@ function renderMessages() {
         <div class="e-logo">
           <svg width="32" height="32" viewBox="0 0 24 24"><path d="M12 8v6m-3-3 3 3 3-3" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
         </div>
-        <h3>Worüber willst Du reden?</h3>
-        <p>Tipp unten in das Feld, was Du wissen möchtest.</p>
+        <h3>${escapeHtml(t('empty_hint_title'))}</h3>
+        <p>${escapeHtml(t('empty_hint_body'))}</p>
       </div>`;
     return;
   }
@@ -795,10 +798,10 @@ function renderMessage(m) {
         ${attHtml}
         <div class="content">${renderMarkdown(m.content)}</div>
         <div class="msg-tools">
-          <button class="icon-btn ${speakerActive ? 'active' : ''}" data-id="${m.id}" data-tool="tts" title="Vorlesen">
+          <button class="icon-btn ${speakerActive ? 'active' : ''}" data-id="${m.id}" data-tool="tts" title="${escapeHtml(t('tts_title'))}">
             <svg class="icon"><use href="#icon-speaker"/></svg>
           </button>
-          <button class="icon-btn" data-tool="copy" title="Kopieren">
+          <button class="icon-btn" data-tool="copy" title="${escapeHtml(t('copy_title'))}">
             <svg class="icon"><use href="#icon-copy"/></svg>
           </button>
         </div>
@@ -807,7 +810,7 @@ function renderMessage(m) {
       toggleTts(m.id, e.currentTarget);
     });
     div.querySelector('[data-tool="copy"]').addEventListener('click', () => {
-      navigator.clipboard.writeText(m.content).then(() => toast('Kopiert'));
+      navigator.clipboard.writeText(m.content).then(() => toast(t('toast_copied')));
     });
   }
   return div;
@@ -937,7 +940,7 @@ async function uploadAttachment(file) {
   } catch (e) {
     state.pendingAttach = state.pendingAttach.filter(a => a !== placeholder);
     renderPending();
-    toast('Upload fehlgeschlagen: ' + e.message, { error: true });
+    toast(t('toast_upload_failed', e.message), { error: true });
   }
 }
 
@@ -962,7 +965,7 @@ function renderPending() {
         <span class="name">${a._uploading ? '⏳ ' : ''}${escapeHtml(a.filename)}</span>
         <span class="meta">${sz}</span>
       </div>
-      <button class="rm" type="button" title="Entfernen"><svg class="icon" style="width:14px;height:14px"><use href="#icon-close"/></svg></button>
+      <button class="rm" type="button" title="${escapeHtml(t('remove_title'))}"><svg class="icon" style="width:14px;height:14px"><use href="#icon-close"/></svg></button>
     `;
     chip.querySelector('.rm').onclick = () => {
       state.pendingAttach = state.pendingAttach.filter(x => x !== a);
@@ -987,9 +990,9 @@ function attachmentsToHtml(atts) {
         <figure data-att-id="${escapeHtml(a.id)}">
           <img src="${url}" alt="${escapeHtml(a.filename)}" data-lightbox="${url}">
           <div class="img-actions">
-            <button title="Vergrößern" data-action="zoom" data-url="${url}"><svg class="icon"><use href="#icon-search"/></svg></button>
-            <button title="Als Edit-Input nutzen" data-action="edit" data-att-id="${escapeHtml(a.id)}" data-filename="${escapeHtml(a.filename)}" data-mime="${escapeHtml(a.mime_type)}"><svg class="icon"><use href="#icon-wand"/></svg></button>
-            <a href="${url}" download="${escapeHtml(a.filename)}" title="Download"><button data-action="download"><svg class="icon"><use href="#icon-download"/></svg></button></a>
+            <button title="${escapeHtml(t('img_action_zoom'))}" data-action="zoom" data-url="${url}"><svg class="icon"><use href="#icon-search"/></svg></button>
+            <button title="${escapeHtml(t('img_action_edit'))}" data-action="edit" data-att-id="${escapeHtml(a.id)}" data-filename="${escapeHtml(a.filename)}" data-mime="${escapeHtml(a.mime_type)}"><svg class="icon"><use href="#icon-wand"/></svg></button>
+            <a href="${url}" download="${escapeHtml(a.filename)}" title="${escapeHtml(t('img_action_download'))}"><button data-action="download"><svg class="icon"><use href="#icon-download"/></svg></button></a>
           </div>
         </figure>`;
     }
@@ -1031,7 +1034,7 @@ document.addEventListener('click', (e) => {
       renderPending();
       setImageMode(true);
       els.input.focus();
-      toast('Bild als Edit-Input gesetzt — schreib einen Prompt');
+      toast(t('toast_image_set_as_edit'));
     }
   }
 });
@@ -1041,7 +1044,7 @@ function openLightbox(url) {
   const lb = document.createElement('div');
   lb.id = 'lightbox';
   lb.className = 'lightbox';
-  lb.innerHTML = `<button class="lb-close" aria-label="Schließen">×</button><img src="${url}">`;
+  lb.innerHTML = `<button class="lb-close" aria-label="${escapeHtml(t('lightbox_close'))}">×</button><img src="${url}">`;
   lb.addEventListener('click', (e) => {
     if (e.target === lb || e.target.classList.contains('lb-close')) lb.remove();
   });
@@ -1153,7 +1156,7 @@ async function loadImageConfig() {
       });
     });
   } catch (e) {
-    setImageStatus('Image-Config nicht ladbar: ' + e.message, 'error');
+    setImageStatus(t('image_mode_config_unavailable', e.message), 'error');
   }
 }
 
@@ -1170,20 +1173,20 @@ async function setImageMode(on) {
   imgEls.composer.classList.toggle('image-mode', on);
   if (on) {
     await loadImageConfig();
-    imgEls.input.placeholder = 'Beschreibe das Bild — z.B. „Cyberpunk-Katze im Neon-Regen, 35mm Foto"…';
-    imgEls.hint.innerHTML = '✨ <strong>Bild-Modus</strong> · Prompt geht an Gemini' +
+    imgEls.input.placeholder = t('image_mode_placeholder');
+    imgEls.hint.innerHTML = t('image_mode_hint') +
       (imageState.config && !imageState.config.configured
-        ? ' · <span style="color:var(--danger)">kein API-Key gesetzt (Einstellungen → Bilder)</span>'
+        ? ` · <span style="color:var(--danger)">${t('image_mode_hint_no_key').replace(/^ · /, '')}</span>`
         : ''
       );
     if (!imageState.config?.configured) {
-      setImageStatus('Bitte API-Key in den Einstellungen → Bilder eintragen.', 'error');
+      setImageStatus(t('image_mode_no_key_hint'), 'error');
     } else {
       setImageStatus('');
     }
   } else {
-    imgEls.input.placeholder = 'Frag Pocket Claude…';
-    imgEls.hint.textContent = '⌘/Ctrl + Enter zum Senden · Pocket Claude kann Fehler machen.';
+    imgEls.input.placeholder = t('compose_placeholder');
+    imgEls.hint.textContent = t('composer_hint');
     setImageStatus('');
   }
 }
@@ -1193,12 +1196,12 @@ imgEls.toggle.addEventListener('click', () => setImageMode(!imageState.enabled))
 async function generateImage(prompt) {
   if (imageState.busy) return;
   if (!imageState.config?.configured) {
-    setImageStatus('Kein API-Key — Einstellungen öffnen → Bilder', 'error');
+    setImageStatus(t('image_mode_no_key_short'), 'error');
     return;
   }
   imageState.busy = true;
   els.sendBtn.disabled = true;
-  setImageStatus(`Generiere ${imageState.count}× ${imageState.aspect} mit ${imageState.model}…`, 'busy');
+  setImageStatus(t('image_mode_status_generating', imageState.count, imageState.aspect, imageState.model), 'busy');
 
   if (!state.cid) await newChat();
 
@@ -1222,17 +1225,22 @@ async function generateImage(prompt) {
     renderPending();
     els.input.value = '';
     autoResize();
-    setImageStatus(`✓ ${resp.attachments.length} Bild${resp.attachments.length === 1 ? '' : 'er'} erstellt`, '');
+    setImageStatus(
+      resp.attachments.length === 1
+        ? t('image_mode_status_done_singular', resp.attachments.length)
+        : t('image_mode_status_done_plural', resp.attachments.length),
+      '',
+    );
     // Chat neu laden, damit die neuen Messages erscheinen
     await reloadChatMessages(state.cid);
     setTimeout(scrollToVeryBottom, 50);
   } catch (e) {
-    let msg = e.message || 'Unbekannter Fehler';
+    let msg = e.message || 'Unknown error';
     if (e instanceof ApiError) {
       msg = e.status === 502 ? msg : `HTTP ${e.status}: ${msg}`;
     }
-    setImageStatus('Fehler: ' + msg, 'error');
-    toast('Bild-Generation fehlgeschlagen: ' + msg, { error: true });
+    setImageStatus(t('image_mode_error_prefix', msg), 'error');
+    toast(t('toast_image_gen_failed', msg), { error: true });
   } finally {
     imageState.busy = false;
     els.sendBtn.disabled = false;
@@ -1284,7 +1292,7 @@ els.inputForm.addEventListener('submit', async (e) => {
   try {
     await streamReply(content);
   } catch (e) {
-    if (e.name !== 'AbortError') toast('Antwort fehlgeschlagen: ' + e.message, { error: true });
+    if (e.name !== 'AbortError') toast(t('toast_reply_failed', e.message), { error: true });
   } finally {
     state.isStreaming = false;
     els.sendBtn.disabled = false;
@@ -1396,12 +1404,12 @@ function handleSseEvent(raw) {
       refreshChatList();
       break;
     case 'error':
-      toast('Server: ' + (payload.message || ''), { error: true });
+      toast(t('toast_server_error', payload.message || ''), { error: true });
       state.isStreaming = false;
       renderMessages();
       break;
     case 'compaction_started':
-      toast('Verdichtet…');
+      toast(t('toast_compacting'));
       break;
   }
 }
@@ -1432,7 +1440,7 @@ function toggleTts(messageId, btn) {
   els.audio.play().then(() => {
     state.audio = { msgId: messageId, playing: true };
     btn.classList.add('active');
-  }).catch(err => toast('Wiedergabe: ' + err.message, { error: true }));
+  }).catch(err => toast(t('toast_playback', err.message), { error: true }));
 }
 
 // =========================================================
@@ -1450,15 +1458,15 @@ function _renderTtsProviderHint(status) {
   const lines = [];
   if (p === 'gemini_api') {
     if (status.gemini_api_configured) {
-      lines.push('✓ AI-Studio-API-Key gesetzt — TTS läuft unter dem 8 €-Monats-Cap.');
+      lines.push(t('tts_hint_gemini_ok'));
     } else {
-      lines.push('⚠ Kein API-Key. Trag ihn oben unter "Bilder" ein — wird hier mitgenutzt.');
+      lines.push(t('tts_hint_gemini_missing'));
     }
   } else {
     if (status.cloud_tts_configured) {
-      lines.push(`✓ Cloud-TTS-Service-Account aktiv (${status.client_email || '?'}). Achtung: kein direkter Hard-Cap.`);
+      lines.push(t('tts_hint_cloud_ok', status.client_email || '?'));
     } else {
-      lines.push('⚠ Kein Service-Account-JSON geladen. Admin muss es hochladen.');
+      lines.push(t('tts_hint_cloud_missing'));
     }
   }
   els.ttsProviderHint.textContent = lines.join(' ');
@@ -1502,7 +1510,7 @@ async function openSettings() {
     } else {
       els.ttsVoice.value = state.ttsVoice;
     }
-  } catch (e) { toast('TTS: ' + e.message, { error: true }); }
+  } catch (e) { toast(t('toast_tts_error', e.message), { error: true }); }
 }
 
 document.querySelectorAll('input[name="sp-mode"]').forEach(r => {
@@ -1547,9 +1555,9 @@ if (els.ttsProvider) {
       const s = await api('PUT', '/tts/provider', { provider: newProvider });
       state.ttsProvider = newProvider;
       _renderTtsProviderHint(s);
-      toast('TTS-Provider: ' + (newProvider === 'gemini_api' ? 'Gemini API (Hard-Cap)' : 'Cloud TTS'), { ok: true });
+      toast(t('toast_provider_changed', newProvider === 'gemini_api' ? t('tts_provider_label_gemini') : t('tts_provider_label_cloud')), { ok: true });
     } catch (e) {
-      toast('Provider-Wechsel fehlgeschlagen: ' + e.message, { error: true });
+      toast(t('toast_provider_switch_failed', e.message), { error: true });
     }
   });
 }
@@ -1565,12 +1573,12 @@ els.ttsSpeed.addEventListener('input', () => {
 // =========================================================
 els.backupExport.addEventListener('click', async () => {
   const pw = await showPrompt({
-    title: 'Verschlüsseln?',
-    text: 'Optional: AES-256-Passwort. Leer = unverschlüsseltes ZIP.',
-    placeholder: 'Passwort (optional)', type: 'password', okLabel: 'Exportieren',
+    title: t('backup_encrypt_title'),
+    text: t('backup_encrypt_text'),
+    placeholder: t('backup_password_placeholder'), type: 'password', okLabel: t('backup_export_button'),
   });
   if (pw === null) return;
-  setBackupStatus('Lade vom Server…');
+  setBackupStatus(t('backup_loading'));
   try {
     const params = new URLSearchParams();
     if (pw) params.set('password', pw);
@@ -1587,9 +1595,9 @@ els.backupExport.addEventListener('click', async () => {
     a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(a.href);
-    setBackupStatus(`✓ ${filename} (${(blob.size/1024/1024).toFixed(1)} MB)`, 'ok');
+    setBackupStatus(t('backup_export_done', filename, (blob.size/1024/1024).toFixed(1)), 'ok');
   } catch (e) {
-    setBackupStatus('Export fehlgeschlagen: ' + e.message, 'error');
+    setBackupStatus(t('backup_export_failed', e.message), 'error');
   }
 });
 
@@ -1598,7 +1606,7 @@ els.backupFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   e.target.value = '';
   if (!file) return;
-  setBackupStatus('Prüfe Backup…');
+  setBackupStatus(t('backup_checking'));
   try {
     const bytes = await file.arrayBuffer();
     let password = null, manifest;
@@ -1607,9 +1615,9 @@ els.backupFileInput.addEventListener('change', async (e) => {
       catch (err) {
         if (err.status === 423) {
           const pw = await showPrompt({
-            title: 'Verschlüsseltes Backup',
-            text: password ? 'Passwort falsch. Erneut eingeben.' : 'Passwort eingeben.',
-            placeholder: 'Passwort', type: 'password', okLabel: 'Entsperren',
+            title: t('backup_encrypted_title'),
+            text: password ? t('backup_password_wrong') : t('backup_password_enter'),
+            placeholder: t('backup_password_placeholder_short'), type: 'password', okLabel: t('backup_unlock'),
           });
           if (!pw) { setBackupStatus(''); return; }
           password = pw;
@@ -1618,15 +1626,15 @@ els.backupFileInput.addEventListener('change', async (e) => {
     }
     const mode = await showImportConfirm(manifest);
     if (!mode) { setBackupStatus(''); return; }
-    setBackupStatus(`Importiere (${mode})…`);
+    setBackupStatus(t('backup_importing', mode));
     const result = await importBackup(bytes, mode, password);
     setBackupStatus(
-      `✓ ${result.conversations_added} neu · ${result.conversations_skipped} übersprungen · ${result.messages_imported} Nachrichten`,
+      t('backup_import_result', result.conversations_added, result.conversations_skipped, result.messages_imported),
       'ok',
     );
     refreshChatList();
   } catch (err) {
-    setBackupStatus('Import fehlgeschlagen: ' + err.message, 'error');
+    setBackupStatus(t('backup_import_failed', err.message), 'error');
   }
 });
 
@@ -1650,16 +1658,16 @@ function showImportConfirm(m) {
     o.className = 'modal';
     o.innerHTML = `
       <div class="modal-card small">
-        <div class="modal-header"><h2>Backup importieren</h2></div>
+        <div class="modal-header"><h2>${escapeHtml(t('backup_import_title'))}</h2></div>
         <div class="modal-body">
-          <p style="margin:0 0 4px"><b>${m.conversation_count}</b> Chats · <b>${m.message_count}</b> Nachrichten · <b>${m.attachment_count}</b> Anhänge</p>
-          <p style="margin:0 0 14px;color:var(--text-muted);font-size:12px">Erstellt ${m.created_at.replace('T',' ').substring(0,19)} · Server v${m.server_version}</p>
-          <p style="margin:0;font-size:13px"><b>Replace</b> = alles überschreiben (mit Auto-Backup).<br><b>Merge</b> = nur neue Chats hinzufügen.</p>
+          <p style="margin:0 0 4px">${t('backup_import_summary', m.conversation_count, m.message_count, m.attachment_count)}</p>
+          <p style="margin:0 0 14px;color:var(--text-muted);font-size:12px">${escapeHtml(t('backup_import_meta', m.created_at.replace('T',' ').substring(0,19), m.server_version))}</p>
+          <p style="margin:0;font-size:13px">${t('backup_import_modes')}</p>
         </div>
         <div class="modal-footer">
-          <button class="btn-ghost" data-act="cancel">Abbrechen</button>
-          <button class="btn-secondary" data-act="merge">Merge</button>
-          <button class="btn-primary" data-act="replace" style="background:var(--danger)">Replace</button>
+          <button class="btn-ghost" data-act="cancel">${escapeHtml(t('cancel'))}</button>
+          <button class="btn-secondary" data-act="merge">${escapeHtml(t('backup_merge'))}</button>
+          <button class="btn-primary" data-act="replace" style="background:var(--danger)">${escapeHtml(t('backup_replace'))}</button>
         </div>
       </div>`;
     document.body.appendChild(o);
@@ -1717,7 +1725,7 @@ function renderFooterUser() {
   el.innerHTML = `
     <div class="avatar">${escapeHtml(initials)}</div>
     <div class="name">${escapeHtml(state.me.name)}</div>
-    ${state.me.is_admin ? '<span class="badge">Admin</span>' : ''}`;
+    ${state.me.is_admin ? `<span class="badge">${escapeHtml(t('admin_label'))}</span>` : ''}`;
 }
 
 function applyAdminVisibility() {
@@ -1729,8 +1737,8 @@ function applyAdminVisibility() {
   const hint = document.getElementById('backup-hint');
   if (hint) {
     hint.textContent = isAdmin
-      ? 'ZIP-Snapshot ALLER Chats (alle Benutzer). Optional AES-256.'
-      : 'ZIP-Snapshot Deiner eigenen Chats. Optional AES-256.';
+      ? t('backup_hint_admin')
+      : t('backup_hint_user');
   }
   // Import-Button nur für Admin
   const importBtn = document.getElementById('backup-import-btn');
@@ -1747,24 +1755,20 @@ async function loadUsersList() {
       const row = document.createElement('div');
       row.className = 'user-row';
       const statusLabel = u.must_change_password
-        ? '<span class="badge warn" title="User muss beim nächsten Login PW ändern">PW-Reset fällig</span>'
+        ? `<span class="badge warn" title="${escapeHtml(t('user_pw_reset_due_title'))}">${escapeHtml(t('user_pw_reset_due'))}</span>`
         : '';
       row.innerHTML = `
         <span class="name">${escapeHtml(u.name)}</span>
-        ${u.is_admin ? '<span class="badge">Admin</span>' : ''}
+        ${u.is_admin ? `<span class="badge">${escapeHtml(t('admin_label'))}</span>` : ''}
         ${statusLabel}
         <span class="user-spacer"></span>
         <span class="actions">
-          <button class="icon-btn" data-act="reset" title="Passwort zurücksetzen"><svg class="icon"><use href="#icon-settings"/></svg></button>
-          ${u.id === state.me.id ? '' : '<button class="icon-btn" data-act="delete" title="Löschen"><svg class="icon"><use href="#icon-trash"/></svg></button>'}
+          <button class="icon-btn" data-act="reset" title="${escapeHtml(t('reset_password_title'))}"><svg class="icon"><use href="#icon-settings"/></svg></button>
+          ${u.id === state.me.id ? '' : `<button class="icon-btn" data-act="delete" title="${escapeHtml(t('delete'))}"><svg class="icon"><use href="#icon-trash"/></svg></button>`}
         </span>`;
       const resetBtn = row.querySelector('[data-act="reset"]');
       if (resetBtn) resetBtn.onclick = async () => {
-        const custom = prompt(
-          `Neues Passwort für „${u.name}" (leer = vom Server generieren lassen).\n` +
-          `In jedem Fall werden ALLE aktiven Sessions dieses Users beendet.`,
-          ''
-        );
+        const custom = prompt(t('user_reset_pw_prompt', u.name), '');
         if (custom === null) return;
         const body = custom.trim() ? { password: custom.trim() } : {};
         try {
@@ -1773,20 +1777,19 @@ async function loadUsersList() {
           // Neues Passwort 1× im UI zeigen + in Zwischenablage
           const pw = resp.new_password;
           try { await navigator.clipboard.writeText(pw); } catch {}
-          alert(`Neues Passwort für „${u.name}":\n\n${pw}\n\n` +
-                `(Liegt in der Zwischenablage. User muss es beim nächsten Login ändern.)`);
-        } catch (e) { toast('Reset fehlgeschlagen: ' + e.message, { error: true }); }
+          alert(t('user_reset_pw_alert', u.name, pw));
+        } catch (e) { toast(t('toast_reset_failed', e.message), { error: true }); }
       };
       const delBtn = row.querySelector('[data-act="delete"]');
       if (delBtn) delBtn.onclick = async () => {
-        if (!confirm(`User „${u.name}" und ALLE seine Chats/Anhänge löschen?\n\nDas kann nicht rückgängig gemacht werden.`)) return;
-        try { await api('DELETE', '/users/' + u.id); await loadUsersList(); toast('Gelöscht'); }
-        catch (e) { toast('Löschen fehlgeschlagen: ' + e.message, { error: true }); }
+        if (!confirm(t('confirm_delete_user', u.name))) return;
+        try { await api('DELETE', '/users/' + u.id); await loadUsersList(); toast(t('toast_deleted')); }
+        catch (e) { toast(t('toast_delete_failed', e.message), { error: true }); }
       };
       wrap.appendChild(row);
     }
   } catch (e) {
-    toast('Userliste fehlgeschlagen: ' + e.message, { error: true });
+    toast(t('toast_user_list_failed', e.message), { error: true });
   }
 }
 
@@ -1801,7 +1804,7 @@ if (newUserBtn) {
     const pw   = pwInp.value.trim();
     if (!name) return;
     if (pw && pw.length < 8) {
-      toast('Passwort min. 8 Zeichen oder leer lassen.', { error: true });
+      toast(t('toast_password_min_chars'), { error: true });
       return;
     }
     try {
@@ -1814,16 +1817,14 @@ if (newUserBtn) {
       if (initial) {
         try { await navigator.clipboard.writeText(initial); } catch {}
         resultEl.className = 'backup-status ok';
-        resultEl.innerHTML = `User <strong>${escapeHtml(name)}</strong> angelegt.<br>` +
-          `Initial-Passwort: <code style="user-select:all">${escapeHtml(initial)}</code> ` +
-          `<span class="hint">(in Zwischenablage kopiert, User muss es beim ersten Login ändern)</span>`;
+        resultEl.innerHTML = t('user_create_success', escapeHtml(name), escapeHtml(initial));
       } else {
         resultEl.className = 'backup-status ok';
-        resultEl.textContent = `User „${name}" angelegt.`;
+        resultEl.textContent = t('user_create_success_no_pw', name);
       }
     } catch (e) {
       resultEl.className = 'backup-status error';
-      resultEl.textContent = 'Anlegen fehlgeschlagen: ' + e.message;
+      resultEl.textContent = t('user_create_failed', e.message);
     }
   });
 }
@@ -1833,13 +1834,13 @@ const changePwBtn = document.getElementById('change-pw-btn');
 if (changePwBtn) changePwBtn.addEventListener('click', () => openPasswordChange({ forced: false }));
 const logoutAllBtn = document.getElementById('logout-all-btn');
 if (logoutAllBtn) logoutAllBtn.addEventListener('click', async () => {
-  if (!confirm('Wirklich aus ALLEN Sitzungen abmelden (auch dieser)?')) return;
+  if (!confirm(t('confirm_logout_all'))) return;
   try {
     await api('POST', '/auth/logout-all');
     localStorage.removeItem(LS.token);
     state.token = '';
     location.reload();
-  } catch (e) { toast('Logout-all fehlgeschlagen: ' + e.message, { error: true }); }
+  } catch (e) { toast(t('toast_logout_all_failed', e.message), { error: true }); }
 });
 
 // Beim Öffnen der Settings: Username, User-Liste, Image-Key-Status
@@ -1863,10 +1864,10 @@ async function loadImageKeyStatus() {
     const st = document.getElementById('image-api-key-status');
     if (cfg.configured) {
       st.className = 'backup-status ok';
-      st.innerHTML = `✓ Key hinterlegt: <code>${escapeHtml(cfg.api_key_masked || '')}</code>`;
+      st.innerHTML = t('image_key_set', `<code>${escapeHtml(cfg.api_key_masked || '')}</code>`);
     } else {
       st.className = 'backup-status';
-      st.textContent = 'Kein API-Key — Bild-Modus ist deaktiviert.';
+      st.textContent = t('image_key_not_set');
     }
   } catch (e) {
     // tolerieren — Server vielleicht älter
@@ -1882,23 +1883,23 @@ if (imgKeySave) imgKeySave.addEventListener('click', async () => {
   try {
     await api('PUT', '/images/credentials', { api_key: key });
     imgKeyInput.value = '';
-    toast('API-Key gespeichert');
+    toast(t('toast_api_key_saved'));
     await loadImageKeyStatus();
     // Wenn aktuell Image-Mode an ist: Status nachschieben
-    if (imageState.enabled) setImageStatus('Key gespeichert — generieren möglich.', '');
+    if (imageState.enabled) setImageStatus(t('image_key_saved_hint'), '');
   } catch (e) {
-    toast('Speichern fehlgeschlagen: ' + e.message, { error: true });
+    toast(t('toast_save_failed', e.message), { error: true });
   }
 });
 if (imgKeyDelete) imgKeyDelete.addEventListener('click', async () => {
-  if (!confirm('API-Key wirklich entfernen?')) return;
+  if (!confirm(t('confirm_remove_api_key'))) return;
   try {
     await api('DELETE', '/images/credentials');
     imgKeyInput.value = '';
-    toast('Entfernt');
+    toast(t('toast_removed'));
     await loadImageKeyStatus();
   } catch (e) {
-    toast('Fehler: ' + e.message, { error: true });
+    toast(t('toast_error_prefix', e.message), { error: true });
   }
 });
 
@@ -1916,6 +1917,189 @@ if (imgKeyDelete) imgKeyDelete.addEventListener('click', async () => {
     sel.value = stored;
     sel.addEventListener('change', () => {
       window.PocketI18n.setLocale(sel.value);
+    });
+  }
+})();
+
+// ───────────────────────────────────────────────────────────────
+// Claude auth-mode picker + usage widget
+// ───────────────────────────────────────────────────────────────
+(function initClaudeAuthAndUsage() {
+  const $ = (id) => document.getElementById(id);
+  const t = (k, ...args) => (window.PocketI18n ? window.PocketI18n.t(k, ...args) : k);
+
+  async function loadClaudeAuth() {
+    try {
+      const r = await fetch('/me/claude-auth', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('pc.serverToken') || '') } });
+      if (!r.ok) return;
+      const data = await r.json();
+      const mode = data.mode || 'pro_max';
+
+      // Radio buttons
+      document.querySelectorAll('input[name="claude-auth-mode"]').forEach((el) => {
+        el.checked = (el.value === mode);
+      });
+      // Hint
+      const hintMap = {
+        pro_max: 'claude_mode_pro_max_hint',
+        api_key: 'claude_mode_api_key_hint',
+        bedrock: 'claude_mode_bedrock_hint',
+      };
+      $('claude-auth-mode-hint').textContent = t(hintMap[mode] || hintMap.pro_max);
+
+      // Show/hide forms
+      $('claude-auth-apikey-form').classList.toggle('hidden', mode !== 'api_key');
+      $('claude-auth-bedrock-form').classList.toggle('hidden', mode !== 'bedrock');
+
+      // Populate API-key "current"
+      const apikeyCurrent = data.api_key_set
+        ? t('current_value_label', data.api_key_masked)
+        : t('not_configured');
+      $('claude-auth-apikey-current').textContent = apikeyCurrent;
+
+      // Populate Bedrock fields
+      $('bedrock-region').value = data.aws_region || '';
+      $('bedrock-akid').value = '';  // never prefill secrets — show masked next to label
+      $('bedrock-secret').value = '';
+      $('bedrock-session').value = '';
+      $('bedrock-opus').value = data.bedrock_opus_model || '';
+      $('bedrock-sonnet').value = data.bedrock_sonnet_model || '';
+      $('bedrock-haiku').value = data.bedrock_haiku_model || '';
+      document.querySelectorAll('input[name="bedrock-alias"]').forEach((el) => {
+        el.checked = (el.value === (data.bedrock_model_alias || 'opus'));
+      });
+    } catch (e) { /* not signed in yet */ }
+  }
+
+  async function putClaudeAuth(payload) {
+    const r = await fetch('/me/claude-auth', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + (localStorage.getItem('pc.serverToken') || ''),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const msg = await r.text();
+      throw new Error(`HTTP ${r.status}: ${msg}`);
+    }
+    return r.json();
+  }
+
+  // Wire radio buttons → switch mode
+  document.querySelectorAll('input[name="claude-auth-mode"]').forEach((el) => {
+    el.addEventListener('change', async () => {
+      try {
+        await putClaudeAuth({ mode: el.value });
+        await loadClaudeAuth();
+      } catch (e) {
+        $('claude-auth-status').textContent = `Error: ${e.message}`;
+      }
+    });
+  });
+
+  // Anthropic API key save/clear
+  if ($('claude-anthropic-save')) {
+    $('claude-anthropic-save').addEventListener('click', async () => {
+      const key = $('claude-anthropic-key').value.trim();
+      if (!key) return;
+      try {
+        await putClaudeAuth({ api_key: key });
+        $('claude-anthropic-key').value = '';
+        $('claude-auth-status').textContent = t('saved');
+        await loadClaudeAuth();
+      } catch (e) {
+        $('claude-auth-status').textContent = `Error: ${e.message}`;
+      }
+    });
+  }
+  if ($('claude-anthropic-clear')) {
+    $('claude-anthropic-clear').addEventListener('click', async () => {
+      if (!confirm(t('confirm_remove_api_key'))) return;
+      try {
+        await putClaudeAuth({ api_key: '' });
+        await loadClaudeAuth();
+      } catch (e) {
+        $('claude-auth-status').textContent = `Error: ${e.message}`;
+      }
+    });
+  }
+
+  // Bedrock apply
+  if ($('bedrock-apply')) {
+    $('bedrock-apply').addEventListener('click', async () => {
+      const alias = (document.querySelector('input[name="bedrock-alias"]:checked') || {}).value;
+      const body = {
+        aws_region: $('bedrock-region').value.trim() || null,
+        aws_access_key_id: $('bedrock-akid').value.trim() || null,
+        aws_secret_access_key: $('bedrock-secret').value || null,
+        aws_session_token: $('bedrock-session').value || null,
+        bedrock_opus_model: $('bedrock-opus').value.trim() || null,
+        bedrock_sonnet_model: $('bedrock-sonnet').value.trim() || null,
+        bedrock_haiku_model: $('bedrock-haiku').value.trim() || null,
+        bedrock_model_alias: alias || null,
+      };
+      // Remove null keys
+      Object.keys(body).forEach((k) => body[k] === null && delete body[k]);
+      try {
+        await putClaudeAuth(body);
+        $('bedrock-akid').value = '';
+        $('bedrock-secret').value = '';
+        $('bedrock-session').value = '';
+        $('claude-auth-status').textContent = t('saved');
+        await loadClaudeAuth();
+      } catch (e) {
+        $('claude-auth-status').textContent = `Error: ${e.message}`;
+      }
+    });
+  }
+  document.querySelectorAll('input[name="bedrock-alias"]').forEach((el) => {
+    el.addEventListener('change', async () => {
+      try { await putClaudeAuth({ bedrock_model_alias: el.value }); await loadClaudeAuth(); }
+      catch (e) { $('claude-auth-status').textContent = `Error: ${e.message}`; }
+    });
+  });
+
+  async function loadUsage() {
+    try {
+      const r = await fetch('/me/usage?period=month', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('pc.serverToken') || '') } });
+      if (!r.ok) return;
+      const u = await r.json();
+      const grid = $('usage-grid');
+      grid.innerHTML = '';
+      const fmt = (n) => {
+        if (n < 1000) return String(n);
+        if (n < 1_000_000) return (n / 1000).toFixed(1) + 'K';
+        return (n / 1_000_000).toFixed(2) + 'M';
+      };
+      const rows = [
+        [t('usage_input'), fmt(u.input_tokens)],
+        [t('usage_output'), fmt(u.output_tokens)],
+        [t('usage_cache_create'), fmt(u.cache_create_tokens)],
+        [t('usage_cache_read'), fmt(u.cache_read_tokens)],
+        [t('usage_requests'), fmt(u.request_count)],
+      ];
+      if (u.provider) rows.push([t('usage_provider'), u.provider]);
+      rows.forEach(([label, val]) => {
+        const l = document.createElement('div'); l.textContent = label; l.style.color = 'var(--text-soft)';
+        const v = document.createElement('div'); v.textContent = val; v.style.fontWeight = '500'; v.style.textAlign = 'right';
+        grid.appendChild(l); grid.appendChild(v);
+      });
+      const proMaxNote = $('usage-pro-max-note');
+      if (proMaxNote) proMaxNote.style.display = (u.provider === 'pro_max' || u.provider === '') ? '' : 'none';
+    } catch (e) { /* ignore */ }
+  }
+
+  if ($('usage-refresh')) {
+    $('usage-refresh').addEventListener('click', loadUsage);
+  }
+
+  // Trigger initial loads when the settings modal is opened
+  const settingsBtn = $('settings-btn');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      setTimeout(() => { loadClaudeAuth(); loadUsage(); }, 100);
     });
   }
 })();

@@ -162,11 +162,13 @@ fun ChatScreen(
         }
     }
 
+    val defaultImageName = stringResource(de.smartzone.pocketclaude.R.string.chat_default_filename_image)
+    val defaultDocName = stringResource(de.smartzone.pocketclaude.R.string.chat_default_filename_doc)
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
         if (uri != null) {
-            val name = queryName(context, uri) ?: "bild.jpg"
+            val name = queryName(context, uri) ?: defaultImageName
             vm.addPending(uri, name)
         }
     }
@@ -174,7 +176,7 @@ fun ChatScreen(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri != null) {
-            val name = queryName(context, uri) ?: "datei.pdf"
+            val name = queryName(context, uri) ?: defaultDocName
             vm.addPending(uri, name)
         }
     }
@@ -256,7 +258,7 @@ fun ChatScreen(
     // Audio-Fehler ebenfalls in der Snackbar zeigen
     LaunchedEffect(audioState.error) {
         audioState.error?.let { err ->
-            snackbar.showSnackbar("Vorlesen: $err")
+            snackbar.showSnackbar(context.getString(de.smartzone.pocketclaude.R.string.chat_audio_prefix, err))
             vm.clearAudioError()
         }
     }
@@ -309,8 +311,9 @@ fun ChatScreen(
                         )
                     } else {
                         Column {
+                            val appName = stringResource(de.smartzone.pocketclaude.R.string.app_name)
                             Text(
-                                state.title.ifBlank { "Pocket Claude" },
+                                state.title.ifBlank { appName },
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -318,9 +321,11 @@ fun ChatScreen(
                             val pct = (state.totalTokens.toFloat() / 200_000f * 100f).toInt().coerceIn(0, 999)
                             val warn = pct >= 85
                             val cachedLast = state.lastTurnCachedRead
-                            val cacheInfo = if (cachedLast > 0) " · ${cachedLast / 1000}K cached" else ""
+                            val cacheInfo = if (cachedLast > 0)
+                                stringResource(de.smartzone.pocketclaude.R.string.chat_cache_suffix, cachedLast / 1000)
+                            else ""
                             Text(
-                                "$pct% Kontext · ${formatTokens(state.totalTokens)}$cacheInfo",
+                                stringResource(de.smartzone.pocketclaude.R.string.chat_context_status, pct, formatTokens(context, state.totalTokens), cacheInfo),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (warn) MaterialTheme.colorScheme.error
                                         else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -363,7 +368,7 @@ fun ChatScreen(
                             expanded = effortMenuOpen,
                             onDismissRequest = { effortMenuOpen = false },
                         ) {
-                            EFFORT_OPTIONS.forEach { (value, label) ->
+                            effortOptions().forEach { (value, label) ->
                                 val selected = appSettings.effort == value
                                 DropdownMenuItem(
                                     text = { Text(label) },
@@ -420,8 +425,8 @@ fun ChatScreen(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        if (state.skillsIsOverride) "Skills für diesen Chat ✓"
-                                        else "Skills für diesen Chat…"
+                                        if (state.skillsIsOverride) stringResource(de.smartzone.pocketclaude.R.string.skills_for_this_chat_done)
+                                        else stringResource(de.smartzone.pocketclaude.R.string.skills_for_this_chat)
                                     )
                                 },
                                 leadingIcon = {
@@ -434,8 +439,10 @@ fun ChatScreen(
                             )
                             DropdownMenuItem(
                                 text = {
-                                    val mark = state.autoSpeakOverride?.let { if (it) " ✓ an" else " ✗ aus" }.orEmpty()
-                                    Text("Auto-Vorlesen für diesen Chat…$mark")
+                                    val markOn = stringResource(de.smartzone.pocketclaude.R.string.chat_auto_speak_marker_on)
+                                    val markOff = stringResource(de.smartzone.pocketclaude.R.string.chat_auto_speak_marker_off)
+                                    val mark = state.autoSpeakOverride?.let { if (it) markOn else markOff }.orEmpty()
+                                    Text(stringResource(de.smartzone.pocketclaude.R.string.auto_speak_for_this_chat, mark))
                                 },
                                 leadingIcon = {
                                     Icon(
@@ -520,7 +527,7 @@ fun ChatScreen(
                         if (state.hasMidSummary || state.hasLongSummary) {
                             item {
                                 CompactionNotice(
-                                    text = "↑ Sehr alter Verlauf wurde zusammengefasst (Notfall-Compaction)",
+                                    text = stringResource(de.smartzone.pocketclaude.R.string.chat_compaction_notice),
                                 )
                             }
                         }
@@ -567,7 +574,7 @@ fun ChatScreen(
                 if (state.isCompacting) {
                     AssistChip(
                         onClick = {},
-                        label = { Text("Konversation wird verdichtet…") },
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.chat_compacting_chip)) },
                         leadingIcon = {
                             CircularProgressIndicator(
                                 strokeWidth = 2.dp,
@@ -598,7 +605,7 @@ fun ChatScreen(
                     ) {
                         Icon(
                             Icons.Filled.KeyboardArrowDown,
-                            contentDescription = "Nach unten scrollen",
+                            contentDescription = stringResource(de.smartzone.pocketclaude.R.string.chat_scroll_to_bottom_cd),
                         )
                     }
                 }
@@ -749,35 +756,33 @@ private fun ChatSkillsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Skills für diesen Chat") },
+        title = { Text(stringResource(de.smartzone.pocketclaude.R.string.chat_skills_dialog_title)) },
         text = {
             Column {
                 Text(
                     if (isOverride)
-                        "Dieser Chat hat eigene Skill-Einstellungen, die von Deinem Standard " +
-                            "abweichen."
+                        stringResource(de.smartzone.pocketclaude.R.string.chat_skills_dialog_body_override)
                     else
-                        "Aktuell gelten die Standard-Einstellungen aus den Settings. " +
-                            "Wenn Du hier etwas änderst, wird's nur für diesen Chat überschrieben.",
+                        stringResource(de.smartzone.pocketclaude.R.string.chat_skills_dialog_body_default),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(8.dp))
                 de.smartzone.pocketclaude.ui.settings.SkillToggleRow(
-                    label = "WebSearch",
-                    description = "Web durchsuchen (für aktuelle Infos).",
+                    label = stringResource(de.smartzone.pocketclaude.R.string.chat_skill_web_search_label),
+                    description = stringResource(de.smartzone.pocketclaude.R.string.chat_skill_web_search_desc),
                     checked = webSearch,
                     onCheckedChange = { webSearch = it },
                 )
                 de.smartzone.pocketclaude.ui.settings.SkillToggleRow(
-                    label = "WebFetch",
-                    description = "Konkrete URLs abrufen + zusammenfassen.",
+                    label = stringResource(de.smartzone.pocketclaude.R.string.chat_skill_web_fetch_label),
+                    description = stringResource(de.smartzone.pocketclaude.R.string.chat_skill_web_fetch_desc),
                     checked = webFetch,
                     onCheckedChange = { webFetch = it },
                 )
                 de.smartzone.pocketclaude.ui.settings.SkillToggleRow(
-                    label = "Code-Ausführung",
-                    description = "Bash/Python in Server-Sandbox.",
+                    label = stringResource(de.smartzone.pocketclaude.R.string.chat_skill_code_label),
+                    description = stringResource(de.smartzone.pocketclaude.R.string.chat_skill_code_desc),
                     checked = codeExecution,
                     onCheckedChange = { codeExecution = it },
                 )
@@ -792,15 +797,15 @@ private fun ChatSkillsDialog(
                         codeExecution = codeExecution,
                     )
                 )
-            }) { Text("Für diesen Chat speichern") }
+            }) { Text(stringResource(de.smartzone.pocketclaude.R.string.chat_skills_save_for_chat)) }
         },
         dismissButton = {
             Row {
                 if (isOverride) {
-                    TextButton(onClick = onReset) { Text("Auf Standard zurücksetzen") }
+                    TextButton(onClick = onReset) { Text(stringResource(de.smartzone.pocketclaude.R.string.chat_skills_reset_default)) }
                     Spacer(Modifier.width(4.dp))
                 }
-                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+                TextButton(onClick = onDismiss) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             }
         },
     )
@@ -817,18 +822,21 @@ private fun ChatAutoSpeakDialog(
     onSave: (Boolean?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val onLbl = stringResource(de.smartzone.pocketclaude.R.string.chat_auto_speak_on)
+    val offLbl = stringResource(de.smartzone.pocketclaude.R.string.chat_auto_speak_off)
+    val defaultLabel = stringResource(de.smartzone.pocketclaude.R.string.chat_auto_speak_default_label, if (globalDefault) onLbl else offLbl)
     val options = listOf<Pair<String, Boolean?>>(
-        ("Standard (${if (globalDefault) "an" else "aus"})") to null,
-        "Immer an" to true,
-        "Immer aus" to false,
+        defaultLabel to null,
+        stringResource(de.smartzone.pocketclaude.R.string.chat_auto_speak_always_on) to true,
+        stringResource(de.smartzone.pocketclaude.R.string.chat_auto_speak_always_off) to false,
     )
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Auto-Vorlesen für diesen Chat") },
+        title = { Text(stringResource(de.smartzone.pocketclaude.R.string.chat_auto_speak_dialog_title)) },
         text = {
             Column {
                 Text(
-                    "Soll Pocket Claude die Antworten in diesem Chat automatisch vorlesen?",
+                    stringResource(de.smartzone.pocketclaude.R.string.chat_auto_speak_dialog_body),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -862,7 +870,7 @@ private fun ChatAutoSpeakDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Schließen") }
+            TextButton(onClick = onDismiss) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_close)) }
         },
     )
 }
@@ -993,7 +1001,7 @@ private fun ChatDrawerContent(
                     },
                     label = {
                         Text(
-                            conv.title.ifBlank { "(ohne Titel)" },
+                            conv.title.ifBlank { stringResource(de.smartzone.pocketclaude.R.string.chat_untitled) },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -1049,7 +1057,7 @@ private fun PendingChip(p: PendingAttachment, onRemove: () -> Unit) {
         IconButton(onClick = onRemove, modifier = Modifier.size(20.dp)) {
             Icon(
                 Icons.Filled.Close,
-                contentDescription = "Entfernen",
+                contentDescription = stringResource(de.smartzone.pocketclaude.R.string.chat_remove),
                 modifier = Modifier.size(14.dp),
             )
         }
@@ -1080,19 +1088,19 @@ private fun InputBar(
     ) {
         Box {
             IconButton(onClick = { attachMenu = true }) {
-                Icon(Icons.Filled.AttachFile, contentDescription = "Anhang")
+                Icon(Icons.Filled.AttachFile, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.chat_attach))
             }
             DropdownMenu(
                 expanded = attachMenu,
                 onDismissRequest = { attachMenu = false },
             ) {
                 DropdownMenuItem(
-                    text = { Text("Bild aus Galerie") },
+                    text = { Text(stringResource(de.smartzone.pocketclaude.R.string.chat_attach_image_menu)) },
                     leadingIcon = { Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null) },
                     onClick = { attachMenu = false; onAttachImage() },
                 )
                 DropdownMenuItem(
-                    text = { Text("Datei (PDF, JSON, Code …)") },
+                    text = { Text(stringResource(de.smartzone.pocketclaude.R.string.chat_attach_file_menu)) },
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null) },
                     onClick = { attachMenu = false; onAttachDocument() },
                 )
@@ -1174,26 +1182,29 @@ private fun shareMarkdownIntent(context: android.content.Context, title: String,
             putExtra(android.content.Intent.EXTRA_TEXT, markdown.take(4000))
             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(android.content.Intent.createChooser(intent, "Chat teilen"))
+        context.startActivity(android.content.Intent.createChooser(intent, context.getString(de.smartzone.pocketclaude.R.string.chat_share_chooser_title)))
     } catch (e: Exception) {
-        android.widget.Toast.makeText(context, "Teilen fehlgeschlagen: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+        android.widget.Toast.makeText(context, context.getString(de.smartzone.pocketclaude.R.string.chat_share_failed, e.message ?: ""), android.widget.Toast.LENGTH_LONG).show()
     }
 }
 
-private fun formatTokens(n: Int): String = when {
-    n >= 1_000_000 -> "%.1fM Tokens".format(n / 1_000_000f)
-    n >= 10_000 -> "${n / 1000}K Tokens"
-    n >= 1000 -> "%.1fK Tokens".format(n / 1000f)
-    else -> "$n Tokens"
+private fun formatTokens(context: android.content.Context, n: Int): String = when {
+    n >= 1_000_000 -> context.getString(de.smartzone.pocketclaude.R.string.tokens_label_millions, n / 1_000_000f)
+    n >= 10_000 -> context.getString(de.smartzone.pocketclaude.R.string.tokens_label_thousands_k, n / 1000)
+    n >= 1000 -> context.getString(de.smartzone.pocketclaude.R.string.tokens_label_thousands_dot, n / 1000f)
+    else -> context.getString(de.smartzone.pocketclaude.R.string.tokens_label_raw, n)
 }
 
-private val EFFORT_OPTIONS = listOf(
-    "off" to "Aus (schnell)",
-    "low" to "Niedrig",
-    "medium" to "Mittel",
-    "high" to "Hoch",
-    "xhigh" to "Sehr hoch",
-    "max" to "Maximum",
+private val EFFORT_KEYS = listOf("off", "low", "medium", "high", "xhigh", "max")
+
+@Composable
+private fun effortOptions(): List<Pair<String, String>> = listOf(
+    "off" to stringResource(de.smartzone.pocketclaude.R.string.effort_off_label),
+    "low" to stringResource(de.smartzone.pocketclaude.R.string.effort_low_label),
+    "medium" to stringResource(de.smartzone.pocketclaude.R.string.effort_medium_label),
+    "high" to stringResource(de.smartzone.pocketclaude.R.string.effort_high_label),
+    "xhigh" to stringResource(de.smartzone.pocketclaude.R.string.effort_xhigh_label),
+    "max" to stringResource(de.smartzone.pocketclaude.R.string.effort_max_label),
 )
 
 @Composable

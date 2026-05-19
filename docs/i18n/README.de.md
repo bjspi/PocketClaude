@@ -160,21 +160,14 @@ AI-Studio-API-Key mitbringen (Free-Tier reicht für gelegentliche Nutzung). Eige
 
 ## Roadmap
 
-- [ ] iOS-Client (das Protokoll ist schon dokumentiert — Contributions willkommen)
+- [ ] iOS-Client
 - [ ] Docker / Docker Compose Deployment als One-Liner-Alternative zum System-Install-Skript
 - [ ] Voice-Input (Whisper-basiert) auf der App-Seite
 - [ ] Tool-Budgets pro Konversation
 
 ## Mitmachen
 
-Pull Requests willkommen — besonders für Übersetzungen (jede `values-XX/strings.xml` und jede `docs/i18n/README.*.md` ist ein eigener, gut abgegrenzter PR-Brocken), iOS-Client und Docker-Packaging.
-
-Für Übersetzungs-PRs: einen PR pro Sprache. Strings liegen in `app/app/src/main/res/values-XX/strings.xml` und `server/pocket_claude/webui/i18n.js`.
-
-Für Code-Contributions:
-1. Erst ein Issue zur Diskussion öffnen
-2. Diff klein und fokussiert halten
-3. Bestehende Patterns weiterführen, nicht neue einführen
+Pull Requests werden angenommen. Siehe [CONTRIBUTING.md](../../CONTRIBUTING.md) für den Workflow.
 
 ## Lizenz
 

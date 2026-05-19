@@ -1,14 +1,19 @@
 package de.smartzone.pocketclaude.ui.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import de.smartzone.pocketclaude.R
 import de.smartzone.pocketclaude.data.AppContainer
 import de.smartzone.pocketclaude.data.AppSettings
 import de.smartzone.pocketclaude.data.ApiException
 import de.smartzone.pocketclaude.data.AudioController
 import de.smartzone.pocketclaude.data.BillingStatusDto
 import de.smartzone.pocketclaude.data.ChatRepository
+import de.smartzone.pocketclaude.data.ClaudeAuthDto
+import de.smartzone.pocketclaude.data.ClaudeAuthUpdateRequest
+import de.smartzone.pocketclaude.data.UsageStatsDto
 import de.smartzone.pocketclaude.data.MeDto
 import de.smartzone.pocketclaude.data.SettingsRepository
 import de.smartzone.pocketclaude.data.SkillsDto
@@ -50,6 +55,7 @@ class SettingsViewModel(
     private val settingsRepo: SettingsRepository,
     private val chatRepo: ChatRepository,
     private val audio: AudioController,
+    private val appContext: Context,
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = MutableStateFlow(AppSettings()).also { flow ->
@@ -95,6 +101,35 @@ class SettingsViewModel(
         _billingBusy.value = false
     }
 
+    // Claude auth-mode (Pro/Max | API key | Bedrock)
+    private val _claudeAuth = MutableStateFlow<ClaudeAuthDto?>(null)
+    val claudeAuth: StateFlow<ClaudeAuthDto?> = _claudeAuth.asStateFlow()
+    private val _claudeAuthBusy = MutableStateFlow(false)
+    val claudeAuthBusy: StateFlow<Boolean> = _claudeAuthBusy.asStateFlow()
+
+    fun refreshClaudeAuth() = viewModelScope.launch {
+        if (!settings.value.isConfigured) return@launch
+        runCatching { chatRepo.getClaudeAuth() }
+            .onSuccess { _claudeAuth.value = it }
+    }
+
+    fun updateClaudeAuth(req: ClaudeAuthUpdateRequest) = viewModelScope.launch {
+        _claudeAuthBusy.value = true
+        runCatching { chatRepo.updateClaudeAuth(req) }
+            .onSuccess { _claudeAuth.value = it }
+        _claudeAuthBusy.value = false
+    }
+
+    // Usage stats
+    private val _usage = MutableStateFlow<UsageStatsDto?>(null)
+    val usage: StateFlow<UsageStatsDto?> = _usage.asStateFlow()
+
+    fun refreshUsage() = viewModelScope.launch {
+        if (!settings.value.isConfigured) return@launch
+        runCatching { chatRepo.getUsageStats("month") }
+            .onSuccess { _usage.value = it }
+    }
+
     init {
         // Auf DataStore warten — beim Screen-Open ist settings.value erst noch der
         // Default (leerer URL/Token), DataStore-Emission kommt asynchron.
@@ -105,6 +140,8 @@ class SettingsViewModel(
             refreshDefaultSkills()
             refreshTtsKeyPool()
             refreshBillingStatus()
+            refreshClaudeAuth()
+            refreshUsage()
         }
     }
 
@@ -351,13 +388,13 @@ class SettingsViewModel(
             .onFailure { e ->
                 val msg = when (e) {
                     is ApiException -> when (e.code) {
-                        409 -> "Dieser Key ist schon im Pool."
-                        400 -> "Ungültiger Key. Sollte mit \"AIza\" beginnen."
+                        409 -> appContext.getString(R.string.settings_pool_err_duplicate)
+                        400 -> appContext.getString(R.string.settings_pool_err_invalid)
                         else -> "HTTP ${e.code}: ${e.body.take(160)}"
                     }
                     else -> e.message ?: e::class.java.simpleName
                 }
-                _ttsError.value = "Key hinzufügen fehlgeschlagen: $msg"
+                _ttsError.value = appContext.getString(R.string.settings_pool_err_add_failed, msg)
             }
         _ttsBusy.value = false
     }
@@ -755,6 +792,7 @@ class SettingsViewModel(
                         container.settingsRepository,
                         container.chatRepository,
                         container.audioController,
+                        container.appContext,
                     ) as T
                 }
             }

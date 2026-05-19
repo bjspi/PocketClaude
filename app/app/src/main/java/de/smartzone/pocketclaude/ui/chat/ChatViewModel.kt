@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import de.smartzone.pocketclaude.PocketClaudeApp
+import de.smartzone.pocketclaude.R
 import de.smartzone.pocketclaude.data.AppContainer
 import de.smartzone.pocketclaude.data.AttachmentDto
 import de.smartzone.pocketclaude.data.AttachmentRefDto
@@ -131,7 +132,7 @@ class ChatViewModel(
             }
             .onFailure { e ->
                 _state.update {
-                    it.copy(errorMessage = "Skills speichern fehlgeschlagen: ${e.message}")
+                    it.copy(errorMessage = appContext.getString(R.string.error_skills_save, e.message ?: ""))
                 }
             }
     }
@@ -146,7 +147,7 @@ class ChatViewModel(
             }
             .onFailure { e ->
                 _state.update {
-                    it.copy(errorMessage = "Skills zurücksetzen fehlgeschlagen: ${e.message}")
+                    it.copy(errorMessage = appContext.getString(R.string.error_skills_reset, e.message ?: ""))
                 }
             }
     }
@@ -181,7 +182,7 @@ class ChatViewModel(
         runCatching { repo.rename(cid, trimmed) }
             .onSuccess { _state.update { it.copy(title = trimmed) } }
             .onFailure { e ->
-                _state.update { it.copy(errorMessage = "Umbenennen fehlgeschlagen: ${e.message}") }
+                _state.update { it.copy(errorMessage = appContext.getString(R.string.error_rename, e.message ?: "")) }
             }
     }
 
@@ -191,7 +192,7 @@ class ChatViewModel(
         runCatching { repo.setPinned(cid, !now) }
             .onSuccess { _state.update { it.copy(pinned = !now) } }
             .onFailure { e ->
-                _state.update { it.copy(errorMessage = "Pin-Status fehlgeschlagen: ${e.message}") }
+                _state.update { it.copy(errorMessage = appContext.getString(R.string.error_pin, e.message ?: "")) }
             }
     }
 
@@ -205,7 +206,7 @@ class ChatViewModel(
                 onDeleted()
             }
             .onFailure { e ->
-                _state.update { it.copy(errorMessage = "Löschen fehlgeschlagen: ${e.message}") }
+                _state.update { it.copy(errorMessage = appContext.getString(R.string.error_delete, e.message ?: "")) }
             }
     }
 
@@ -225,7 +226,7 @@ class ChatViewModel(
                 .onFailure { e ->
                     _state.update { st ->
                         st.copy(pending = st.pending.map { p ->
-                            if (p.uri == uri) p.copy(uploading = false, error = e.message ?: "Upload-Fehler") else p
+                            if (p.uri == uri) p.copy(uploading = false, error = e.message ?: appContext.getString(R.string.error_upload)) else p
                         })
                     }
                 }
@@ -393,7 +394,7 @@ class ChatViewModel(
         runCatching {
             NotificationHelper.showResultNotification(
                 context = appContext,
-                conversationTitle = _state.value.title.ifBlank { "Pocket Claude" },
+                conversationTitle = _state.value.title.ifBlank { appContext.getString(R.string.app_name) },
                 conversationId = cid,
                 snippet = replyText,
             )
@@ -408,7 +409,7 @@ class ChatViewModel(
                     id = -System.currentTimeMillis(),
                     conversationId = cid,
                     role = "assistant",
-                    content = partial + "\n\n_[abgebrochen]_",
+                    content = partial + "\n\n_" + appContext.getString(R.string.generated_chat_aborted) + "_",
                     createdAt = OffsetDateTime.now().toString(),
                 )
                 st.copy(
@@ -479,7 +480,7 @@ class ChatViewModel(
             val cacheKey = "audio-$messageId-${s.ttsVoice}-${s.ttsSpeed}"
             audio.play(messageId, url, cacheKey)
         } catch (e: Exception) {
-            _state.update { it.copy(errorMessage = "Vorlesen fehlgeschlagen: ${e.message}") }
+            _state.update { it.copy(errorMessage = appContext.getString(R.string.error_speak, e.message ?: "")) }
         }
     }
 
@@ -503,11 +504,11 @@ class ChatViewModel(
     fun exportMarkdown(onReady: (String, String) -> Unit) = viewModelScope.launch {
         runCatching { repo.exportMarkdown(cid) }
             .onSuccess { md ->
-                val title = _state.value.title.ifBlank { "Pocket-Claude-Chat" }
+                val title = _state.value.title.ifBlank { appContext.getString(R.string.generated_chat_default_title) }
                 onReady(title, md)
             }
             .onFailure { e ->
-                _state.update { it.copy(errorMessage = "Export fehlgeschlagen: ${e.message}") }
+                _state.update { it.copy(errorMessage = appContext.getString(R.string.error_export, e.message ?: "")) }
             }
     }
 

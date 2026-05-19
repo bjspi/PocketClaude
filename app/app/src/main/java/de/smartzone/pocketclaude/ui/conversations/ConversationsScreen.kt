@@ -139,14 +139,14 @@ fun ConversationsScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            "${selectedIds.size} ausgewählt",
+                            stringResource(de.smartzone.pocketclaude.R.string.convo_selection_count, selectedIds.size),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = { selectedIds = emptySet() }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Auswahl abbrechen")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.convo_selection_cancel))
                         }
                     },
                     actions = {
@@ -157,13 +157,13 @@ fun ConversationsScreen(
                         ) {
                             Icon(
                                 Icons.Filled.SelectAll,
-                                contentDescription = if (allSelected) "Auswahl aufheben" else "Alle auswählen",
+                                contentDescription = stringResource(if (allSelected) de.smartzone.pocketclaude.R.string.convo_deselect_all else de.smartzone.pocketclaude.R.string.convo_select_all),
                             )
                         }
                         IconButton(onClick = { confirmBulkDelete = true }) {
                             Icon(
                                 Icons.Filled.Delete,
-                                contentDescription = "Löschen",
+                                contentDescription = stringResource(de.smartzone.pocketclaude.R.string.action_delete),
                                 tint = MaterialTheme.colorScheme.error,
                             )
                         }
@@ -458,7 +458,7 @@ private fun ConversationRow(
                     if (conv.pinned) {
                         Icon(
                             Icons.Filled.PushPin,
-                            contentDescription = "Angepinnt",
+                            contentDescription = stringResource(de.smartzone.pocketclaude.R.string.convo_pinned),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(14.dp),
                         )
@@ -472,8 +472,14 @@ private fun ConversationRow(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val noun = stringResource(if (conv.messageCount == 1) de.smartzone.pocketclaude.R.string.convo_messages_one else de.smartzone.pocketclaude.R.string.convo_messages_other)
                     Text(
-                        text = "${conv.messageCount} ${if (conv.messageCount == 1) "Nachricht" else "Nachrichten"} · ${formatRelative(conv.lastMessageAt ?: conv.createdAt)}",
+                        text = stringResource(
+                            de.smartzone.pocketclaude.R.string.convo_count_with_time,
+                            conv.messageCount,
+                            noun,
+                            formatRelative(conv.lastMessageAt ?: conv.createdAt),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -482,7 +488,7 @@ private fun ConversationRow(
                         Spacer(Modifier.width(6.dp))
                         Icon(
                             Icons.Filled.Compress,
-                            contentDescription = "verdichtet",
+                            contentDescription = stringResource(de.smartzone.pocketclaude.R.string.convo_condensed),
                             tint = PocketTheme.colors.accent,
                             modifier = Modifier.size(14.dp),
                         )
@@ -494,7 +500,7 @@ private fun ConversationRow(
                 // Selection-Indikator statt 3-Dots-Menü
                 Icon(
                     imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-                    contentDescription = if (selected) "Ausgewählt" else "Nicht ausgewählt",
+                    contentDescription = stringResource(if (selected) de.smartzone.pocketclaude.R.string.convo_selected else de.smartzone.pocketclaude.R.string.convo_not_selected),
                     tint = if (selected) MaterialTheme.colorScheme.primary
                            else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
@@ -566,7 +572,7 @@ private fun SearchResultsView(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                "Keine Treffer für \"${search.query}\"",
+                stringResource(de.smartzone.pocketclaude.R.string.convo_search_no_results, search.query),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -602,7 +608,7 @@ private fun SearchHitCard(
                     maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
-                val roleLabel = if (hit.role == "user") "Du" else "Claude"
+                val roleLabel = stringResource(if (hit.role == "user") de.smartzone.pocketclaude.R.string.convo_role_you else de.smartzone.pocketclaude.R.string.convo_role_claude)
                 Text(
                     roleLabel,
                     style = MaterialTheme.typography.labelSmall,
@@ -663,10 +669,10 @@ private fun EmptyView() {
                 modifier = Modifier.size(112.dp),
             )
             Spacer(Modifier.height(16.dp))
-            Text("Noch keine Chats", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(de.smartzone.pocketclaude.R.string.empty_conversations_title), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(6.dp))
             Text(
-                "Tipp aufs Plus, um den ersten Chat zu starten.",
+                stringResource(de.smartzone.pocketclaude.R.string.empty_conversations_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -686,10 +692,10 @@ private fun NeedsSetupView(onOpenSettings: () -> Unit) {
                 modifier = Modifier.size(140.dp),
             )
             Spacer(Modifier.height(24.dp))
-            Text("Bereit zum Chatten", style = MaterialTheme.typography.headlineMedium)
+            Text(stringResource(de.smartzone.pocketclaude.R.string.setup_needed_title), style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Trag in den Einstellungen Server-URL und Token ein, dann geht's los.",
+                stringResource(de.smartzone.pocketclaude.R.string.setup_needed_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -700,7 +706,7 @@ private fun NeedsSetupView(onOpenSettings: () -> Unit) {
             ) {
                 Icon(Icons.Filled.Settings, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Einstellungen öffnen")
+                Text(stringResource(de.smartzone.pocketclaude.R.string.convo_open_settings))
             }
         }
     }
@@ -711,7 +717,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                "Verbindung fehlgeschlagen",
+                stringResource(de.smartzone.pocketclaude.R.string.convo_connection_failed),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -723,7 +729,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
             )
             Spacer(Modifier.height(16.dp))
             Button(onClick = onRetry, shape = RoundedCornerShape(14.dp)) {
-                Text("Erneut versuchen")
+                Text(stringResource(de.smartzone.pocketclaude.R.string.action_retry))
             }
         }
     }

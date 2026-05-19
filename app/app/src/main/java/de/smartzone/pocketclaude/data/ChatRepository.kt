@@ -58,6 +58,11 @@ class ChatRepository(
     // Billing (Cloud-Spend + Credit)
     suspend fun billingStatus(): BillingStatusDto = api.getBillingStatus()
 
+    // Claude auth-mode + usage stats
+    suspend fun getClaudeAuth(): ClaudeAuthDto = api.getClaudeAuth()
+    suspend fun updateClaudeAuth(req: ClaudeAuthUpdateRequest): ClaudeAuthDto = api.updateClaudeAuth(req)
+    suspend fun getUsageStats(period: String): UsageStatsDto = api.getUsageStats(period)
+
     // TTS
     suspend fun ttsStatus(): TtsStatusDto = api.getTtsStatus()
     suspend fun setTtsCredentials(json: String): TtsStatusDto = api.setTtsCredentials(json)

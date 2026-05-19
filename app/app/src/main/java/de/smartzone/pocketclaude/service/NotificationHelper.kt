@@ -39,20 +39,20 @@ object NotificationHelper {
         nm.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_STREAMING,
-                "Claude antwortet…",
+                context.getString(R.string.notif_channel_streaming_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "Hält die App am Leben, während Claude eine Antwort streamt."
+                description = context.getString(R.string.notif_channel_streaming_desc)
                 setShowBadge(false)
             }
         )
         nm.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_RESULT,
-                "Antwort fertig",
+                context.getString(R.string.notif_channel_result_name),
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {
-                description = "Benachrichtigt, sobald Claude mit seiner Antwort fertig ist."
+                description = context.getString(R.string.notif_channel_result_desc)
             }
         )
     }
@@ -73,8 +73,8 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(context, CHANNEL_STREAMING)
-            .setContentTitle("Claude antwortet…")
-            .setContentText(title?.takeIf { it.isNotBlank() } ?: "Stream läuft im Hintergrund")
+            .setContentTitle(context.getString(R.string.notif_streaming_title_replying))
+            .setContentText(title?.takeIf { it.isNotBlank() } ?: context.getString(R.string.notif_streaming_text_default))
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -101,12 +101,13 @@ object NotificationHelper {
             chatIntent(context, conversationId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val resultText = context.getString(R.string.notif_result_text)
         val notif = NotificationCompat.Builder(context, CHANNEL_RESULT)
-            .setContentTitle(conversationTitle.ifBlank { "Pocket Claude" })
-            .setContentText("Antwort fertig — antippen zum Lesen")
+            .setContentTitle(conversationTitle.ifBlank { context.getString(R.string.app_name) })
+            .setContentText(resultText)
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    snippet.take(280).ifBlank { "Antwort fertig — antippen zum Lesen" }
+                    snippet.take(280).ifBlank { resultText }
                 )
             )
             .setSmallIcon(R.drawable.ic_notification)

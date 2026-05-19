@@ -160,21 +160,14 @@ Bring your own AI Studio API key (free tier sufficient for casual use). Dedicate
 
 ## Roadmap
 
-- [ ] iOS client (the protocol is already documented — contributions welcome)
+- [ ] iOS client
 - [ ] Docker / Docker Compose deployment as a one-liner alternative to the system-install script
 - [ ] Voice input (Whisper-based) on the app side
 - [ ] Per-conversation tool budgets
 
 ## Contributing
 
-Pull requests welcome — particularly for translations (each `values-XX/strings.xml` and `docs/i18n/README.*.md` is its own PR-shaped chunk of work), iOS client, and Docker packaging.
-
-For translation PRs: open one PR per language. Strings are in `app/app/src/main/res/values-XX/strings.xml` and `server/pocket_claude/webui/i18n.js`.
-
-For code contributions:
-1. Open an issue first to discuss scope
-2. Keep the diff small and focused
-3. Maintain existing patterns rather than introducing new ones
+Pull requests are accepted. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 
 ## License
 

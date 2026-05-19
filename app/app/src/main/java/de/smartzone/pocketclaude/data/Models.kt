@@ -479,6 +479,52 @@ data class BackupImportResponse(
     @SerialName("restart_recommended") val restartRecommended: Boolean,
 )
 
+// ─── Claude auth-mode (Pro/Max | direct API | Bedrock) ────────────────────
+
+@Serializable
+data class ClaudeAuthDto(
+    val mode: String,
+    @SerialName("api_key_masked") val apiKeyMasked: String = "",
+    @SerialName("aws_region") val awsRegion: String = "",
+    @SerialName("aws_access_key_id_masked") val awsAccessKeyIdMasked: String = "",
+    @SerialName("aws_secret_access_key_masked") val awsSecretAccessKeyMasked: String = "",
+    @SerialName("aws_session_token_masked") val awsSessionTokenMasked: String = "",
+    @SerialName("bedrock_opus_model") val bedrockOpusModel: String = "",
+    @SerialName("bedrock_sonnet_model") val bedrockSonnetModel: String = "",
+    @SerialName("bedrock_haiku_model") val bedrockHaikuModel: String = "",
+    @SerialName("bedrock_model_alias") val bedrockModelAlias: String = "opus",
+    @SerialName("api_key_set") val apiKeySet: Boolean = false,
+    @SerialName("aws_access_key_set") val awsAccessKeySet: Boolean = false,
+    @SerialName("aws_secret_set") val awsSecretSet: Boolean = false,
+)
+
+@Serializable
+data class ClaudeAuthUpdateRequest(
+    val mode: String? = null,
+    @SerialName("api_key") val apiKey: String? = null,
+    @SerialName("aws_region") val awsRegion: String? = null,
+    @SerialName("aws_access_key_id") val awsAccessKeyId: String? = null,
+    @SerialName("aws_secret_access_key") val awsSecretAccessKey: String? = null,
+    @SerialName("aws_session_token") val awsSessionToken: String? = null,
+    @SerialName("bedrock_opus_model") val bedrockOpusModel: String? = null,
+    @SerialName("bedrock_sonnet_model") val bedrockSonnetModel: String? = null,
+    @SerialName("bedrock_haiku_model") val bedrockHaikuModel: String? = null,
+    @SerialName("bedrock_model_alias") val bedrockModelAlias: String? = null,
+)
+
+@Serializable
+data class UsageStatsDto(
+    val period: String,
+    @SerialName("period_start") val periodStart: String,
+    @SerialName("period_end") val periodEnd: String,
+    @SerialName("input_tokens") val inputTokens: Long,
+    @SerialName("output_tokens") val outputTokens: Long,
+    @SerialName("cache_create_tokens") val cacheCreateTokens: Long,
+    @SerialName("cache_read_tokens") val cacheReadTokens: Long,
+    @SerialName("request_count") val requestCount: Long,
+    val provider: String,
+)
+
 /**
  * Stream events from the server (matched to SSE `event:` types in server.py).
  */

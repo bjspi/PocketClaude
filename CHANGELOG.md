@@ -2,6 +2,38 @@
 
 All notable changes to Pocket Claude are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 
+## [0.2.0] — 2026-05-19
+
+### Added
+
+- **Multi-provider Claude authentication** — per-user selectable backend:
+  - Pro/Max OAuth (default): runs against your Claude subscription via the local `claude login` session
+  - Anthropic API: direct API key, pay-as-you-go billing
+  - AWS Bedrock: routes through Amazon Bedrock with your AWS credentials, supports Claude Opus 4.7 on pinned model IDs
+- **Token usage tracking** — per-user aggregate of input/output/cache tokens persisted to the database, exposed via `GET /me/usage?period=month`, surfaced in **Settings → Token usage** in both clients.
+- **Auth mode + credential forms** in the app's Settings screen and the web UI's settings modal.
+- **Complete localization** — every user-facing string in the app and web UI is now translated into all 7 supported languages (was partial in v0.1.0).
+- Settings backup/export covers the new auth-mode + Bedrock model-ID fields.
+
+### Changed
+
+- `claude-agent-sdk` constraint raised to `>=0.2.82,<1.0` (was `>=0.1.81,<0.2`); the 0.1 line is no longer compatible with current Claude Code CLI builds.
+- `install-linux.sh` now detects an existing system-wide `claude` binary and skips the Node + npm + claude-cli install when one is on PATH — saves time and avoids version collisions on hosts that already have it. Also warns when the binary isn't visible to the `pocket-claude` service user.
+- `install-linux.sh` default `REPO_URL` updated to the new mono-repo (`joshtech90/PocketClaude`).
+- README rewritten — replaced an incorrect claim about Anthropic API billing with the actual reasons to self-host (open source, extra features, multi-user on one subscription, clean second-Claude separation, data ownership).
+
+### Security
+
+- **Bash skill is off by default at the server level.** Set `ALLOW_BASH=1` in `.env` to opt in. Closes a hole where any app-account user could request the Bash tool and execute commands as the `pocket-claude` system user.
+- `BILLING_ACCOUNT_ID` is no longer hardcoded — set via `POCKET_CLAUDE_BILLING_ACCOUNT_ID`; the billing widget hides itself when the env var is unset.
+
+### Fixed
+
+- **"New chat" button** in the drawer no longer scrolls to the end of the current chat. Now creates a fresh conversation directly.
+- Personal references removed from Python module headers + deploy scripts.
+
+[0.2.0]: https://github.com/joshtech90/PocketClaude/releases/tag/v0.2.0
+
 ## [0.1.0] — 2026-05-19
 
 ### Added

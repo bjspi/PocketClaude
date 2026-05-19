@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -144,12 +144,12 @@
         <svg class="icon"><use href="#icon-settings"/></svg>
         <span data-i18n="settings">Einstellungen</span>
       </button>
-      <div class="footer-user" id="footer-user" title="Aktueller User"></div>
+      <div class="footer-user" id="footer-user" data-i18n-title="current_user_title" title="Current user"></div>
       <div class="footer-row">
-        <button id="theme-toggle" class="icon-btn" title="Theme wechseln">
+        <button id="theme-toggle" class="icon-btn" data-i18n-title="theme_toggle_title" title="Toggle theme">
           <svg class="icon"><use href="#icon-moon"/></svg>
         </button>
-        <button id="logout-btn" class="icon-btn" title="Abmelden">
+        <button id="logout-btn" class="icon-btn" data-i18n-title="logout_title" title="Log out">
           <svg class="icon"><use href="#icon-logout"/></svg>
         </button>
       </div>
@@ -159,7 +159,7 @@
   <!-- ============ Main ============ -->
   <main id="main" class="main">
     <header class="topbar">
-      <button id="sidebar-toggle" class="icon-btn" title="Sidebar ein-/ausblenden">
+      <button id="sidebar-toggle" class="icon-btn" data-i18n-title="sidebar_toggle_title" title="Toggle sidebar">
         <svg class="icon"><use href="#icon-sidebar"/></svg>
       </button>
       <div class="topbar-title">
@@ -168,7 +168,7 @@
       </div>
       <div class="topbar-actions">
         <div class="effort-wrap">
-          <button id="effort-btn" class="pill-btn" title="Denktiefe">
+          <button id="effort-btn" class="pill-btn" data-i18n-title="effort_title" title="Thinking depth">
             <span id="effort-label">High</span>
             <svg class="icon icon-sm"><use href="#icon-chevron-down"/></svg>
           </button>
@@ -181,7 +181,7 @@
             <button data-effort="max">Max</button>
           </div>
         </div>
-        <button id="more-btn" class="icon-btn" title="Mehr">
+        <button id="more-btn" class="icon-btn" data-i18n-title="more_title" title="More">
           <svg class="icon"><use href="#icon-more"/></svg>
         </button>
         <div id="more-menu" class="dropdown right hidden">
@@ -223,19 +223,19 @@
 
       <div id="pending-attachments" class="pending-attachments hidden"></div>
       <form id="input-form" class="composer">
-        <button id="attach-btn" type="button" class="composer-btn" title="Anhängen">
+        <button id="attach-btn" type="button" class="composer-btn" data-i18n-title="attach_title" title="Attach">
           <svg class="icon"><use href="#icon-attach"/></svg>
         </button>
-        <button id="image-mode-btn" type="button" class="composer-btn" title="Bild-Modus (Gemini)">
+        <button id="image-mode-btn" type="button" class="composer-btn" data-i18n-title="image_mode_title" title="Image mode (Gemini)">
           <svg class="icon"><use href="#icon-image"/></svg>
         </button>
         <input id="file-input" type="file" hidden multiple accept="image/*,application/pdf,.txt,.md">
         <textarea id="input" rows="1" placeholder="Frag Pocket Claude…" data-i18n-placeholder="compose_placeholder" required></textarea>
-        <button id="send-btn" type="submit" class="composer-btn primary" title="Senden">
+        <button id="send-btn" type="submit" class="composer-btn primary" data-i18n-title="send_title" title="Send">
           <svg class="icon"><use href="#icon-send"/></svg>
         </button>
       </form>
-      <p class="composer-hint" id="composer-hint">⌘/Ctrl + Enter zum Senden · Pocket Claude kann Fehler machen.</p>
+      <p class="composer-hint" id="composer-hint" data-i18n="composer_hint">⌘/Ctrl + Enter zum Senden · Pocket Claude kann Fehler machen.</p>
     </div>
   </main>
 </div>
@@ -253,7 +253,7 @@
 
       <section class="settings-section">
         <h3 data-i18n="system_prompt">System-Prompt</h3>
-        <p class="hint">Mit welchem Prompt Claude die Antwort beginnt.</p>
+        <p class="hint" data-i18n="system_prompt_hint">Mit welchem Prompt Claude die Antwort beginnt.</p>
         <div class="segments">
           <label><input type="radio" name="sp-mode" value="STANDARD"> <span data-i18n="sp_standard">Standard</span></label>
           <label><input type="radio" name="sp-mode" value="PERMISSIVE"> <span data-i18n="sp_permissive">Permissiv</span></label>
@@ -269,7 +269,7 @@
         <label class="field">
           <span data-i18n="language">Sprache</span>
           <select id="ui-locale-select">
-            <option value="">System default</option>
+            <option value="" data-i18n="system_default">System default</option>
             <option value="en">English</option>
             <option value="de">Deutsch</option>
             <option value="es">Español</option>
@@ -283,12 +283,12 @@
 
       <section class="settings-section">
         <h3 data-i18n="appearance">Darstellung</h3>
-        <p class="hint">Visuelle Optionen für den Chat-Bereich.</p>
+        <p class="hint" data-i18n="appearance_hint">Visuelle Optionen für den Chat-Bereich.</p>
         <label class="field" style="flex-direction:row;align-items:flex-start;gap:14px">
           <input id="setting-collapse-user-msgs" type="checkbox" style="margin-top:3px">
           <span style="display:flex;flex-direction:column;gap:2px">
-            <strong style="font-weight:500">Lange eigene Nachrichten einklappen</strong>
-            <em class="hint" style="font-style:normal">
+            <strong style="font-weight:500" data-i18n="collapse_user_msgs_label">Lange eigene Nachrichten einklappen</strong>
+            <em class="hint" style="font-style:normal" data-i18n="collapse_user_msgs_hint">
               Ab ~6 Zeilen wird Dein Input abgeschnitten mit „Mehr anzeigen". Spart Scrollen
               bei langen Antworten. Tap auf die Bubble klappt sie auf.
             </em>
@@ -298,7 +298,7 @@
 
       <section class="settings-section" id="image-settings-section">
         <h3 data-i18n="images">Bilder (Gemini / Nano Banana)</h3>
-        <p class="hint">Dein eigener Google-AI-Studio-API-Key. Wird nur für Dich gespeichert, nie geteilt.</p>
+        <p class="hint" data-i18n="images_hint">Dein eigener Google-AI-Studio-API-Key. Wird nur für Dich gespeichert, nie geteilt.</p>
         <div class="row-gap" style="margin-top:8px;flex-wrap:wrap;align-items:center">
           <input id="image-api-key-input" type="password" placeholder="AIzaSy…"
                  autocomplete="off"
@@ -307,7 +307,7 @@
           <button id="image-api-key-delete" type="button" class="btn-ghost" data-i18n="remove">Entfernen</button>
         </div>
         <div id="image-api-key-status" class="backup-status"></div>
-        <p class="hint" style="margin-top:10px">
+        <p class="hint" style="margin-top:10px" data-i18n-html="images_get_key_html">
           Key holen: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com/apikey</a>.
           Für Bild-Generation muss das Cloud-Projekt einen Billing-Account haben
           (<a href="https://console.cloud.google.com/billing" target="_blank" rel="noreferrer">Billing aktivieren</a>) — Free-Tier umfasst nur Text.
@@ -316,12 +316,12 @@
 
       <section class="settings-section">
         <h3 data-i18n="read_aloud">Vorlesen</h3>
-        <p class="hint">Beim Klick aufs Lautsprecher-Symbol unter Antworten.</p>
+        <p class="hint" data-i18n="tts_section_hint">Beim Klick aufs Lautsprecher-Symbol unter Antworten.</p>
         <label class="field">
           <span data-i18n="provider">Provider</span>
           <select id="tts-provider">
-            <option value="gemini_api">Gemini API (empfohlen — 8 € Hard-Cap aktiv)</option>
-            <option value="cloud_tts">Cloud TTS (Service Account, kein Hard-Cap)</option>
+            <option value="gemini_api" data-i18n="tts_provider_option_gemini">Gemini API (empfohlen — 8 € Hard-Cap aktiv)</option>
+            <option value="cloud_tts" data-i18n="tts_provider_option_cloud">Cloud TTS (Service Account, kein Hard-Cap)</option>
           </select>
         </label>
         <p class="hint" id="tts-provider-hint" style="margin-top:-2px"></p>
@@ -346,28 +346,100 @@
 
       <section class="settings-section admin-only hidden" id="admin-users-section">
         <h3 data-i18n="user_management">Benutzer-Verwaltung</h3>
-        <p class="hint">Nur als Admin sichtbar. Login per Benutzername + Passwort. Beim Anlegen kannst Du ein Initial-Passwort vergeben oder vom Server generieren lassen — der neue User muss es beim ersten Login ändern.</p>
+        <p class="hint" data-i18n="admin_users_hint">Nur als Admin sichtbar. Login per Benutzername + Passwort. Beim Anlegen kannst Du ein Initial-Passwort vergeben oder vom Server generieren lassen — der neue User muss es beim ersten Login ändern.</p>
         <div id="users-list" class="users-list"></div>
         <div class="row-gap" style="margin-top:10px;flex-wrap:wrap">
           <input id="new-user-name" type="text" placeholder="Benutzername" data-i18n-placeholder="username" style="flex:1;min-width:140px;padding:9px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;outline:none">
           <input id="new-user-password" type="text" placeholder="Initial-Passwort (leer = generieren)" data-i18n-placeholder="user_initial_password" autocomplete="off" style="flex:1.5;min-width:200px;padding:9px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;outline:none">
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-soft);white-space:nowrap">
-            <input id="new-user-admin" type="checkbox"> Admin
+            <input id="new-user-admin" type="checkbox"> <span data-i18n="admin_label">Admin</span>
           </label>
           <button id="new-user-btn" class="btn-secondary" type="button" data-i18n="add_user">Anlegen</button>
         </div>
         <div id="new-user-result" class="backup-status"></div>
       </section>
 
+      <!-- Claude connection (Pro/Max | API key | Bedrock) -->
+      <section class="settings-section" id="claude-auth-section">
+        <h3 data-i18n="claude_connection">Claude connection</h3>
+        <p class="hint" data-i18n="claude_connection_hint">Which Claude backend does your message go through.</p>
+        <div class="segments">
+          <label><input type="radio" name="claude-auth-mode" value="pro_max"> <span data-i18n="claude_mode_pro_max">Pro/Max</span></label>
+          <label><input type="radio" name="claude-auth-mode" value="api_key"> <span data-i18n="claude_mode_api_key">Anthropic API</span></label>
+          <label><input type="radio" name="claude-auth-mode" value="bedrock"> <span data-i18n="claude_mode_bedrock">AWS Bedrock</span></label>
+        </div>
+        <p class="hint" id="claude-auth-mode-hint" style="margin-top:4px"></p>
+
+        <!-- Anthropic API key form -->
+        <div id="claude-auth-apikey-form" class="hidden" style="margin-top:8px">
+          <p class="hint" id="claude-auth-apikey-current"></p>
+          <div class="row-gap" style="margin-top:8px;flex-wrap:wrap">
+            <input id="claude-anthropic-key" type="password" placeholder="sk-ant-…" autocomplete="off"
+                   style="flex:1;min-width:240px;padding:9px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;outline:none;font-family:SF Mono,Menlo,monospace;font-size:13px">
+            <button id="claude-anthropic-save" class="btn-secondary" type="button" data-i18n="save">Save</button>
+            <button id="claude-anthropic-clear" class="btn-ghost" type="button" data-i18n="clear">Clear</button>
+          </div>
+        </div>
+
+        <!-- AWS Bedrock form -->
+        <div id="claude-auth-bedrock-form" class="hidden" style="margin-top:8px;display:flex;flex-direction:column;gap:10px">
+          <label class="field">
+            <span data-i18n="aws_region">AWS region</span>
+            <input id="bedrock-region" type="text" placeholder="us-east-1" autocomplete="off">
+          </label>
+          <label class="field">
+            <span data-i18n="aws_access_key_id">Access key ID</span>
+            <input id="bedrock-akid" type="text" placeholder="AKIA…" autocomplete="off">
+          </label>
+          <label class="field">
+            <span data-i18n="aws_secret_access_key">Secret access key</span>
+            <input id="bedrock-secret" type="password" autocomplete="off">
+          </label>
+          <label class="field">
+            <span data-i18n="aws_session_token">Session token (STS, optional)</span>
+            <input id="bedrock-session" type="password" autocomplete="off">
+          </label>
+          <label class="field">
+            <span data-i18n="bedrock_opus_model">Opus model ID</span>
+            <input id="bedrock-opus" type="text" placeholder="us.anthropic.claude-opus-4-7">
+          </label>
+          <label class="field">
+            <span data-i18n="bedrock_sonnet_model">Sonnet model ID</span>
+            <input id="bedrock-sonnet" type="text" placeholder="us.anthropic.claude-sonnet-4-6">
+          </label>
+          <label class="field">
+            <span data-i18n="bedrock_haiku_model">Haiku model ID</span>
+            <input id="bedrock-haiku" type="text" placeholder="us.anthropic.claude-haiku-4-5-20251001-v1:0">
+          </label>
+          <div class="segments">
+            <label><input type="radio" name="bedrock-alias" value="opus"> <span data-i18n="bedrock_alias_opus">Opus</span></label>
+            <label><input type="radio" name="bedrock-alias" value="sonnet"> <span data-i18n="bedrock_alias_sonnet">Sonnet</span></label>
+            <label><input type="radio" name="bedrock-alias" value="haiku"> <span data-i18n="bedrock_alias_haiku">Haiku</span></label>
+          </div>
+          <button id="bedrock-apply" class="btn-secondary" type="button" data-i18n="apply">Apply</button>
+        </div>
+
+        <div id="claude-auth-status" class="backup-status"></div>
+      </section>
+
+      <!-- Token usage widget -->
+      <section class="settings-section" id="usage-section">
+        <h3 data-i18n="token_usage">Token usage</h3>
+        <p class="hint" data-i18n="usage_this_month">This month</p>
+        <div id="usage-grid" style="display:grid;grid-template-columns:1fr auto;gap:6px 16px;margin-top:6px;font-size:13.5px"></div>
+        <p class="hint" id="usage-pro-max-note" data-i18n="usage_pro_max_note" style="margin-top:8px">Pro/Max plans bill flat-rate — counts here are informational only.</p>
+        <button id="usage-refresh" class="btn-ghost" type="button" style="margin-top:8px" data-i18n="usage_refresh">Refresh</button>
+      </section>
+
       <section class="settings-section">
         <h3 data-i18n="backup_and_import">Backup &amp; Import</h3>
-        <p class="hint" id="backup-hint">ZIP-Snapshot aller Chats (DB + Anhänge). Optional AES-256.</p>
+        <p class="hint" id="backup-hint" data-i18n="backup_hint">ZIP-Snapshot aller Chats (DB + Anhänge). Optional AES-256.</p>
         <div class="row-gap">
           <button id="backup-export-btn" class="btn-secondary" type="button">
-            <svg class="icon"><use href="#icon-download"/></svg> Exportieren
+            <svg class="icon"><use href="#icon-download"/></svg> <span data-i18n="backup_export">Exportieren</span>
           </button>
           <button id="backup-import-btn" class="btn-secondary" type="button">
-            <svg class="icon"><use href="#icon-upload"/></svg> Importieren
+            <svg class="icon"><use href="#icon-upload"/></svg> <span data-i18n="backup_import">Importieren</span>
           </button>
         </div>
         <input id="backup-file-input" type="file" hidden accept=".zip,application/zip">
@@ -391,8 +463,8 @@
       <input id="prompt-input" type="password" placeholder="">
     </div>
     <div class="modal-footer">
-      <button id="prompt-cancel" type="button" class="btn-ghost">Abbrechen</button>
-      <button id="prompt-ok" type="button" class="btn-primary">OK</button>
+      <button id="prompt-cancel" type="button" class="btn-ghost" data-i18n="cancel">Abbrechen</button>
+      <button id="prompt-ok" type="button" class="btn-primary" data-i18n="ok">OK</button>
     </div>
   </div>
 </div>

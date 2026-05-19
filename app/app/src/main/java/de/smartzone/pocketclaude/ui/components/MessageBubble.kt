@@ -53,9 +53,11 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import de.smartzone.pocketclaude.R
 import de.smartzone.pocketclaude.data.AttachmentRefDto
 import de.smartzone.pocketclaude.ui.theme.PocketTheme
 
@@ -141,11 +143,12 @@ private fun rememberCopyHandler(text: String): () -> Unit {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
+    val copiedLabel = stringResource(R.string.bubble_copied)
     return {
         if (text.isNotBlank()) {
             clipboard.setText(AnnotatedString(text))
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            Toast.makeText(context, "Kopiert", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, copiedLabel, Toast.LENGTH_SHORT).show()
         }
     }
 }
@@ -169,7 +172,7 @@ private fun ThinkingBlock(text: String, isLive: Boolean) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = if (isLive) "💭 denkt nach…" else "💭 Gedankengang",
+                    text = if (isLive) stringResource(R.string.bubble_thinking_live) else stringResource(R.string.bubble_thinking_label),
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                     ),
@@ -259,7 +262,7 @@ fun AssistantBubble(
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.VolumeUp,
-                                contentDescription = "Vorlesen",
+                                contentDescription = stringResource(R.string.bubble_read_aloud),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp),
                             )
@@ -281,7 +284,7 @@ fun AssistantBubble(
                             ) {
                                 Icon(
                                     Icons.Filled.Pause,
-                                    contentDescription = "Pause",
+                                    contentDescription = stringResource(R.string.bubble_pause),
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -292,7 +295,7 @@ fun AssistantBubble(
                             ) {
                                 Icon(
                                     Icons.Filled.Stop,
-                                    contentDescription = "Abbrechen",
+                                    contentDescription = stringResource(R.string.bubble_cancel),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -306,7 +309,7 @@ fun AssistantBubble(
                             ) {
                                 Icon(
                                     Icons.Filled.PlayArrow,
-                                    contentDescription = "Weiter",
+                                    contentDescription = stringResource(R.string.bubble_resume),
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -317,7 +320,7 @@ fun AssistantBubble(
                             ) {
                                 Icon(
                                     Icons.Filled.Stop,
-                                    contentDescription = "Abbrechen",
+                                    contentDescription = stringResource(R.string.bubble_cancel),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -334,7 +337,7 @@ fun AssistantBubble(
                     ) {
                         Icon(
                             Icons.Filled.ContentCopy,
-                            contentDescription = "Kopieren",
+                            contentDescription = stringResource(R.string.bubble_copy),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp),
                         )

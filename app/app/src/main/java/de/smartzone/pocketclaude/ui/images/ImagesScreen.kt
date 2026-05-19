@@ -66,11 +66,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil3.compose.AsyncImage
 import de.smartzone.pocketclaude.PocketClaudeApp
+import de.smartzone.pocketclaude.R
 import de.smartzone.pocketclaude.data.AppSettings
 import de.smartzone.pocketclaude.data.ImageGenerateAttachment
 import java.util.Locale
@@ -99,20 +101,20 @@ fun ImagesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Bilder", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(stringResource(R.string.image_screen_title), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     if (state.history.isNotEmpty()) {
                         IconButton(onClick = { clearAllOpen = true }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Verlauf leeren")
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.image_clear_history))
                         }
                     }
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Einstellungen")
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.image_open_settings))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -133,7 +135,7 @@ fun ImagesScreen(
                 Box(Modifier.fillMaxSize().padding(pad).padding(24.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "Image-Config konnte nicht geladen werden.",
+                            stringResource(R.string.image_config_load_failed),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Spacer(Modifier.height(8.dp))
@@ -144,7 +146,7 @@ fun ImagesScreen(
                         )
                         Spacer(Modifier.height(16.dp))
                         FilledTonalButton(onClick = { vm.refreshConfig() }) {
-                            Text("Erneut versuchen")
+                            Text(stringResource(R.string.action_retry))
                         }
                     }
                 }
@@ -167,20 +169,18 @@ fun ImagesScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Bild-Generierung ist deaktiviert",
+                        stringResource(R.string.image_disabled_title),
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "Du brauchst einen Google-AI-Studio-API-Key, um Bilder generieren " +
-                            "zu können (das läuft über Gemini Nano Banana, nicht über Claude). " +
-                            "Den Key trägst Du in den Einstellungen unter „Bilder generieren\" ein.",
+                        stringResource(R.string.image_disabled_body),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(20.dp))
                     FilledTonalButton(onClick = onOpenSettings) {
-                        Text("Zu den Einstellungen")
+                        Text(stringResource(R.string.image_open_settings_button))
                     }
                 }
             }
@@ -199,8 +199,7 @@ fun ImagesScreen(
                     if (state.history.isEmpty()) {
                         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                             Text(
-                                "Noch keine Bilder generiert. Schreib einen Prompt oben rein und " +
-                                    "tipp auf „Generieren\".",
+                                stringResource(R.string.image_history_empty),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -241,16 +240,16 @@ fun ImagesScreen(
     entryToDelete?.let { entry ->
         AlertDialog(
             onDismissRequest = { entryToDelete = null },
-            title = { Text("Generation löschen?") },
-            text = { Text("Entfernt diesen Eintrag aus Deinem Verlauf. Die Bild-Dateien auf dem Server bleiben.") },
+            title = { Text(stringResource(R.string.image_delete_generation_title)) },
+            text = { Text(stringResource(R.string.image_delete_generation_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     vm.deleteEntry(entry)
                     entryToDelete = null
-                }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { entryToDelete = null }) { Text("Abbrechen") }
+                TextButton(onClick = { entryToDelete = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -258,16 +257,16 @@ fun ImagesScreen(
     if (clearAllOpen) {
         AlertDialog(
             onDismissRequest = { clearAllOpen = false },
-            title = { Text("Kompletten Verlauf löschen?") },
-            text = { Text("Entfernt alle Einträge aus dem Bilder-Verlauf. Die Bild-Dateien auf dem Server bleiben.") },
+            title = { Text(stringResource(R.string.image_clear_all_title)) },
+            text = { Text(stringResource(R.string.image_clear_all_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     vm.clearHistory()
                     clearAllOpen = false
-                }) { Text("Alle löschen", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.image_clear_all_confirm), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { clearAllOpen = false }) { Text("Abbrechen") }
+                TextButton(onClick = { clearAllOpen = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -289,7 +288,7 @@ private fun GeneratorCard(state: ImageGenUiState, vm: ImageGenViewModel) {
             OutlinedTextField(
                 value = state.prompt,
                 onValueChange = vm::setPrompt,
-                placeholder = { Text("Beschreibe das Bild — z.B. „Cyberpunk-Katze im Neon-Regen\"") },
+                placeholder = { Text(stringResource(R.string.image_prompt_placeholder)) },
                 maxLines = 4,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -298,8 +297,9 @@ private fun GeneratorCard(state: ImageGenUiState, vm: ImageGenViewModel) {
 
             // Modell-Dropdown
             var modelMenu by remember { mutableStateOf(false) }
+            val modelDefaultLabel = stringResource(R.string.image_model_label)
             val currentLabel = cfg.models.firstOrNull { it.id == state.selectedModel }?.label
-                ?: state.selectedModel ?: "Modell"
+                ?: state.selectedModel ?: modelDefaultLabel
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(modifier = Modifier.weight(1f)) {
                     AssistChip(
@@ -346,7 +346,7 @@ private fun GeneratorCard(state: ImageGenUiState, vm: ImageGenViewModel) {
             // Anzahl
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    "Varianten:",
+                    stringResource(R.string.image_variants_label),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -373,11 +373,11 @@ private fun GeneratorCard(state: ImageGenUiState, vm: ImageGenViewModel) {
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Generiere…")
+                    Text(stringResource(R.string.image_generating))
                 } else {
                     Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Generieren")
+                    Text(stringResource(R.string.image_generate_button))
                 }
             }
 
@@ -389,7 +389,7 @@ private fun GeneratorCard(state: ImageGenUiState, vm: ImageGenViewModel) {
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = vm::clearError) { Text("OK") }
+                    TextButton(onClick = vm::clearError) { Text(stringResource(R.string.action_ok)) }
                 }
             }
         }
@@ -424,7 +424,7 @@ private fun HistoryRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "${entry.model} · ${entry.aspectRatio} · ${entry.attachments.size}× Bild",
+                        stringResource(R.string.image_meta_line, entry.model, entry.aspectRatio, entry.attachments.size),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -432,7 +432,7 @@ private fun HistoryRow(
                 IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Filled.Close,
-                        contentDescription = "Eintrag entfernen",
+                        contentDescription = stringResource(R.string.image_remove_entry),
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -498,14 +498,14 @@ private fun ImageFullscreenDialog(
                 }) {
                     Icon(Icons.Filled.IosShare, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Teilen")
+                    Text(stringResource(R.string.image_share_btn))
                 }
                 FilledTonalButton(onClick = {
                     saveImageToGallery(context, serverBaseUrl, serverToken, attachment)
                 }) {
                     Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Speichern")
+                    Text(stringResource(R.string.image_save_btn))
                 }
             }
         }
@@ -536,9 +536,9 @@ private fun shareImage(
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "Bild teilen"))
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.image_share_chooser_title)))
     } catch (e: Exception) {
-        Toast.makeText(context, "Teilen fehlgeschlagen: ${e.message}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.getString(R.string.image_share_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
     }
 }
 
@@ -569,12 +569,12 @@ private fun saveImageToGallery(
         }
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            ?: throw java.io.IOException("MediaStore-Insert fehlgeschlagen")
+            ?: throw java.io.IOException("MediaStore insert failed")
         resolver.openOutputStream(uri)?.use { it.write(bytes) }
             ?: throw java.io.IOException("OutputStream null")
-        Toast.makeText(context, "Gespeichert in Galerie/Pictures/PocketClaude", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.image_save_success), Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
-        Toast.makeText(context, "Speichern fehlgeschlagen: ${e.message}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.getString(R.string.image_save_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
     }
 }
 

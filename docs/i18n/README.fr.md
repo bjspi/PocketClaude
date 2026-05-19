@@ -160,21 +160,14 @@ Apportez votre propre clé API AI Studio (palier gratuit suffisant pour un usage
 
 ## Feuille de route
 
-- [ ] Client iOS (le protocole est déjà documenté — contributions bienvenues)
+- [ ] Client iOS
 - [ ] Déploiement Docker / Docker Compose en une ligne comme alternative au script d'installation système
 - [ ] Saisie vocale (basée sur Whisper) côté application
 - [ ] Budgets d'outils par conversation
 
 ## Contribuer
 
-Les pull requests sont les bienvenues — particulièrement pour les traductions (chaque `values-XX/strings.xml` et `docs/i18n/README.*.md` constitue un travail formaté pour une PR), le client iOS et le packaging Docker.
-
-Pour les PR de traduction : ouvrez une PR par langue. Les chaînes se trouvent dans `app/app/src/main/res/values-XX/strings.xml` et `server/pocket_claude/webui/i18n.js`.
-
-Pour les contributions de code :
-1. Ouvrez d'abord une issue pour discuter du périmètre
-2. Gardez le diff petit et ciblé
-3. Maintenez les patterns existants plutôt que d'en introduire de nouveaux
+Les pull requests sont acceptées. Voir [CONTRIBUTING.md](../../CONTRIBUTING.md) pour le workflow.
 
 ## Licence
 

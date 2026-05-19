@@ -28,7 +28,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import de.smartzone.pocketclaude.R
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
@@ -153,16 +155,17 @@ private fun CodeBlock(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
+            val codeCopiedMsg = stringResource(R.string.markdown_code_copied)
             IconButton(
                 onClick = {
                     clipboard.setText(AnnotatedString(code))
-                    Toast.makeText(context, "Code kopiert", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, codeCopiedMsg, Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier.size(32.dp),
             ) {
                 Icon(
                     Icons.Filled.ContentCopy,
-                    contentDescription = "Code kopieren",
+                    contentDescription = stringResource(R.string.markdown_copy_code),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp),
                 )

@@ -160,21 +160,14 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 ## 路线图
 
-- [ ] iOS 客户端（协议已经文档化 —— 欢迎贡献）
+- [ ] iOS 客户端
 - [ ] Docker / Docker Compose 部署，作为系统安装脚本的一键替代方案
 - [ ] 应用端的语音输入（基于 Whisper）
 - [ ] 按对话设置工具预算
 
 ## 贡献
 
-欢迎提交 Pull Request —— 尤其欢迎翻译（每个 `values-XX/strings.xml` 和 `docs/i18n/README.*.md` 各自就是一份合适大小的 PR 工作量）、iOS 客户端，以及 Docker 打包。
-
-翻译 PR：每种语言一个 PR。字符串位于 `app/app/src/main/res/values-XX/strings.xml` 和 `server/pocket_claude/webui/i18n.js`。
-
-代码贡献：
-1. 先开一个 issue 讨论范围
-2. 让 diff 保持精简、聚焦
-3. 沿用现有的写法，而不是引入新的
+接受 Pull Request。工作流程请参见 [CONTRIBUTING.md](../../CONTRIBUTING.md)。
 
 ## 许可证
 

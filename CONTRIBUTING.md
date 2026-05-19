@@ -11,13 +11,6 @@ Thanks for wanting to help. This is a small hobby project, so the process is lig
 
 For the architecture overview, read the [top-level README](README.md). For the deployment-specific details, read [`server/deploy/README.md`](server/deploy/README.md).
 
-## Things we'd particularly love help with
-
-- **Translations.** App strings under `app/app/src/main/res/values-XX/strings.xml`, web-UI strings in `server/pocket_claude/webui/i18n.js`, READMEs in `docs/i18n/`. Many strings in the app still fall back to German for long-form settings help texts — completing those is a great first PR.
-- **iOS client.** The server API is documented in the top-level README. A Swift/SwiftUI client would slot in straight away.
-- **Docker / Docker Compose deployment.** One-liner alternative to `install-linux.sh`.
-- **Voice input** (Whisper-based) on the app side.
-
 ## Adding a new language
 
 There are three places to touch. **All three should land in a single PR** so the language is consistent end-to-end.
