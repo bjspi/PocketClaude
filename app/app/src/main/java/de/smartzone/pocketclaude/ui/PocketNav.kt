@@ -1,0 +1,234 @@
+package de.smartzone.pocketclaude.ui
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.res.painterResource
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import de.smartzone.pocketclaude.data.AppContainer
+import de.smartzone.pocketclaude.ui.chat.ChatScreen
+import de.smartzone.pocketclaude.ui.chat.ChatViewModel
+import de.smartzone.pocketclaude.ui.conversations.ConversationsScreen
+import de.smartzone.pocketclaude.ui.conversations.ConversationsViewModel
+import de.smartzone.pocketclaude.ui.settings.SettingsScreen
+import de.smartzone.pocketclaude.ui.settings.SettingsViewModel
+
+object Routes {
+    /** Startroute: erzeugt einen frischen Chat (oder zeigt Setup-Hinweis) und leitet weiter. */
+    const val LAUNCH = "launch"
+    const val CONVERSATIONS = "conversations"
+    const val CHAT = "chat/{cid}"
+    const val SETTINGS = "settings"
+    /** Standalone-Screen für die Bild-Generation (Gemini/Nano Banana). */
+    const val IMAGES = "images"
+    fun chat(cid: String) = "chat/$cid"
+}
+
+@Composable
+fun PocketNav(container: AppContainer, initialChatCid: String? = null) {
+    val nav = rememberNavController()
+
+    // Re-Open mit cid aus Notification, App war bereits geladen: zum Ziel-Chat
+    // navigieren statt am Launch hängen zu bleiben.
+    LaunchedEffect(initialChatCid) {
+        val cid = initialChatCid ?: return@LaunchedEffect
+        val current = nav.currentBackStackEntry?.destination?.route ?: return@LaunchedEffect
+        if (current.startsWith("chat/")) {
+            val currentCid = nav.currentBackStackEntry?.arguments?.getString("cid")
+            if (currentCid != cid) {
+                nav.navigate(Routes.chat(cid)) {
+                    popUpTo(Routes.CHAT) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+        }
+    }
+
+    NavHost(navController = nav, startDestination = Routes.LAUNCH) {
+
+        composable(Routes.LAUNCH) {
+            LaunchScreen(
+                container = container,
+                preloadedCid = initialChatCid,
+                onChatReady = { cid ->
+                    nav.navigate(Routes.chat(cid)) {
+                        // Launch-Screen aus dem Backstack entfernen — Back im Chat
+                        // soll nicht hierher zurückführen.
+                        popUpTo(Routes.LAUNCH) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onNeedsSettings = {
+                    nav.navigate(Routes.SETTINGS)
+                },
+            )
+        }
+
+        composable(Routes.CONVERSATIONS) {
+            val vm: ConversationsViewModel = viewModel(
+                factory = ConversationsViewModel.factory(container)
+            )
+            ConversationsScreen(
+                vm = vm,
+                onOpenChat = { cid ->
+                    nav.navigate(Routes.chat(cid)) {
+                        popUpTo(Routes.CHAT) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                onBack = { nav.popBackStack() },
+            )
+        }
+
+        composable(
+            Routes.CHAT,
+            arguments = listOf(navArgument("cid") { type = NavType.StringType })
+        ) { backStack ->
+            val cid = backStack.arguments?.getString("cid").orEmpty()
+            val vm: ChatViewModel = viewModel(
+                factory = ChatViewModel.factory(container, cid),
+                key = "chat_$cid",
+            )
+            ChatScreen(
+                vm = vm,
+                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                onOpenConversations = { nav.navigate(Routes.CONVERSATIONS) },
+                onOpenImages = { nav.navigate(Routes.IMAGES) },
+                onNewChat = {
+                    // Über LAUNCH gehen — der legt einen frischen Chat an.
+                    // Den aktuellen Chat aus dem Backstack popen.
+                    nav.navigate(Routes.LAUNCH) {
+                        popUpTo(Routes.CHAT) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onSwitchChat = { newCid ->
+                    if (newCid != cid) {
+                        nav.navigate(Routes.chat(newCid)) {
+                            popUpTo(Routes.CHAT) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                },
+            )
+        }
+
+        composable(Routes.SETTINGS) {
+            val vm: SettingsViewModel = viewModel(
+                factory = SettingsViewModel.factory(container)
+            )
+            SettingsScreen(
+                vm = vm,
+                onBack = { nav.popBackStack() },
+            )
+        }
+
+        composable(Routes.IMAGES) {
+            val vm: de.smartzone.pocketclaude.ui.images.ImageGenViewModel = viewModel(
+                factory = de.smartzone.pocketclaude.ui.images.ImageGenViewModel.factory(container)
+            )
+            de.smartzone.pocketclaude.ui.images.ImagesScreen(
+                vm = vm,
+                onBack = { nav.popBackStack() },
+                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+            )
+        }
+    }
+}
+
+/**
+ * Wird beim App-Start gezeigt. Prüft Settings, erzeugt einen frischen Chat
+ * und gibt die neue cid zurück. Während die Konversation angelegt wird, sieht
+ * der User einen Spinner.
+ */
+@Composable
+private fun LaunchScreen(
+    container: AppContainer,
+    preloadedCid: String?,
+    onChatReady: (String) -> Unit,
+    onNeedsSettings: () -> Unit,
+) {
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        // Wenn die Activity mit einer cid aus einer Notification kam,
+        // springen wir direkt dorthin — keinen frischen Chat anlegen.
+        if (preloadedCid != null) {
+            onChatReady(preloadedCid)
+            return@LaunchedEffect
+        }
+        // Sonst: auf den ersten echten Settings-Emit aus DataStore warten —
+        // sonst würden wir auf dem Default isConfigured=false sofort
+        // zu Settings springen, obwohl der User längst alles eingetragen hat.
+        val s = container.settingsRepository.current()
+        if (!s.isConfigured) {
+            onNeedsSettings()
+            return@LaunchedEffect
+        }
+        // Process-Death-Restore: wenn die App schon mal mit einem Chat offen
+        // war (cid in DataStore), wieder dort öffnen statt frischen Chat
+        // anzulegen. Falls der Chat zwischenzeitlich gelöscht wurde, fängt
+        // ChatScreen das ab und der User landet einfach auf Error/leer —
+        // besser als überrascht in einem neuen Chat zu stehen.
+        val lastCid = container.settingsRepository.getLastChatCid()
+        if (!lastCid.isNullOrBlank()) {
+            onChatReady(lastCid)
+            return@LaunchedEffect
+        }
+        runCatching { container.chatRepository.create() }
+            .onSuccess { onChatReady(it.id) }
+            .onFailure { errorMessage = it.message ?: it::class.java.simpleName }
+    }
+
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (errorMessage != null) {
+            Text(
+                "Verbindung fehlgeschlagen: $errorMessage",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(24.dp),
+            )
+        } else {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Image(
+                    painter = painterResource(
+                        id = de.smartzone.pocketclaude.R.drawable.pocket_claude_icon
+                    ),
+                    contentDescription = "Pocket Claude",
+                    modifier = Modifier.size(120.dp),
+                )
+                Spacer(Modifier.height(24.dp))
+                CircularProgressIndicator()
+            }
+        }
+    }
+}

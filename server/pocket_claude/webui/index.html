@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E0E10">
+<title>Pocket Claude</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234A90C2' d='M12 2a9 9 0 0 0-9 9c0 2 .6 3.8 1.7 5.3L3 21l4.9-1.6c1.3.7 2.7 1 4.1 1a9 9 0 1 0 0-18zm0 16c-1.2 0-2.4-.3-3.4-.9l-.4-.2-2.4.8.8-2.3-.2-.4A7 7 0 1 1 12 18z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css?v=20260517d">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.0/dist/purify.min.js"></script>
+<script src="i18n.js?v=20260519a"></script>
+</head>
+<body>
+
+<!-- =========================================================
+     SVG-Icon-Sprite — wird über <use href="#icon-x"/> referenziert.
+     Alle Strokes 1.5, viewBox 24×24, currentColor.
+     ========================================================= -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="icon-more" viewBox="0 0 24 24"><circle cx="12" cy="6" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="18" r="1.6" fill="currentColor"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-attach" viewBox="0 0 24 24"><path d="M21.4 11.05 12.6 19.9a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-pin" viewBox="0 0 24 24"><path d="M16 3 21 8l-4.5 4.5L18 18l-2 2-5-5-4.5 4.5L4 21l-1-1 .5-2.5L8 13l-5-5 2-2 5.5 1.5L15 3l1 0z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-share" viewBox="0 0 24 24"><path d="M12 4v12M8 8l4-4 4 4M6 14v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2M12 20v2M4.9 4.9 6.3 6.3M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m18 6-12 12M6 6l12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="icon-speaker" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5zM16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></symbol>
+    <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 17V5M7 10l5-5 5 5M5 21h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zM14 3v6h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-sidebar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 4v16" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="icon-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="9" r="1.5" fill="currentColor"/><path d="M21 16l-5-5-9 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" fill="currentColor"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" fill="currentColor" opacity="0.7"/></symbol>
+    <symbol id="icon-wand" viewBox="0 0 24 24"><path d="M3 21l11-11M14 5l5 5M16 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2zM21 12l.5 1.5 1.5.5-1.5.5L21 16l-.5-1.5L19 14l1.5-.5L21 12z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<!-- =========================================================
+     Login (Username + Passwort)
+     ========================================================= -->
+<div id="login" class="login hidden">
+  <form id="login-form" class="login-card" autocomplete="on">
+    <div class="login-brand">
+      <div class="login-logo">
+        <svg viewBox="0 0 24 24" width="40" height="40"><circle cx="12" cy="12" r="10" fill="url(#brand-grad)"/><path d="M12 8v6m-3-3 3 3 3-3" stroke="white" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+        <defs><linearGradient id="brand-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5BC0DE"/><stop offset="100%" stop-color="#4A90C2"/></linearGradient></defs>
+      </div>
+      <h1 data-i18n="app_name">Pocket Claude</h1>
+      <p data-i18n="login_subtitle">Mit Deinem Server verbinden.</p>
+    </div>
+    <label class="field">
+      <span data-i18n="server_url">Server-URL</span>
+      <input id="login-url" type="url" placeholder="https://…trycloudflare.com" autocomplete="url">
+    </label>
+    <label class="field">
+      <span data-i18n="username">Benutzername</span>
+      <input id="login-username" type="text" autocomplete="username" autocapitalize="off" autocorrect="off">
+    </label>
+    <label class="field">
+      <span data-i18n="password">Passwort</span>
+      <input id="login-password" type="password" autocomplete="current-password">
+    </label>
+    <button id="login-btn" type="submit" class="btn-primary" data-i18n="sign_in">Anmelden</button>
+    <div id="login-status" class="login-status"></div>
+  </form>
+</div>
+
+<!-- =========================================================
+     Forced-Password-Change-Modal (nach erstem Login / Admin-Reset)
+     ========================================================= -->
+<div id="pwchange-modal" class="modal hidden">
+  <div class="modal-card small">
+    <div class="modal-header">
+      <h2 id="pwchange-title" data-i18n="change_password">Passwort ändern</h2>
+    </div>
+    <form id="pwchange-form" class="modal-body" autocomplete="off">
+      <p id="pwchange-text" class="prompt-text" data-i18n="change_password_prompt">Bitte setze ein neues Passwort.</p>
+      <label class="field" id="pwchange-old-field">
+        <span data-i18n="current_password">Aktuelles Passwort</span>
+        <input id="pwchange-old" type="password" autocomplete="current-password">
+      </label>
+      <label class="field">
+        <span data-i18n="new_password">Neues Passwort</span>
+        <input id="pwchange-new" type="password" autocomplete="new-password" minlength="8">
+      </label>
+      <label class="field">
+        <span data-i18n="new_password_repeat">Neues Passwort wiederholen</span>
+        <input id="pwchange-new2" type="password" autocomplete="new-password" minlength="8">
+      </label>
+      <div id="pwchange-status" class="login-status"></div>
+    </form>
+    <div class="modal-footer">
+      <button id="pwchange-cancel" type="button" class="btn-ghost" data-i18n="cancel">Abbrechen</button>
+      <button id="pwchange-ok" type="submit" form="pwchange-form" class="btn-primary" data-i18n="save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================
+     Haupt-Layout
+     ========================================================= -->
+<div id="app" class="app hidden">
+
+  <!-- ============ Sidebar ============ -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-section">
+      <button id="new-chat-btn" class="ghost-btn new-chat">
+        <svg class="icon"><use href="#icon-plus"/></svg>
+        <span data-i18n="new_chat">Neuer Chat</span>
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="search-wrap">
+        <svg class="icon search-icon"><use href="#icon-search"/></svg>
+        <input id="search-input" type="search" placeholder="Suchen…" data-i18n-placeholder="search_placeholder"
+               name="pc-chat-search"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               data-form-type="other" data-lpignore="true" data-1p-ignore="true"
+               readonly
+               onfocus="this.removeAttribute('readonly')">
+      </div>
+    </div>
+
+    <nav id="chat-nav" class="chat-nav"></nav>
+    <nav id="search-nav" class="chat-nav hidden"></nav>
+
+    <div class="sidebar-footer">
+      <button id="settings-btn" class="ghost-btn">
+        <svg class="icon"><use href="#icon-settings"/></svg>
+        <span data-i18n="settings">Einstellungen</span>
+      </button>
+      <div class="footer-user" id="footer-user" title="Aktueller User"></div>
+      <div class="footer-row">
+        <button id="theme-toggle" class="icon-btn" title="Theme wechseln">
+          <svg class="icon"><use href="#icon-moon"/></svg>
+        </button>
+        <button id="logout-btn" class="icon-btn" title="Abmelden">
+          <svg class="icon"><use href="#icon-logout"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ Main ============ -->
+  <main id="main" class="main">
+    <header class="topbar">
+      <button id="sidebar-toggle" class="icon-btn" title="Sidebar ein-/ausblenden">
+        <svg class="icon"><use href="#icon-sidebar"/></svg>
+      </button>
+      <div class="topbar-title">
+        <h1 id="chat-title">Pocket Claude</h1>
+        <span id="chat-meta" class="topbar-meta"></span>
+      </div>
+      <div class="topbar-actions">
+        <div class="effort-wrap">
+          <button id="effort-btn" class="pill-btn" title="Denktiefe">
+            <span id="effort-label">High</span>
+            <svg class="icon icon-sm"><use href="#icon-chevron-down"/></svg>
+          </button>
+          <div id="effort-menu" class="dropdown hidden">
+            <button data-effort="off">Off</button>
+            <button data-effort="low">Low</button>
+            <button data-effort="medium">Medium</button>
+            <button data-effort="high">High</button>
+            <button data-effort="xhigh">xHigh</button>
+            <button data-effort="max">Max</button>
+          </div>
+        </div>
+        <button id="more-btn" class="icon-btn" title="Mehr">
+          <svg class="icon"><use href="#icon-more"/></svg>
+        </button>
+        <div id="more-menu" class="dropdown right hidden">
+          <button data-action="rename"><svg class="icon"><use href="#icon-edit"/></svg> <span data-i18n="rename">Umbenennen</span></button>
+          <button data-action="pin"><svg class="icon"><use href="#icon-pin"/></svg> <span id="pin-label" data-i18n="pin">Anpinnen</span></button>
+          <button data-action="share"><svg class="icon"><use href="#icon-share"/></svg> <span data-i18n="share">Teilen</span></button>
+          <hr>
+          <button data-action="delete" class="danger"><svg class="icon"><use href="#icon-trash"/></svg> <span data-i18n="delete">Löschen</span></button>
+        </div>
+      </div>
+    </header>
+
+    <div id="messages" class="messages"></div>
+
+    <div class="composer-wrap">
+      <!-- Image-Mode Options-Panel (eingeklappt wenn Chat-Mode) -->
+      <div id="image-options" class="image-options hidden">
+        <div class="image-options-row">
+          <div class="image-options-group">
+            <span class="image-options-label" data-i18n="model">Modell</span>
+            <select id="image-model"></select>
+          </div>
+          <div class="image-options-group">
+            <span class="image-options-label" data-i18n="format">Format</span>
+            <div id="image-aspect-chips" class="chip-row"></div>
+          </div>
+          <div class="image-options-group">
+            <span class="image-options-label" data-i18n="count">Anzahl</span>
+            <div id="image-count-chips" class="chip-row">
+              <button class="chip" data-count="1" type="button">1</button>
+              <button class="chip" data-count="2" type="button">2</button>
+              <button class="chip" data-count="3" type="button">3</button>
+              <button class="chip" data-count="4" type="button">4</button>
+            </div>
+          </div>
+        </div>
+        <div id="image-options-status" class="image-options-status"></div>
+      </div>
+
+      <div id="pending-attachments" class="pending-attachments hidden"></div>
+      <form id="input-form" class="composer">
+        <button id="attach-btn" type="button" class="composer-btn" title="Anhängen">
+          <svg class="icon"><use href="#icon-attach"/></svg>
+        </button>
+        <button id="image-mode-btn" type="button" class="composer-btn" title="Bild-Modus (Gemini)">
+          <svg class="icon"><use href="#icon-image"/></svg>
+        </button>
+        <input id="file-input" type="file" hidden multiple accept="image/*,application/pdf,.txt,.md">
+        <textarea id="input" rows="1" placeholder="Frag Pocket Claude…" data-i18n-placeholder="compose_placeholder" required></textarea>
+        <button id="send-btn" type="submit" class="composer-btn primary" title="Senden">
+          <svg class="icon"><use href="#icon-send"/></svg>
+        </button>
+      </form>
+      <p class="composer-hint" id="composer-hint">⌘/Ctrl + Enter zum Senden · Pocket Claude kann Fehler machen.</p>
+    </div>
+  </main>
+</div>
+
+<!-- =========================================================
+     Settings-Modal
+     ========================================================= -->
+<div id="settings-modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2 data-i18n="settings">Einstellungen</h2>
+      <button id="settings-close" class="icon-btn"><svg class="icon"><use href="#icon-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+
+      <section class="settings-section">
+        <h3 data-i18n="system_prompt">System-Prompt</h3>
+        <p class="hint">Mit welchem Prompt Claude die Antwort beginnt.</p>
+        <div class="segments">
+          <label><input type="radio" name="sp-mode" value="STANDARD"> <span data-i18n="sp_standard">Standard</span></label>
+          <label><input type="radio" name="sp-mode" value="PERMISSIVE"> <span data-i18n="sp_permissive">Permissiv</span></label>
+          <label><input type="radio" name="sp-mode" value="ULTRA_LIBERAL"> <span data-i18n="sp_ultra_liberal">Ultra-Liberal</span></label>
+          <label><input type="radio" name="sp-mode" value="CUSTOM"> <span data-i18n="sp_custom">Eigener</span></label>
+        </div>
+        <textarea id="sp-custom" rows="3" placeholder="Eigener System-Prompt (nur aktiv bei „Eigener")" data-i18n-placeholder="sp_custom_placeholder"></textarea>
+      </section>
+
+      <!-- Language section -->
+      <section class="settings-section">
+        <h3 data-i18n="language">Sprache</h3>
+        <label class="field">
+          <span data-i18n="language">Sprache</span>
+          <select id="ui-locale-select">
+            <option value="">System default</option>
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="pt-BR">Português (Brasil)</option>
+            <option value="zh">中文</option>
+            <option value="ja">日本語</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="settings-section">
+        <h3 data-i18n="appearance">Darstellung</h3>
+        <p class="hint">Visuelle Optionen für den Chat-Bereich.</p>
+        <label class="field" style="flex-direction:row;align-items:flex-start;gap:14px">
+          <input id="setting-collapse-user-msgs" type="checkbox" style="margin-top:3px">
+          <span style="display:flex;flex-direction:column;gap:2px">
+            <strong style="font-weight:500">Lange eigene Nachrichten einklappen</strong>
+            <em class="hint" style="font-style:normal">
+              Ab ~6 Zeilen wird Dein Input abgeschnitten mit „Mehr anzeigen". Spart Scrollen
+              bei langen Antworten. Tap auf die Bubble klappt sie auf.
+            </em>
+          </span>
+        </label>
+      </section>
+
+      <section class="settings-section" id="image-settings-section">
+        <h3 data-i18n="images">Bilder (Gemini / Nano Banana)</h3>
+        <p class="hint">Dein eigener Google-AI-Studio-API-Key. Wird nur für Dich gespeichert, nie geteilt.</p>
+        <div class="row-gap" style="margin-top:8px;flex-wrap:wrap;align-items:center">
+          <input id="image-api-key-input" type="password" placeholder="AIzaSy…"
+                 autocomplete="off"
+                 style="flex:1;min-width:240px;padding:9px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;outline:none;font-family:SF Mono,Menlo,monospace;font-size:13px">
+          <button id="image-api-key-save" type="button" class="btn-secondary" data-i18n="save">Speichern</button>
+          <button id="image-api-key-delete" type="button" class="btn-ghost" data-i18n="remove">Entfernen</button>
+        </div>
+        <div id="image-api-key-status" class="backup-status"></div>
+        <p class="hint" style="margin-top:10px">
+          Key holen: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com/apikey</a>.
+          Für Bild-Generation muss das Cloud-Projekt einen Billing-Account haben
+          (<a href="https://console.cloud.google.com/billing" target="_blank" rel="noreferrer">Billing aktivieren</a>) — Free-Tier umfasst nur Text.
+        </p>
+      </section>
+
+      <section class="settings-section">
+        <h3 data-i18n="read_aloud">Vorlesen</h3>
+        <p class="hint">Beim Klick aufs Lautsprecher-Symbol unter Antworten.</p>
+        <label class="field">
+          <span data-i18n="provider">Provider</span>
+          <select id="tts-provider">
+            <option value="gemini_api">Gemini API (empfohlen — 8 € Hard-Cap aktiv)</option>
+            <option value="cloud_tts">Cloud TTS (Service Account, kein Hard-Cap)</option>
+          </select>
+        </label>
+        <p class="hint" id="tts-provider-hint" style="margin-top:-2px"></p>
+        <label class="field">
+          <span data-i18n="voice">Stimme</span>
+          <select id="tts-voice"></select>
+        </label>
+        <label class="field">
+          <span><span data-i18n="speed">Geschwindigkeit</span> <em id="tts-speed-label">1.00×</em></span>
+          <input id="tts-speed" type="range" min="0.25" max="2.0" step="0.25" value="1.0">
+        </label>
+      </section>
+
+      <section class="settings-section" id="my-account-section">
+        <h3 data-i18n="my_account">Mein Konto</h3>
+        <p class="hint" id="my-account-hint"><span data-i18n="signed_in_as">Eingeloggt als</span> <strong id="my-account-name">—</strong>.</p>
+        <div class="row-gap" style="margin-top:8px;flex-wrap:wrap">
+          <button id="change-pw-btn" class="btn-secondary" type="button" data-i18n="change_password">Passwort ändern</button>
+          <button id="logout-all-btn" class="btn-ghost" type="button" data-i18n="logout_all">Aus allen Geräten ausloggen</button>
+        </div>
+      </section>
+
+      <section class="settings-section admin-only hidden" id="admin-users-section">
+        <h3 data-i18n="user_management">Benutzer-Verwaltung</h3>
+        <p class="hint">Nur als Admin sichtbar. Login per Benutzername + Passwort. Beim Anlegen kannst Du ein Initial-Passwort vergeben oder vom Server generieren lassen — der neue User muss es beim ersten Login ändern.</p>
+        <div id="users-list" class="users-list"></div>
+        <div class="row-gap" style="margin-top:10px;flex-wrap:wrap">
+          <input id="new-user-name" type="text" placeholder="Benutzername" data-i18n-placeholder="username" style="flex:1;min-width:140px;padding:9px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;outline:none">
+          <input id="new-user-password" type="text" placeholder="Initial-Passwort (leer = generieren)" data-i18n-placeholder="user_initial_password" autocomplete="off" style="flex:1.5;min-width:200px;padding:9px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;outline:none">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-soft);white-space:nowrap">
+            <input id="new-user-admin" type="checkbox"> Admin
+          </label>
+          <button id="new-user-btn" class="btn-secondary" type="button" data-i18n="add_user">Anlegen</button>
+        </div>
+        <div id="new-user-result" class="backup-status"></div>
+      </section>
+
+      <section class="settings-section">
+        <h3 data-i18n="backup_and_import">Backup &amp; Import</h3>
+        <p class="hint" id="backup-hint">ZIP-Snapshot aller Chats (DB + Anhänge). Optional AES-256.</p>
+        <div class="row-gap">
+          <button id="backup-export-btn" class="btn-secondary" type="button">
+            <svg class="icon"><use href="#icon-download"/></svg> Exportieren
+          </button>
+          <button id="backup-import-btn" class="btn-secondary" type="button">
+            <svg class="icon"><use href="#icon-upload"/></svg> Importieren
+          </button>
+        </div>
+        <input id="backup-file-input" type="file" hidden accept=".zip,application/zip">
+        <div id="backup-status" class="backup-status"></div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================
+     Prompt-Modal (Passwort/Confirm)
+     ========================================================= -->
+<div id="prompt-modal" class="modal hidden">
+  <div class="modal-card small">
+    <div class="modal-header">
+      <h2 id="prompt-title">—</h2>
+    </div>
+    <div class="modal-body">
+      <p id="prompt-text" class="prompt-text"></p>
+      <input id="prompt-input" type="password" placeholder="">
+    </div>
+    <div class="modal-footer">
+      <button id="prompt-cancel" type="button" class="btn-ghost">Abbrechen</button>
+      <button id="prompt-ok" type="button" class="btn-primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<audio id="audio-player" preload="none"></audio>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js?v=20260517d"></script>
+</body>
+</html>

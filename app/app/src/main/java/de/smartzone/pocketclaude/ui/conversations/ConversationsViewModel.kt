@@ -1,0 +1,139 @@
+package de.smartzone.pocketclaude.ui.conversations
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import de.smartzone.pocketclaude.data.AppContainer
+import de.smartzone.pocketclaude.data.AppSettings
+import de.smartzone.pocketclaude.data.ChatRepository
+import de.smartzone.pocketclaude.data.ConversationDto
+import de.smartzone.pocketclaude.data.SettingsRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+sealed interface ConversationsState {
+    data object Loading : ConversationsState
+    data class NeedsSetup(val reason: String? = null) : ConversationsState
+    data class Loaded(val conversations: List<ConversationDto>) : ConversationsState
+    data class Error(val message: String) : ConversationsState
+}
+
+data class SearchState(
+    val query: String = "",
+    val isSearching: Boolean = false,
+    val hits: List<de.smartzone.pocketclaude.data.SearchHitDto> = emptyList(),
+    val error: String? = null,
+) {
+    val active: Boolean get() = query.isNotBlank()
+}
+
+class ConversationsViewModel(
+    private val settingsRepo: SettingsRepository,
+    private val chatRepo: ChatRepository,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow<ConversationsState>(ConversationsState.Loading)
+    val state: StateFlow<ConversationsState> = _state.asStateFlow()
+
+    private val _search = MutableStateFlow(SearchState())
+    val search: StateFlow<SearchState> = _search.asStateFlow()
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    val settings: StateFlow<AppSettings> = MutableStateFlow(AppSettings()).also { flow ->
+        viewModelScope.launch {
+            settingsRepo.settingsFlow.collect {
+                flow.value = it
+                refresh()
+            }
+        }
+    }.asStateFlow()
+
+    init {
+        refresh()
+    }
+
+    fun refresh() = viewModelScope.launch {
+        val s = settingsRepo.current()
+        if (!s.isConfigured) {
+            _state.value = ConversationsState.NeedsSetup()
+            return@launch
+        }
+        _state.value = ConversationsState.Loading
+        _state.value = runCatching { chatRepo.list() }
+            .map { ConversationsState.Loaded(it) as ConversationsState }
+            .getOrElse { ConversationsState.Error(it.message ?: it::class.java.simpleName) }
+    }
+
+    fun create(onCreated: (String) -> Unit) = viewModelScope.launch {
+        runCatching { chatRepo.create() }
+            .onSuccess { onCreated(it.id); refresh() }
+            .onFailure { _state.value = ConversationsState.Error(it.message ?: "Fehler") }
+    }
+
+    fun delete(id: String) = viewModelScope.launch {
+        runCatching { chatRepo.delete(id) }
+        clearLastChatIfMatches(setOf(id))
+        refresh()
+    }
+
+    /** Mehrere Chats hintereinander löschen (Bulk-Delete aus dem Selection-Modus). */
+    fun deleteMany(ids: Collection<String>) = viewModelScope.launch {
+        ids.forEach { runCatching { chatRepo.delete(it) } }
+        clearLastChatIfMatches(ids.toSet())
+        refresh()
+    }
+
+    /** Wenn der gerade-zuletzt-offene Chat gelöscht wurde, lastChatCid resetten,
+     *  damit der nächste App-Start nicht auf einem 404 landet. */
+    private suspend fun clearLastChatIfMatches(deletedIds: Set<String>) {
+        val last = settingsRepo.getLastChatCid() ?: return
+        if (last in deletedIds) settingsRepo.setLastChatCid(null)
+    }
+
+    fun rename(id: String, title: String) = viewModelScope.launch {
+        runCatching { chatRepo.rename(id, title) }
+        refresh()
+    }
+
+    fun togglePin(id: String, currentlyPinned: Boolean) = viewModelScope.launch {
+        runCatching { chatRepo.setPinned(id, !currentlyPinned) }
+        refresh()
+    }
+
+    fun setSearchQuery(q: String) {
+        _search.update { it.copy(query = q, error = null) }
+        searchJob?.cancel()
+        if (q.isBlank()) {
+            _search.update { it.copy(hits = emptyList(), isSearching = false) }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(250)  // Debounce
+            _search.update { it.copy(isSearching = true) }
+            runCatching { chatRepo.search(q) }
+                .onSuccess { resp -> _search.update { it.copy(isSearching = false, hits = resp.hits) } }
+                .onFailure { e -> _search.update { it.copy(isSearching = false, error = e.message ?: "Suche fehlgeschlagen") } }
+        }
+    }
+
+    fun clearSearch() {
+        searchJob?.cancel()
+        _search.value = SearchState()
+    }
+
+    companion object {
+        fun factory(container: AppContainer): ViewModelProvider.Factory =
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    return ConversationsViewModel(
+                        container.settingsRepository,
+                        container.chatRepository,
+                    ) as T
+                }
+            }
+    }
+}

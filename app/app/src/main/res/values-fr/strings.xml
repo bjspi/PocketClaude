@@ -1,0 +1,192 @@
+<resources>
+    <string name="app_name">Pocket Claude</string>
+
+    <!-- ─── Generic actions / common ──────────────────────────────────── -->
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Annuler</string>
+    <string name="action_save">Enregistrer</string>
+    <string name="action_close">Fermer</string>
+    <string name="action_back">Retour</string>
+    <string name="action_search">Rechercher</string>
+    <string name="action_delete">Supprimer</string>
+    <string name="action_rename">Renommer</string>
+    <string name="action_share">Partager</string>
+    <string name="action_copy">Copier</string>
+    <string name="action_edit">Modifier</string>
+    <string name="action_done">Terminé</string>
+    <string name="action_more">Plus</string>
+    <string name="action_retry">Réessayer</string>
+    <string name="action_yes">Oui</string>
+    <string name="action_no">Non</string>
+
+    <!-- ─── Screens / navigation titles ───────────────────────────────── -->
+    <string name="title_chat">Discussion</string>
+    <string name="title_conversations">Discussions</string>
+    <string name="title_settings">Paramètres</string>
+    <string name="title_images">Images</string>
+    <string name="title_users">Utilisateurs</string>
+
+    <!-- ─── First-run / setup ─────────────────────────────────────────── -->
+    <string name="setup_needed_title">Prêt à discuter</string>
+    <string name="setup_needed_subtitle">Ajoutez un profil de serveur dans les paramètres pour commencer.</string>
+    <string name="open_settings">Ouvrir les paramètres</string>
+    <string name="connection_failed_prefix">Échec de la connexion : %1$s</string>
+    <string name="connection_ok">Connecté. Modèle : %1$s</string>
+    <string name="loading">Chargement…</string>
+
+    <!-- ─── Chat screen ───────────────────────────────────────────────── -->
+    <string name="hint_message">Écrivez un message…</string>
+    <string name="hint_image_prompt">Décrivez une image…</string>
+    <string name="send">Envoyer</string>
+    <string name="stop">Arrêter</string>
+    <string name="attach">Joindre</string>
+    <string name="empty_chat_title">Nouvelle conversation</string>
+    <string name="empty_chat_subtitle">Tapez un message ci-dessous pour commencer à discuter.</string>
+    <string name="effort_label">Effort</string>
+    <string name="effort_off">Désactivé</string>
+    <string name="effort_low">Faible</string>
+    <string name="effort_medium">Moyen</string>
+    <string name="effort_high">Élevé</string>
+    <string name="effort_xhigh">Très élevé</string>
+    <string name="effort_max">Maximum</string>
+    <string name="copy_message">Copier le message</string>
+    <string name="speak_message">Lire à voix haute</string>
+    <string name="stop_speaking">Arrêter la lecture</string>
+    <string name="message_copied">Message copié</string>
+    <string name="image_edit">Modifier l\'image</string>
+    <string name="image_share">Partager l\'image</string>
+    <string name="image_save">Enregistrer dans la galerie</string>
+    <string name="attachment_label">Pièce jointe : %1$s</string>
+    <string name="search_in_chat">Rechercher dans la discussion</string>
+    <string name="search_no_matches">Aucun résultat</string>
+    <string name="share_as_markdown">Partager en Markdown</string>
+
+    <!-- ─── Drawer / conversation list ────────────────────────────────── -->
+    <string name="new_chat">Nouvelle discussion</string>
+    <string name="all_conversations">Toutes les conversations</string>
+    <string name="recent_chats">Discussions récentes</string>
+    <string name="empty_conversations_title">Aucune discussion</string>
+    <string name="empty_conversations_subtitle">Appuyez sur le bouton plus pour démarrer une nouvelle discussion.</string>
+    <string name="conversation_pin">Épingler</string>
+    <string name="conversation_unpin">Désépingler</string>
+    <string name="conversation_search_placeholder">Rechercher dans les conversations…</string>
+    <string name="confirm_delete_title">Supprimer cette discussion ?</string>
+    <string name="confirm_delete_message">Cette action est irréversible.</string>
+    <string name="rename_dialog_title">Renommer la discussion</string>
+
+    <!-- ─── Profiles / login ──────────────────────────────────────────── -->
+    <string name="profile_add">Ajouter un profil</string>
+    <string name="profile_remove">Supprimer le profil</string>
+    <string name="profile_switch">Changer de profil</string>
+    <string name="profile_active">Actif</string>
+    <string name="login_title">Connectez-vous à votre serveur</string>
+    <string name="server_url">URL du serveur</string>
+    <string name="server_url_hint">https://votre-hote.votre-tailnet.ts.net</string>
+    <string name="username">Nom d\'utilisateur</string>
+    <string name="password">Mot de passe</string>
+    <string name="password_new">Nouveau mot de passe</string>
+    <string name="password_current">Mot de passe actuel</string>
+    <string name="password_repeat">Répéter le mot de passe</string>
+    <string name="login">Se connecter</string>
+    <string name="logout">Se déconnecter</string>
+    <string name="login_failed">Échec de la connexion : %1$s</string>
+    <string name="change_password">Changer le mot de passe</string>
+    <string name="password_changed">Mot de passe modifié.</string>
+    <string name="server_token">Jeton Bearer</string>
+    <string name="server_token_hint">Jeton de session renvoyé par le serveur</string>
+    <string name="test_connection">Tester la connexion</string>
+
+    <!-- ─── Settings screen — sections ────────────────────────────────── -->
+    <string name="section_profiles_and_connection">Profils &amp; connexion</string>
+    <string name="section_claude_behavior">Comportement de Claude</string>
+    <string name="section_skills">Compétences</string>
+    <string name="section_read_aloud">Lecture à voix haute</string>
+    <string name="section_images">Images</string>
+    <string name="section_chat_backup">Sauvegarde des discussions</string>
+    <string name="section_settings_backup">Sauvegarde des paramètres</string>
+    <string name="section_appearance">Apparence</string>
+    <string name="section_about">À propos</string>
+
+    <!-- ─── Settings — appearance / theme / language ──────────────────── -->
+    <string name="theme_mode">Thème</string>
+    <string name="theme_system">Système</string>
+    <string name="theme_light">Clair</string>
+    <string name="theme_dark">Sombre</string>
+    <string name="language_label">Langue</string>
+    <string name="language_system_default">Par défaut du système</string>
+    <string name="language_english">English</string>
+    <string name="language_german">Deutsch</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_french">Français</string>
+    <string name="language_portuguese_br">Português (Brasil)</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_japanese">日本語</string>
+
+    <!-- ─── Settings — Claude behavior / system prompts ───────────────── -->
+    <string name="system_prompt_mode">Invite système</string>
+    <string name="system_prompt_standard">Standard</string>
+    <string name="system_prompt_permissive">Permissif</string>
+    <string name="system_prompt_ultra_liberal">Ultra-libéral</string>
+    <string name="system_prompt_custom">Personnalisé</string>
+    <string name="system_prompt_custom_hint">Saisissez votre propre invite système…</string>
+
+    <!-- ─── Settings — Skills ─────────────────────────────────────────── -->
+    <string name="skill_web_search">Recherche web</string>
+    <string name="skill_web_fetch">Récupération web</string>
+    <string name="skill_bash">Exécution Bash</string>
+
+    <!-- ─── Settings — Read aloud (TTS) ───────────────────────────────── -->
+    <string name="tts_provider">Fournisseur</string>
+    <string name="tts_provider_edge">Microsoft Edge (gratuit)</string>
+    <string name="tts_provider_gemini">API directe Gemini</string>
+    <string name="tts_provider_cloud">Google Cloud TTS</string>
+    <string name="tts_voice">Voix</string>
+    <string name="tts_speed">Vitesse</string>
+    <string name="tts_auto_speak">Lire les réponses automatiquement</string>
+    <string name="tts_test">Tester la voix</string>
+    <string name="tts_model">Modèle</string>
+    <string name="tts_chunking">Synthèse fragmentée</string>
+    <string name="tts_api_key">Clé API</string>
+    <string name="tts_api_key_pool">Pool multi-clés</string>
+    <string name="tts_credentials_upload">Importer le JSON du compte de service</string>
+
+    <!-- ─── Settings — Images ─────────────────────────────────────────── -->
+    <string name="image_api_key">Clé API Gemini</string>
+    <string name="image_model">Modèle</string>
+    <string name="image_aspect_ratio">Format d\'image</string>
+    <string name="image_count">Nombre d\'images</string>
+    <string name="image_generate">Générer</string>
+
+    <!-- ─── Settings — Backup ─────────────────────────────────────────── -->
+    <string name="backup_export">Exporter</string>
+    <string name="backup_import">Importer</string>
+    <string name="backup_password">Mot de passe de sauvegarde</string>
+    <string name="backup_password_hint">Utilisé pour chiffrer le ZIP (AES-256)</string>
+    <string name="backup_in_progress">En cours…</string>
+    <string name="backup_done">Sauvegarde prête.</string>
+    <string name="backup_imported">Sauvegarde importée.</string>
+
+    <!-- ─── Settings — About ──────────────────────────────────────────── -->
+    <string name="about_version">Version %1$s</string>
+    <string name="about_source">Voir le code source sur GitHub</string>
+    <string name="about_license">Licence : MIT</string>
+
+    <!-- ─── User management ───────────────────────────────────────────── -->
+    <string name="users_add">Ajouter un utilisateur</string>
+    <string name="users_admin_badge">Admin</string>
+    <string name="users_reset_password">Réinitialiser le mot de passe</string>
+
+    <!-- ─── Errors / generic toasts ───────────────────────────────────── -->
+    <string name="error_generic">Une erreur s\'est produite.</string>
+    <string name="error_network">Erreur réseau.</string>
+    <string name="error_not_logged_in">Veuillez d\'abord vous connecter.</string>
+    <string name="saved">Enregistré.</string>
+    <string name="copied_to_clipboard">Copié dans le presse-papiers.</string>
+
+    <!-- ─── Notifications ─────────────────────────────────────────────── -->
+    <string name="notif_channel_streaming">Diffusion en cours</string>
+    <string name="notif_channel_result">Réponse prête</string>
+    <string name="notif_streaming_title">Pocket Claude</string>
+    <string name="notif_streaming_text">Réponse en cours…</string>
+    <string name="notif_result_title">Réponse prête</string>
+</resources>

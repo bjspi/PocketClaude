@@ -1,0 +1,192 @@
+<resources>
+    <string name="app_name">Pocket Claude</string>
+
+    <!-- ─── Generic actions / common ──────────────────────────────────── -->
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_save">Speichern</string>
+    <string name="action_close">Schließen</string>
+    <string name="action_back">Zurück</string>
+    <string name="action_search">Suchen</string>
+    <string name="action_delete">Löschen</string>
+    <string name="action_rename">Umbenennen</string>
+    <string name="action_share">Teilen</string>
+    <string name="action_copy">Kopieren</string>
+    <string name="action_edit">Bearbeiten</string>
+    <string name="action_done">Fertig</string>
+    <string name="action_more">Mehr</string>
+    <string name="action_retry">Erneut versuchen</string>
+    <string name="action_yes">Ja</string>
+    <string name="action_no">Nein</string>
+
+    <!-- ─── Screens / navigation titles ───────────────────────────────── -->
+    <string name="title_chat">Chat</string>
+    <string name="title_conversations">Chats</string>
+    <string name="title_settings">Einstellungen</string>
+    <string name="title_images">Bilder</string>
+    <string name="title_users">Benutzer</string>
+
+    <!-- ─── First-run / setup ─────────────────────────────────────────── -->
+    <string name="setup_needed_title">Bereit zum Chatten</string>
+    <string name="setup_needed_subtitle">Lege in den Einstellungen ein Server-Profil an.</string>
+    <string name="open_settings">Einstellungen öffnen</string>
+    <string name="connection_failed_prefix">Verbindung fehlgeschlagen: %1$s</string>
+    <string name="connection_ok">Verbunden. Modell: %1$s</string>
+    <string name="loading">Lade…</string>
+
+    <!-- ─── Chat screen ───────────────────────────────────────────────── -->
+    <string name="hint_message">Schreib was…</string>
+    <string name="hint_image_prompt">Beschreibe ein Bild…</string>
+    <string name="send">Senden</string>
+    <string name="stop">Stopp</string>
+    <string name="attach">Anhang</string>
+    <string name="empty_chat_title">Neuer Chat</string>
+    <string name="empty_chat_subtitle">Schreib unten eine Nachricht, um loszulegen.</string>
+    <string name="effort_label">Denktiefe</string>
+    <string name="effort_off">Aus</string>
+    <string name="effort_low">Niedrig</string>
+    <string name="effort_medium">Mittel</string>
+    <string name="effort_high">Hoch</string>
+    <string name="effort_xhigh">Sehr hoch</string>
+    <string name="effort_max">Maximum</string>
+    <string name="copy_message">Nachricht kopieren</string>
+    <string name="speak_message">Vorlesen</string>
+    <string name="stop_speaking">Vorlesen stoppen</string>
+    <string name="message_copied">Nachricht kopiert</string>
+    <string name="image_edit">Bild bearbeiten</string>
+    <string name="image_share">Bild teilen</string>
+    <string name="image_save">In Galerie speichern</string>
+    <string name="attachment_label">Anhang: %1$s</string>
+    <string name="search_in_chat">Im Chat suchen</string>
+    <string name="search_no_matches">Keine Treffer</string>
+    <string name="share_as_markdown">Als Markdown teilen</string>
+
+    <!-- ─── Drawer / conversation list ────────────────────────────────── -->
+    <string name="new_chat">Neuer Chat</string>
+    <string name="all_conversations">Alle Konversationen</string>
+    <string name="recent_chats">Letzte Chats</string>
+    <string name="empty_conversations_title">Noch keine Chats</string>
+    <string name="empty_conversations_subtitle">Tippe auf das Plus, um einen Chat zu starten.</string>
+    <string name="conversation_pin">Anpinnen</string>
+    <string name="conversation_unpin">Lösen</string>
+    <string name="conversation_search_placeholder">Konversationen suchen…</string>
+    <string name="confirm_delete_title">Diesen Chat löschen?</string>
+    <string name="confirm_delete_message">Das kann nicht rückgängig gemacht werden.</string>
+    <string name="rename_dialog_title">Chat umbenennen</string>
+
+    <!-- ─── Profiles / login ──────────────────────────────────────────── -->
+    <string name="profile_add">Profil hinzufügen</string>
+    <string name="profile_remove">Profil entfernen</string>
+    <string name="profile_switch">Profil wechseln</string>
+    <string name="profile_active">Aktiv</string>
+    <string name="login_title">Beim Server anmelden</string>
+    <string name="server_url">Server-URL</string>
+    <string name="server_url_hint">https://dein-host.dein-tailnet.ts.net</string>
+    <string name="username">Benutzername</string>
+    <string name="password">Passwort</string>
+    <string name="password_new">Neues Passwort</string>
+    <string name="password_current">Aktuelles Passwort</string>
+    <string name="password_repeat">Passwort wiederholen</string>
+    <string name="login">Anmelden</string>
+    <string name="logout">Abmelden</string>
+    <string name="login_failed">Anmeldung fehlgeschlagen: %1$s</string>
+    <string name="change_password">Passwort ändern</string>
+    <string name="password_changed">Passwort geändert.</string>
+    <string name="server_token">Bearer-Token</string>
+    <string name="server_token_hint">Vom Server vergebener Session-Token</string>
+    <string name="test_connection">Verbindung testen</string>
+
+    <!-- ─── Settings screen — sections ────────────────────────────────── -->
+    <string name="section_profiles_and_connection">Profile &amp; Verbindung</string>
+    <string name="section_claude_behavior">Claude-Verhalten</string>
+    <string name="section_skills">Skills</string>
+    <string name="section_read_aloud">Vorlesen</string>
+    <string name="section_images">Bilder</string>
+    <string name="section_chat_backup">Chat-Backup</string>
+    <string name="section_settings_backup">Einstellungs-Backup</string>
+    <string name="section_appearance">Darstellung</string>
+    <string name="section_about">Über</string>
+
+    <!-- ─── Settings — appearance / theme / language ──────────────────── -->
+    <string name="theme_mode">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Hell</string>
+    <string name="theme_dark">Dunkel</string>
+    <string name="language_label">Sprache</string>
+    <string name="language_system_default">Systemvorgabe</string>
+    <string name="language_english">English</string>
+    <string name="language_german">Deutsch</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_french">Français</string>
+    <string name="language_portuguese_br">Português (Brasil)</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_japanese">日本語</string>
+
+    <!-- ─── Settings — Claude behavior / system prompts ───────────────── -->
+    <string name="system_prompt_mode">System-Prompt</string>
+    <string name="system_prompt_standard">Standard</string>
+    <string name="system_prompt_permissive">Permissiv</string>
+    <string name="system_prompt_ultra_liberal">Ultra-Liberal</string>
+    <string name="system_prompt_custom">Eigener</string>
+    <string name="system_prompt_custom_hint">Eigenen System-Prompt eingeben…</string>
+
+    <!-- ─── Settings — Skills ─────────────────────────────────────────── -->
+    <string name="skill_web_search">Web-Suche</string>
+    <string name="skill_web_fetch">Web-Abruf</string>
+    <string name="skill_bash">Bash-Ausführung</string>
+
+    <!-- ─── Settings — Read aloud (TTS) ───────────────────────────────── -->
+    <string name="tts_provider">Provider</string>
+    <string name="tts_provider_edge">Microsoft Edge (gratis)</string>
+    <string name="tts_provider_gemini">Gemini Direct API</string>
+    <string name="tts_provider_cloud">Google Cloud TTS</string>
+    <string name="tts_voice">Stimme</string>
+    <string name="tts_speed">Geschwindigkeit</string>
+    <string name="tts_auto_speak">Antworten automatisch vorlesen</string>
+    <string name="tts_test">Stimme testen</string>
+    <string name="tts_model">Modell</string>
+    <string name="tts_chunking">Chunk-weise Synthese</string>
+    <string name="tts_api_key">API-Key</string>
+    <string name="tts_api_key_pool">Multi-Key-Pool</string>
+    <string name="tts_credentials_upload">Service-Account-JSON hochladen</string>
+
+    <!-- ─── Settings — Images ─────────────────────────────────────────── -->
+    <string name="image_api_key">Gemini-API-Key</string>
+    <string name="image_model">Modell</string>
+    <string name="image_aspect_ratio">Seitenverhältnis</string>
+    <string name="image_count">Anzahl Bilder</string>
+    <string name="image_generate">Generieren</string>
+
+    <!-- ─── Settings — Backup ─────────────────────────────────────────── -->
+    <string name="backup_export">Exportieren</string>
+    <string name="backup_import">Importieren</string>
+    <string name="backup_password">Backup-Passwort</string>
+    <string name="backup_password_hint">Verschlüsselt das ZIP (AES-256)</string>
+    <string name="backup_in_progress">Arbeite…</string>
+    <string name="backup_done">Backup fertig.</string>
+    <string name="backup_imported">Backup importiert.</string>
+
+    <!-- ─── Settings — About ──────────────────────────────────────────── -->
+    <string name="about_version">Version %1$s</string>
+    <string name="about_source">Quellcode auf GitHub</string>
+    <string name="about_license">Lizenz: MIT</string>
+
+    <!-- ─── User management ───────────────────────────────────────────── -->
+    <string name="users_add">Benutzer anlegen</string>
+    <string name="users_admin_badge">Admin</string>
+    <string name="users_reset_password">Passwort zurücksetzen</string>
+
+    <!-- ─── Errors / generic toasts ───────────────────────────────────── -->
+    <string name="error_generic">Da ist etwas schiefgelaufen.</string>
+    <string name="error_network">Netzwerkfehler.</string>
+    <string name="error_not_logged_in">Bitte zuerst anmelden.</string>
+    <string name="saved">Gespeichert.</string>
+    <string name="copied_to_clipboard">In Zwischenablage kopiert.</string>
+
+    <!-- ─── Notifications ─────────────────────────────────────────────── -->
+    <string name="notif_channel_streaming">Streaming</string>
+    <string name="notif_channel_result">Antwort fertig</string>
+    <string name="notif_streaming_title">Pocket Claude</string>
+    <string name="notif_streaming_text">Antwortet…</string>
+    <string name="notif_result_title">Antwort fertig</string>
+</resources>

@@ -1,0 +1,601 @@
+package de.smartzone.pocketclaude.data
+
+import android.net.Uri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import okhttp3.sse.EventSource
+import okhttp3.sse.EventSourceListener
+import okhttp3.sse.EventSources
+import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+class ApiException(val code: Int, val body: String) : IOException("HTTP $code: $body")
+
+class ApiClient(
+    private val client: OkHttpClient,
+    /** Separater Client für Endlos-Streams (SSE). Hat `readTimeout = 0`.
+     *  Default = derselbe Client; AppContainer reicht zwei verschiedene rein. */
+    private val streamingClient: OkHttpClient = client,
+    private val settings: SettingsRepository,
+) {
+    @Suppress("unused")  // Backward-compat single-client Konstruktor
+    constructor(client: OkHttpClient, settings: SettingsRepository) :
+        this(client, client, settings)
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
+    private suspend fun baseUrl(): String {
+        val s = settings.current()
+        require(s.isConfigured) { "Server-URL und Token müssen in den Einstellungen gesetzt sein." }
+        return s.serverUrl
+    }
+
+    private suspend fun authHeader(): String {
+        return "Bearer ${settings.current().serverToken}"
+    }
+
+    private suspend inline fun <reified T> get(path: String): T {
+        val req = Request.Builder()
+            .url("${baseUrl()}$path")
+            .header("Authorization", authHeader())
+            .get()
+            .build()
+        return execute(req)
+    }
+
+    private suspend inline fun <reified Body, reified R> postJson(path: String, body: Body): R {
+        val payload = json.encodeToString(body).toRequestBody("application/json".toMediaType())
+        val req = Request.Builder()
+            .url("${baseUrl()}$path")
+            .header("Authorization", authHeader())
+            .post(payload)
+            .build()
+        return execute(req)
+    }
+
+    private suspend inline fun <reified Body, reified R> patchJson(path: String, body: Body): R {
+        val payload = json.encodeToString(body).toRequestBody("application/json".toMediaType())
+        val req = Request.Builder()
+            .url("${baseUrl()}$path")
+            .header("Authorization", authHeader())
+            .patch(payload)
+            .build()
+        return execute(req)
+    }
+
+    private suspend inline fun <reified Body, reified R> putJson(path: String, body: Body): R {
+        val payload = json.encodeToString(body).toRequestBody("application/json".toMediaType())
+        val req = Request.Builder()
+            .url("${baseUrl()}$path")
+            .header("Authorization", authHeader())
+            .put(payload)
+            .build()
+        return execute(req)
+    }
+
+    private suspend fun delete(path: String) {
+        val req = Request.Builder()
+            .url("${baseUrl()}$path")
+            .header("Authorization", authHeader())
+            .delete()
+            .build()
+        execute<Unit>(req)
+    }
+
+    private suspend inline fun <reified T> execute(req: Request): T {
+        return suspendCancellableCoroutine { cont ->
+            val call = client.newCall(req)
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    cont.resumeWithException(e)
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { resp ->
+                        val body = resp.body?.string().orEmpty()
+                        if (!resp.isSuccessful) {
+                            cont.resumeWithException(ApiException(resp.code, body))
+                            return
+                        }
+                        try {
+                            if (T::class == Unit::class) {
+                                @Suppress("UNCHECKED_CAST")
+                                cont.resume(Unit as T)
+                            } else {
+                                val parsed = json.decodeFromString<T>(body)
+                                cont.resume(parsed)
+                            }
+                        } catch (e: Exception) {
+                            cont.resumeWithException(e)
+                        }
+                    }
+                }
+            })
+        }
+    }
+
+    // ---------- Auth ----------
+
+    /**
+     * Username+Passwort gegen die gegebene Server-URL eintauschen → Session-Token.
+     * Wird beim Anlegen/Aktivieren eines Profils gerufen, BEVOR ein Token im
+     * Settings-Repo gespeichert ist — deshalb braucht es URL/User/PW als
+     * explizite Parameter und geht NICHT über `authHeader()`/`baseUrl()`.
+     */
+    suspend fun login(serverUrl: String, username: String, password: String): LoginResponse {
+        val cleanBase = serverUrl.trim().trimEnd('/')
+        val payload = json.encodeToString(
+            LoginRequest(username = username, password = password)
+        ).toRequestBody("application/json".toMediaType())
+        val req = Request.Builder()
+            .url("$cleanBase/auth/login")
+            .post(payload)
+            .build()
+        return execute(req)
+    }
+
+    /** Beendet die aktuelle Server-Session (best effort). */
+    suspend fun logout() {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/auth/logout")
+                .header("Authorization", authHeader())
+                .post("".toRequestBody("application/json".toMediaType()))
+                .build()
+            execute<Unit>(req)
+        } catch (_: Exception) { /* swallow — Token kann schon weg sein */ }
+    }
+
+    /** Ändert das Passwort. Bei `must_change_password=1` darf `oldPassword`
+     *  null sein (Forced Change nach Reset). */
+    suspend fun changePassword(oldPassword: String?, newPassword: String) {
+        val body = ChangePasswordRequest(
+            old_password = oldPassword?.takeIf { it.isNotBlank() },
+            new_password = newPassword,
+        )
+        val payload = json.encodeToString(body)
+            .toRequestBody("application/json".toMediaType())
+        val req = Request.Builder()
+            .url("${baseUrl()}/auth/change-password")
+            .header("Authorization", authHeader())
+            .post(payload)
+            .build()
+        execute<Map<String, Boolean>>(req)
+    }
+
+    suspend fun me(): MeDto = get("/me")
+
+    // ---------- Image Generation (Gemini) ----------
+
+    suspend fun imagesConfig(): ImageConfigDto = get("/images/config")
+
+    suspend fun setImageApiKey(apiKey: String): Map<String, String> =
+        putJson("/images/credentials", ImageCredentialsRequest(apiKey))
+
+    suspend fun deleteImageApiKey() = delete("/images/credentials")
+
+    suspend fun generateImage(req: ImageGenerateRequest): ImageGenerateResponse =
+        postJson("/images/generate", req)
+
+    // ---------- Public API ----------
+
+    suspend fun health(): HealthDto = get("/health")
+
+    suspend fun listConversations(): List<ConversationDto> = get("/conversations")
+
+    suspend fun createConversation(title: String? = null): ConversationDto =
+        postJson("/conversations", CreateConversationRequest(title))
+
+    suspend fun getConversation(id: String): ConversationDetailDto = get("/conversations/$id")
+
+    suspend fun deleteConversation(id: String) = delete("/conversations/$id")
+
+    suspend fun renameConversation(id: String, title: String): ConversationDto =
+        patchJson("/conversations/$id", PatchConversationRequest(title = title))
+
+    suspend fun setPinned(id: String, pinned: Boolean): ConversationDto =
+        patchJson("/conversations/$id", PatchConversationRequest(pinned = pinned))
+
+    suspend fun search(query: String, limit: Int = 30): SearchResponseDto {
+        // OkHttp's HttpUrl-Builder kümmert sich um korrektes URL-Encoding der
+        // Query-Params, inklusive Sonderzeichen, Unicode, Umlaute etc.
+        val url = "${baseUrl()}/search".toHttpUrlOrNull()
+            ?.newBuilder()
+            ?.addQueryParameter("q", query)
+            ?.addQueryParameter("limit", limit.toString())
+            ?.build()
+            ?: error("Ungültige Server-URL für Suche.")
+        val req = Request.Builder()
+            .url(url)
+            .header("Authorization", authHeader())
+            .get()
+            .build()
+        return execute(req)
+    }
+
+    /** Liefert den Markdown-Export einer Konversation als String. */
+    suspend fun exportMarkdown(id: String): String {
+        val req = Request.Builder()
+            .url("${baseUrl()}/conversations/$id/export.md")
+            .header("Authorization", authHeader())
+            .get()
+            .build()
+        return suspendCancellableCoroutine { cont ->
+            val call = client.newCall(req)
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    cont.resumeWithException(e)
+                }
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { resp ->
+                        val body = resp.body?.string().orEmpty()
+                        if (!resp.isSuccessful) {
+                            cont.resumeWithException(ApiException(resp.code, body))
+                        } else {
+                            cont.resume(body)
+                        }
+                    }
+                }
+            })
+        }
+    }
+
+    // ---------- TTS ----------
+
+    suspend fun getTtsStatus(): TtsStatusDto = get("/tts/status")
+
+    suspend fun setTtsCredentials(credentialsJson: String): TtsStatusDto {
+        return execute(
+            Request.Builder()
+                .url("${baseUrl()}/tts/credentials")
+                .header("Authorization", authHeader())
+                .put(
+                    json.encodeToString(TtsCredentialsRequest(credentialsJson))
+                        .toRequestBody("application/json".toMediaType())
+                )
+                .build()
+        )
+    }
+
+    suspend fun deleteTtsCredentials() {
+        delete("/tts/credentials")
+    }
+
+    /** Setzt den TTS-spezifischen Gemini-API-Key (getrennt vom Image-Gen-Key). */
+    suspend fun setTtsApiKey(apiKey: String): TtsStatusDto =
+        putJson("/tts/api-key", TtsApiKeyRequest(apiKey))
+
+    /** Entfernt den TTS-API-Key. Fallback auf Image-Key (falls vorhanden) greift dann. */
+    suspend fun deleteTtsApiKey(): TtsStatusDto {
+        val req = Request.Builder()
+            .url("${baseUrl()}/tts/api-key")
+            .header("Authorization", authHeader())
+            .delete()
+            .build()
+        return execute(req)
+    }
+
+    // ---------- Multi-Key-Pool (für Free-Tier-Throughput-Skalierung) ----------
+
+    /** Liste aller Gemini-API-Keys im Pool dieses Users. */
+    suspend fun listTtsApiKeys(): TtsApiKeysDto = get("/tts/api-keys")
+
+    /** Fügt einen Key zum Pool hinzu. Returns die neue Liste. */
+    suspend fun addTtsApiKey(apiKey: String, label: String = ""): TtsApiKeysDto =
+        postJson("/tts/api-keys", TtsApiKeyAddRequest(apiKey, label))
+
+    /** Entfernt einen Key aus dem Pool per Server-vergebener ID. */
+    suspend fun removeTtsApiKey(keyId: String): TtsApiKeysDto {
+        val req = Request.Builder()
+            .url("${baseUrl()}/tts/api-keys/$keyId")
+            .header("Authorization", authHeader())
+            .delete()
+            .build()
+        return execute(req)
+    }
+
+    /** Setzt das Label eines Pool-Keys neu. */
+    suspend fun relabelTtsApiKey(keyId: String, label: String): TtsApiKeysDto =
+        patchJson("/tts/api-keys/$keyId", mapOf("label" to label))
+
+    // ---------- Settings Export / Import ----------
+
+    /** Holt das Server-Anteil des Settings-Exports (alle KV-Werte inkl.
+     *  Klartext-API-Keys). */
+    suspend fun exportServerSettings(): ServerSettingsExportDto =
+        get("/settings/export")
+
+    /** Wendet ein Settings-Bundle auf den aktuellen Server-User an. */
+    suspend fun importServerSettings(req: ServerSettingsImportRequest): SettingsImportResponseDto =
+        postJson("/settings/import", req)
+
+    // ---------- Skills (Default + Per-Chat-Override) ----------
+
+    suspend fun getDefaultSkills(): SkillsDto = get("/skills/defaults")
+
+    suspend fun setDefaultSkills(skills: SkillsDto): SkillsDto =
+        putJson("/skills/defaults", SkillsDefaultsRequest(skills))
+
+    suspend fun getConversationSkills(cid: String): ConversationSkillsResponse =
+        get("/conversations/$cid/skills")
+
+    /** `skills=null` löscht den Override → User-Default greift wieder. */
+    suspend fun setConversationSkills(cid: String, skills: SkillsDto?): ConversationSkillsResponse =
+        putJson("/conversations/$cid/skills", ConversationSkillsRequest(skills))
+
+    /** Setzt den TTS-Provider per User: "gemini_api" (8 € Hard-Cap) oder
+     *  "cloud_tts" (Service-Account, kein Hard-Cap). */
+    suspend fun setTtsProvider(provider: String): TtsStatusDto {
+        return execute(
+            Request.Builder()
+                .url("${baseUrl()}/tts/provider")
+                .header("Authorization", authHeader())
+                .put(
+                    json.encodeToString(TtsProviderRequest(provider))
+                        .toRequestBody("application/json".toMediaType())
+                )
+                .build()
+        )
+    }
+
+    /** Cloud-Billing-Status (Spend dieser Monat, Budget, Credit-Restwert).
+     *  Kann ein paar Sekunden dauern beim ersten Call (Service-Account-Token
+     *  + Cloud Billing API). Server cached danach 5 Minuten. */
+    suspend fun getBillingStatus(): BillingStatusDto = get("/billing/status")
+
+    /** Setzt das aktive TTS-Modell (z.B. gemini-2.5-flash-preview-tts).
+     *  Wirkt sich nur auf Gemini-Voices aus — Standard/Studio Cloud-TTS-Voices
+     *  ignorieren das Modell-Feld. */
+    suspend fun setTtsModel(modelId: String): TtsStatusDto {
+        return execute(
+            Request.Builder()
+                .url("${baseUrl()}/tts/model")
+                .header("Authorization", authHeader())
+                .put(
+                    json.encodeToString(TtsModelRequest(modelId))
+                        .toRequestBody("application/json".toMediaType())
+                )
+                .build()
+        )
+    }
+
+    /** Setzt die Chunking-Option des Users.
+     *  - `enabled=true/false` → explizites KV-Setting (überschreibt Provider-Default)
+     *  - `enabled=null`       → KV löschen, Provider-Default greift wieder */
+    suspend fun setTtsChunking(enabled: Boolean?): TtsStatusDto {
+        return execute(
+            Request.Builder()
+                .url("${baseUrl()}/tts/chunking")
+                .header("Authorization", authHeader())
+                .put(
+                    json.encodeToString(TtsChunkingRequest(enabled))
+                        .toRequestBody("application/json".toMediaType())
+                )
+                .build()
+        )
+    }
+
+    /** Baut die Audio-URL für eine Message inkl. optionaler Voice, Rate und
+     *  Auth-Token als Query-Param. Token in der URL ist nötig, weil ExoPlayer
+     *  Medien progressive über seinen eigenen HTTP-Stack lädt und keine
+     *  zusätzlichen Header mitgeben kann. Server akzeptiert für genau diesen
+     *  Endpoint Token via `?token=` als Alternative zum Authorization-Header. */
+    suspend fun audioUrl(messageId: Long, voice: String?, rate: Float? = null): String {
+        val s = settings.current()
+        val base = s.serverUrl
+        val params = buildList {
+            if (!voice.isNullOrBlank()) add("voice=${Uri.encode(voice)}")
+            if (rate != null && rate > 0f) add("rate=$rate")
+            if (s.serverToken.isNotBlank()) add("token=${Uri.encode(s.serverToken)}")
+        }
+        val q = if (params.isEmpty()) "" else "?" + params.joinToString("&")
+        return "$base/messages/$messageId/audio$q"
+    }
+
+    /** Auth-Headers für MediaPlayer-Streaming. */
+    suspend fun authHeaders(): Map<String, String> =
+        mapOf("Authorization" to authHeader())
+
+    /** Lädt das komplette Server-Backup als ZIP-Bytes herunter. Optional
+     *  AES-256 verschlüsselt mit `password`. */
+    suspend fun downloadBackup(password: String? = null): ByteArray = withContext(Dispatchers.IO) {
+        val q = if (!password.isNullOrBlank()) "?password=${Uri.encode(password)}" else ""
+        val req = Request.Builder()
+            .url("${baseUrl()}/backup$q")
+            .header("Authorization", authHeader())
+            .header("Accept", "application/zip")
+            .get()
+            .build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                val body = resp.body?.string()?.take(400).orEmpty()
+                throw ApiException(resp.code, body)
+            }
+            resp.body?.bytes() ?: throw IOException("Leere Backup-Response")
+        }
+    }
+
+    /** Liest nur das Manifest aus einem ZIP — für den Confirm-Dialog.
+     *  Wirft `ApiException(423, ...)` wenn ZIP verschlüsselt ist und Passwort
+     *  fehlt/falsch ist — App reagiert mit PW-Prompt. */
+    suspend fun peekBackup(zipBytes: ByteArray, password: String? = null): BackupPeekResponse {
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart(
+                "file",
+                "backup.zip",
+                zipBytes.toRequestBody("application/zip".toMediaType()),
+            )
+            .build()
+        val q = if (!password.isNullOrBlank()) "?password=${Uri.encode(password)}" else ""
+        val req = Request.Builder()
+            .url("${baseUrl()}/backup/peek$q")
+            .header("Authorization", authHeader())
+            .post(body)
+            .build()
+        return execute(req)
+    }
+
+    /** Importiert ein Backup-ZIP. mode = "replace" oder "merge". Wirft
+     *  `ApiException(423, ...)` wenn verschlüsselt + PW falsch/fehlt. */
+    suspend fun importBackup(
+        zipBytes: ByteArray,
+        mode: String,
+        password: String? = null,
+    ): BackupImportResponse {
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart(
+                "file",
+                "backup.zip",
+                zipBytes.toRequestBody("application/zip".toMediaType()),
+            )
+            .build()
+        val params = buildList {
+            add("mode=$mode")
+            if (!password.isNullOrBlank()) add("password=${Uri.encode(password)}")
+        }
+        val req = Request.Builder()
+            .url("${baseUrl()}/backup/import?${params.joinToString("&")}")
+            .header("Authorization", authHeader())
+            .post(body)
+            .build()
+        return execute(req)
+    }
+
+    suspend fun uploadAttachment(
+        filename: String,
+        mime: String,
+        bytes: ByteArray,
+    ): AttachmentDto {
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart(
+                "file",
+                filename,
+                bytes.toRequestBody(mime.toMediaType()),
+            )
+            .build()
+        val req = Request.Builder()
+            .url("${baseUrl()}/attachments")
+            .header("Authorization", authHeader())
+            .post(body)
+            .build()
+        return execute(req)
+    }
+
+    /**
+     * Send a user message and stream the assistant reply via SSE.
+     */
+    fun streamMessage(
+        conversationId: String,
+        request: SendMessageRequest,
+    ): Flow<StreamEvent> = callbackFlow {
+        val base = baseUrl()
+        val auth = authHeader()
+        val url = "$base/conversations/$conversationId/messages".toHttpUrlOrNull()
+            ?: error("Ungültige Server-URL: $base")
+
+        val req = Request.Builder()
+            .url(url)
+            .header("Authorization", auth)
+            .header("Accept", "text/event-stream")
+            .post(
+                json.encodeToString(request)
+                    .toRequestBody("application/json".toMediaType())
+            )
+            .build()
+
+        // SSE-Streams nutzen den Client OHNE Read-Timeout, sonst bricht der
+        // Stream bei längeren Thinking-Pausen ab.
+        val factory = EventSources.createFactory(streamingClient)
+        val source: EventSource = factory.newEventSource(req, object : EventSourceListener() {
+            override fun onEvent(
+                eventSource: EventSource,
+                id: String?,
+                type: String?,
+                data: String,
+            ) {
+                val event = parseEvent(type, data)
+                if (event != null) {
+                    trySend(event)
+                    if (event is StreamEvent.Done || event is StreamEvent.ErrorEvent) {
+                        close()
+                    }
+                }
+            }
+
+            override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
+                val msg = t?.message ?: response?.message ?: "Verbindung verloren"
+                trySend(StreamEvent.ErrorEvent(msg))
+                close(t)
+            }
+
+            override fun onClosed(eventSource: EventSource) {
+                close()
+            }
+        })
+
+        awaitClose { source.cancel() }
+    }.flowOn(Dispatchers.IO)
+
+    private fun parseEvent(type: String?, data: String): StreamEvent? {
+        return try {
+            val element = json.parseToJsonElement(data)
+            val obj = element as? kotlinx.serialization.json.JsonObject
+
+            fun str(key: String): String =
+                (obj?.get(key) as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+
+            fun long(key: String): Long =
+                (obj?.get(key) as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() ?: 0L
+
+            fun int(key: String): Int =
+                (obj?.get(key) as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0
+
+            when (type) {
+                "title" -> StreamEvent.TitleUpdated(str("title"))
+                "user_saved" -> StreamEvent.UserSaved(long("user_message_id"))
+                "compaction_started" -> StreamEvent.CompactionStarted
+                "compaction_done" -> StreamEvent.CompactionDone
+                "delta" -> StreamEvent.Delta(str("text"))
+                "thinking_delta" -> StreamEvent.ThinkingDelta(str("text"))
+                "block_stop" -> StreamEvent.BlockStop
+                "done" -> StreamEvent.Done(
+                    assistantMessageId = long("assistant_message_id"),
+                    tokensIn = int("tokens_in"),
+                    tokensOut = int("tokens_out"),
+                    tokensCachedRead = int("tokens_cached_read"),
+                    tokensCachedWrite = int("tokens_cached_write"),
+                )
+                "error" -> StreamEvent.ErrorEvent(str("message").ifEmpty { "Unbekannter Fehler" })
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+}

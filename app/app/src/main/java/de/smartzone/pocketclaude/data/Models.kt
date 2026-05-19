@@ -1,0 +1,501 @@
+package de.smartzone.pocketclaude.data
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class HealthDto(
+    val status: String,
+    val version: String,
+    /** Server returnt `null` wenn CLAUDE_MODEL nicht gesetzt ist (Default greift im CLI). */
+    val model: String? = null,
+    @SerialName("db_ok") val dbOk: Boolean,
+)
+
+@Serializable
+data class ConversationDto(
+    val id: String,
+    val title: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("last_message_at") val lastMessageAt: String? = null,
+    @SerialName("message_count") val messageCount: Int = 0,
+    @SerialName("total_tokens") val totalTokens: Int = 0,
+    @SerialName("has_mid_summary") val hasMidSummary: Boolean = false,
+    @SerialName("has_long_summary") val hasLongSummary: Boolean = false,
+    val pinned: Boolean = false,
+)
+
+@Serializable
+data class AttachmentRefDto(
+    val id: String,
+    val filename: String,
+    @SerialName("mime_type") val mimeType: String,
+    @SerialName("size_bytes") val sizeBytes: Long,
+)
+
+@Serializable
+data class MessageDto(
+    val id: Long,
+    @SerialName("conversation_id") val conversationId: String,
+    val role: String,
+    val content: String,
+    @SerialName("created_at") val createdAt: String,
+    val tokens: Int = 0,
+    val attachments: List<AttachmentRefDto> = emptyList(),
+)
+
+@Serializable
+data class ConversationDetailDto(
+    val id: String,
+    val title: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("last_message_at") val lastMessageAt: String? = null,
+    @SerialName("message_count") val messageCount: Int = 0,
+    @SerialName("total_tokens") val totalTokens: Int = 0,
+    @SerialName("has_mid_summary") val hasMidSummary: Boolean = false,
+    @SerialName("has_long_summary") val hasLongSummary: Boolean = false,
+    val pinned: Boolean = false,
+    val messages: List<MessageDto> = emptyList(),
+    @SerialName("mid_summary") val midSummary: String? = null,
+    @SerialName("long_summary") val longSummary: String? = null,
+)
+
+@Serializable
+data class AttachmentDto(
+    val id: String,
+    val filename: String,
+    @SerialName("mime_type") val mimeType: String,
+    @SerialName("size_bytes") val sizeBytes: Long,
+    @SerialName("uploaded_at") val uploadedAt: String,
+)
+
+@Serializable
+data class SendMessageRequest(
+    val content: String,
+    @SerialName("attachment_ids") val attachmentIds: List<String> = emptyList(),
+    /** off | low | medium | high | xhigh | max — steuert CLAUDE_CODE_EFFORT_LEVEL */
+    val effort: String = "high",
+    /** Vom Client gewünschter System-Prompt (ersetzt Server-Default + Claude-Code-Default). */
+    @SerialName("system_prompt") val systemPrompt: String? = null,
+    /** TTS-Hints: Server startet nach Stream-Ende eine Pre-Generation in der
+     *  ausgewählten Voice/Speed. Beim nächsten Vorlesen-Tap ist's Cache-Hit. */
+    @SerialName("tts_voice") val ttsVoice: String? = null,
+    @SerialName("tts_rate") val ttsRate: Float? = null,
+)
+
+@Serializable
+data class CreateConversationRequest(
+    val title: String? = null,
+)
+
+@Serializable
+data class PatchConversationRequest(
+    val title: String? = null,
+    val pinned: Boolean? = null,
+)
+
+@Serializable
+data class TtsVoiceDto(
+    val id: String,
+    val label: String,
+    val gender: String,
+    val tier: String,
+    // Welche TTS-Provider kennen diese Voice. Bei Provider-Switch in der UI
+    // werden Voices ausgeblendet, deren `compatible_providers` den aktuellen
+    // Provider nicht enthält. Default ["cloud_tts"] für Altdaten-Kompatibilität.
+    val compatible_providers: List<String> = listOf("cloud_tts"),
+)
+
+@Serializable
+data class TtsStatusDto(
+    val configured: Boolean,
+    val provider: String = "gemini_api",
+    @SerialName("cloud_tts_configured") val cloudTtsConfigured: Boolean = false,
+    @SerialName("gemini_api_configured") val geminiApiConfigured: Boolean = false,
+    /** Masked-Anzeige des aktuellen Gemini-API-Keys (z.B. "AIzaSy…JNrw"). */
+    @SerialName("gemini_api_key_masked") val geminiApiKeyMasked: String? = null,
+    /** "tts" = eigener TTS-Slot, "image" = Fallback auf Image-Key, "none". */
+    @SerialName("gemini_api_key_source") val geminiApiKeySource: String = "none",
+    /** Anzahl Keys im Multi-Key-Pool. >1 = Server verteilt per Round-Robin. */
+    @SerialName("gemini_api_key_count") val geminiApiKeyCount: Int = 0,
+    @SerialName("project_id") val projectId: String? = null,
+    @SerialName("client_email") val clientEmail: String? = null,
+    /** Cloud-TTS Zeichen-Verbrauch im aktuellen Monat (für Free-Tier-Anzeige). */
+    @SerialName("cloud_tts_chars_this_month") val cloudTtsCharsThisMonth: Int = 0,
+    @SerialName("default_voice") val defaultVoice: String,
+    val voices: List<TtsVoiceDto> = emptyList(),
+    /** Aktuell vom User gewähltes TTS-Modell (Gemini-Voices nutzen das,
+     *  Cloud-TTS Standard-Voices ignorieren es). */
+    @SerialName("tts_model") val ttsModel: String? = null,
+    @SerialName("available_models") val availableModels: List<TtsModelDto> = emptyList(),
+    /** Chunking-Schalter: bei langen Texten splittet der Server in parallele
+     *  Chunks. Server-Default ist provider-abhängig: cloud_tts → an,
+     *  gemini_api/edge_tts → aus (wegen RPD-Limit / Single-Session). */
+    @SerialName("chunking_enabled") val chunkingEnabled: Boolean = true,
+    /** TRUE = User hat den Chunking-Wert explizit gesetzt (KV-Override).
+     *  FALSE = Wert ist der Provider-Default und ändert sich beim Provider-Wechsel. */
+    @SerialName("chunking_explicit") val chunkingExplicit: Boolean = false,
+)
+
+/** Verfügbares TTS-Modell (gemini-*-tts-preview, etc.). */
+@Serializable
+data class TtsModelDto(
+    val id: String,
+    val label: String,
+    val tier: String = "",
+    @SerialName("price_hint") val priceHint: String = "",
+    val default: Boolean = false,
+)
+
+@Serializable
+data class TtsModelRequest(
+    @SerialName("model_id") val modelId: String,
+)
+
+/** Request-Body für PUT /tts/chunking. `enabled=null` setzt den Wert auf den
+ *  Provider-Default zurück (löscht das KV-Override). */
+@Serializable
+data class TtsChunkingRequest(
+    val enabled: Boolean? = null,
+)
+
+/** Status des verknüpften Google-Cloud-Billing-Setups. Wird vom Server-
+ *  Endpoint GET /billing/status zurückgegeben.
+ *  - `available=false` → kein Service-Account oder Cloud-Side-Fehler;
+ *    `error` enthält dann die Diagnose.
+ *  - Alle Beträge in `currencyCode` (typisch EUR).
+ *  - `spendThisMonth` ist eine SERVER-SEITIGE SCHÄTZUNG (Cloud-TTS-Counter
+ *    × Voice-Preis), NICHT der echte Cloud-Console-Spend (Google's
+ *    Public-API gibt den nicht her ohne BigQuery-Export). */
+@Serializable
+data class BillingStatusDto(
+    val available: Boolean = false,
+    val error: String? = null,
+    /** Optionaler Info-Hinweis (z.B. „Budget-API nicht aktiviert"). Nicht
+     *  fatal — Widget bleibt sichtbar, Hinweis als kleiner Text. */
+    val warning: String? = null,
+    @SerialName("billing_account_id") val billingAccountId: String? = null,
+    @SerialName("project_id") val projectId: String? = null,
+    @SerialName("currency_code") val currencyCode: String = "EUR",
+    @SerialName("spend_this_month") val spendThisMonth: Double = 0.0,
+    @SerialName("budget_amount") val budgetAmount: Double? = null,
+    @SerialName("budget_name") val budgetName: String? = null,
+    @SerialName("credit_remaining") val creditRemaining: Double? = null,
+    @SerialName("credit_original") val creditOriginal: Double? = null,
+    @SerialName("credit_name") val creditName: String? = null,
+    @SerialName("estimated_real_cost") val estimatedRealCost: Double = 0.0,
+    @SerialName("last_updated_at") val lastUpdatedAt: String? = null,
+)
+
+/** Ein Key im Multi-Key-Pool. `masked` = "AIzaSy…JNrw" für Anzeige.
+ *  `tierHint`: "unknown" | "free" | "likely_paid" — vom Server heuristisch erkannt.
+ *  `successCount`: wieviele erfolgreiche TTS-Calls dieser Key bisher hatte. */
+@Serializable
+data class TtsApiKeyEntryDto(
+    val id: String,
+    val label: String = "",
+    val masked: String,
+    @SerialName("tier_hint") val tierHint: String = "unknown",
+    @SerialName("success_count") val successCount: Int = 0,
+)
+
+@Serializable
+data class TtsApiKeysDto(
+    val keys: List<TtsApiKeyEntryDto> = emptyList(),
+)
+
+@Serializable
+data class TtsApiKeyAddRequest(
+    @SerialName("api_key") val apiKey: String,
+    val label: String = "",
+)
+
+// ---------- Settings Export / Import ----------
+
+/** Ein vollständiger Multi-Key-Eintrag (mit KLARTEXT-Key) — für Export.
+ *  ACHTUNG: das DTO enthält den unmaskierten Key, ist also sensitiv. */
+@Serializable
+data class TtsApiKeyFullDto(
+    val id: String = "",
+    val label: String = "",
+    val key: String,
+)
+
+/** Server-Anteil eines Settings-Exports (von GET /settings/export). */
+@Serializable
+data class ServerSettingsExportDto(
+    @SerialName("schema_version") val schemaVersion: Int = 1,
+    @SerialName("exported_at") val exportedAt: String,
+    @SerialName("server_version") val serverVersion: String,
+    @SerialName("tts_provider") val ttsProvider: String? = null,
+    @SerialName("tts_model") val ttsModel: String? = null,
+    /** "1" / "0" / "" / null — siehe Server-Side DTO. */
+    @SerialName("tts_chunking_enabled") val ttsChunkingEnabled: String? = null,
+    @SerialName("tts_api_keys") val ttsApiKeys: List<TtsApiKeyFullDto> = emptyList(),
+    @SerialName("image_api_key") val imageApiKey: String? = null,
+    @SerialName("skills_defaults") val skillsDefaults: SkillsDto? = null,
+    @SerialName("extra_kv") val extraKv: Map<String, String> = emptyMap(),
+)
+
+/** App-Anteil eines Settings-Exports (lokal aus DataStore zusammengestellt). */
+@Serializable
+data class AppSettingsExportDto(
+    @SerialName("theme_mode") val themeMode: String = "SYSTEM",
+    // Default muss zu AppSettings.ttsVoice passen — sonst überschreibt der
+    // Import bei fehlendem Feld die User-Wahl mit einer alten Voice.
+    @SerialName("tts_voice") val ttsVoice: String = "edge-de-DE-KatjaNeural",
+    @SerialName("tts_auto_speak") val ttsAutoSpeak: Boolean = false,
+    @SerialName("tts_speed") val ttsSpeed: Float = 1.0f,
+    val effort: String = "high",
+    @SerialName("system_prompt_mode") val systemPromptMode: String = "STANDARD",
+    @SerialName("custom_system_prompt") val customSystemPrompt: String = "",
+    @SerialName("tts_auto_speak_per_chat") val ttsAutoSpeakPerChat: Map<String, Boolean> = emptyMap(),
+    @SerialName("collapse_long_user_messages") val collapseLongUserMessages: Boolean = true,
+)
+
+/** Container für die kombinierte JSON-Datei (Server + App). */
+@Serializable
+data class FullSettingsExportDto(
+    @SerialName("schema_version") val schemaVersion: Int = 1,
+    @SerialName("exported_at") val exportedAt: String,
+    @SerialName("app_version") val appVersion: String = "",
+    val server: ServerSettingsExportDto,
+    val app: AppSettingsExportDto,
+)
+
+/** Body für POST /settings/import (entspricht ServerSettingsExportDto, aber alle
+ *  Felder nullable — Server treats null als „nicht ändern"). */
+@Serializable
+data class ServerSettingsImportRequest(
+    @SerialName("schema_version") val schemaVersion: Int = 1,
+    @SerialName("tts_provider") val ttsProvider: String? = null,
+    @SerialName("tts_model") val ttsModel: String? = null,
+    @SerialName("tts_chunking_enabled") val ttsChunkingEnabled: String? = null,
+    @SerialName("tts_api_keys") val ttsApiKeys: List<TtsApiKeyFullDto>? = null,
+    @SerialName("image_api_key") val imageApiKey: String? = null,
+    @SerialName("skills_defaults") val skillsDefaults: SkillsDto? = null,
+    @SerialName("extra_kv") val extraKv: Map<String, String>? = null,
+)
+
+@Serializable
+data class SettingsImportResponseDto(
+    val ok: Boolean = true,
+    @SerialName("applied_keys") val appliedKeys: Int,
+    @SerialName("tts_keys_imported") val ttsKeysImported: Int,
+)
+
+/** Body für PUT /tts/api-key */
+@Serializable
+data class TtsApiKeyRequest(
+    @SerialName("api_key") val apiKey: String,
+)
+
+@Serializable
+data class TtsCredentialsRequest(
+    @SerialName("credentials_json") val credentialsJson: String,
+)
+
+@Serializable
+data class TtsProviderRequest(
+    val provider: String,
+)
+
+// ---------- Skills (per-User-Default + per-Chat-Override) ----------
+
+/**
+ * Welche Tools darf Claude in dieser Konversation nutzen.
+ *
+ * Mapping zum Server (ClaudeAgentOptions.allowed_tools):
+ * - webSearch     → "WebSearch"
+ * - webFetch      → "WebFetch"
+ * - codeExecution → "Bash" (Sandbox-Cwd, isoliert)
+ */
+@Serializable
+data class SkillsDto(
+    @SerialName("web_search") val webSearch: Boolean = true,
+    @SerialName("web_fetch") val webFetch: Boolean = true,
+    @SerialName("code_execution") val codeExecution: Boolean = false,
+)
+
+@Serializable
+data class SkillsDefaultsRequest(
+    val skills: SkillsDto,
+)
+
+/**
+ * Server-Response für GET/PUT /conversations/{cid}/skills.
+ * `isOverride=true` heißt: dieser Chat hat eine eigene Einstellung, die vom
+ * User-Default abweicht; UI zeigt dann „pro Chat überschrieben".
+ */
+@Serializable
+data class ConversationSkillsResponse(
+    val skills: SkillsDto,
+    @SerialName("is_override") val isOverride: Boolean,
+)
+
+/**
+ * Request für PUT /conversations/{cid}/skills.
+ * `skills=null` löscht den Override und fällt auf den User-Default zurück.
+ */
+@Serializable
+data class ConversationSkillsRequest(
+    val skills: SkillsDto? = null,
+)
+
+@Serializable
+data class SearchHitDto(
+    @SerialName("conversation_id") val conversationId: String,
+    @SerialName("conversation_title") val conversationTitle: String,
+    @SerialName("message_id") val messageId: Long,
+    val role: String,
+    @SerialName("created_at") val createdAt: String,
+    val snippet: String,
+)
+
+@Serializable
+data class SearchResponseDto(
+    val query: String,
+    val hits: List<SearchHitDto>,
+)
+
+@Serializable
+data class BackupManifestDto(
+    @SerialName("schema_version") val schemaVersion: Int,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("server_version") val serverVersion: String,
+    @SerialName("conversation_count") val conversationCount: Int,
+    @SerialName("message_count") val messageCount: Int,
+    @SerialName("attachment_count") val attachmentCount: Int,
+)
+
+@Serializable
+data class BackupPeekResponse(
+    val ok: Boolean,
+    val manifest: BackupManifestDto,
+)
+
+// ---------- Image Generation (Gemini / Nano Banana) ----------
+
+@Serializable
+data class ImageModelDto(
+    val id: String,
+    val label: String,
+    val description: String = "",
+    @SerialName("default") val isDefault: Boolean = false,
+)
+
+@Serializable
+data class ImageAspectDto(
+    val id: String,
+    val label: String,
+)
+
+@Serializable
+data class ImageConfigDto(
+    val models: List<ImageModelDto>,
+    @SerialName("aspect_ratios") val aspectRatios: List<ImageAspectDto>,
+    @SerialName("max_candidates") val maxCandidates: Int = 4,
+    @SerialName("default_model") val defaultModel: String,
+    @SerialName("default_aspect") val defaultAspect: String,
+    val configured: Boolean = false,
+    @SerialName("api_key_masked") val apiKeyMasked: String? = null,
+)
+
+@Serializable
+data class ImageGenerateRequest(
+    val prompt: String,
+    @SerialName("conversation_id") val conversationId: String? = null,
+    val model: String? = null,
+    @SerialName("aspect_ratio") val aspectRatio: String? = null,
+    val count: Int = 1,
+    @SerialName("reference_attachment_ids") val referenceAttachmentIds: List<String> = emptyList(),
+)
+
+@Serializable
+data class ImageGenerateAttachment(
+    val id: String,
+    val filename: String,
+    @SerialName("mime_type") val mimeType: String,
+    @SerialName("size_bytes") val sizeBytes: Long,
+    val text: String? = null,
+)
+
+@Serializable
+data class ImageGenerateSavedMessage(
+    val id: Long,
+    @SerialName("conversation_id") val conversationId: String,
+)
+
+@Serializable
+data class ImageGenerateResponse(
+    val ok: Boolean,
+    val model: String,
+    @SerialName("aspect_ratio") val aspectRatio: String,
+    val count: Int,
+    val attachments: List<ImageGenerateAttachment>,
+    val message: ImageGenerateSavedMessage? = null,
+)
+
+@Serializable
+data class ImageCredentialsRequest(@SerialName("api_key") val apiKey: String)
+
+// ---------- Auth ----------
+
+@Serializable
+data class LoginRequest(val username: String, val password: String)
+
+@Serializable
+data class MeDto(
+    val id: String,
+    val name: String,
+    @SerialName("is_admin") val isAdmin: Boolean = false,
+    @SerialName("must_change_password") val mustChangePassword: Boolean = false,
+    @SerialName("has_password") val hasPassword: Boolean = true,
+)
+
+@Serializable
+data class LoginResponse(
+    val token: String,
+    val user: MeDto,
+)
+
+@Suppress("ConstructorParameterNaming")
+@Serializable
+data class ChangePasswordRequest(
+    val old_password: String? = null,
+    val new_password: String,
+)
+
+@Serializable
+data class BackupImportResponse(
+    val ok: Boolean,
+    val mode: String,
+    val manifest: BackupManifestDto,
+    @SerialName("conversations_added") val conversationsAdded: Int,
+    @SerialName("conversations_skipped") val conversationsSkipped: Int,
+    @SerialName("messages_imported") val messagesImported: Int,
+    @SerialName("attachments_imported") val attachmentsImported: Int,
+    @SerialName("pre_import_backup_path") val preImportBackupPath: String,
+    @SerialName("restart_recommended") val restartRecommended: Boolean,
+)
+
+/**
+ * Stream events from the server (matched to SSE `event:` types in server.py).
+ */
+sealed interface StreamEvent {
+    data class TitleUpdated(val newTitle: String) : StreamEvent
+    data class UserSaved(val userMessageId: Long) : StreamEvent
+    data object CompactionStarted : StreamEvent
+    data object CompactionDone : StreamEvent
+    data class Delta(val text: String) : StreamEvent
+    data class ThinkingDelta(val text: String) : StreamEvent
+    data object BlockStop : StreamEvent
+    data class Done(
+        val assistantMessageId: Long,
+        val tokensIn: Int,
+        val tokensOut: Int,
+        val tokensCachedRead: Int = 0,
+        val tokensCachedWrite: Int = 0,
+    ) : StreamEvent
+    data class ErrorEvent(val message: String) : StreamEvent
+}

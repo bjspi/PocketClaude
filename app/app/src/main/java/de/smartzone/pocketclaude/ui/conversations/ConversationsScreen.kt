@@ -1,0 +1,737 @@
+package de.smartzone.pocketclaude.ui.conversations
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Compress
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight as FW
+import androidx.compose.ui.text.withStyle
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import de.smartzone.pocketclaude.data.ConversationDto
+import de.smartzone.pocketclaude.ui.theme.PocketTheme
+import de.smartzone.pocketclaude.util.formatRelative
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConversationsScreen(
+    vm: ConversationsViewModel,
+    onOpenChat: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onBack: (() -> Unit)? = null,
+) {
+    val state by vm.state.collectAsState()
+    val search by vm.search.collectAsState()
+    var renamingId by remember { mutableStateOf<String?>(null) }
+    var renamingTitle by remember { mutableStateOf("") }
+    var confirmDelete by remember { mutableStateOf<String?>(null) }
+    var searchActive by remember { mutableStateOf(false) }
+    // Multi-Select: per Long-Press starten, weitere Taps toggeln. Set leer = inaktiv.
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val selectionMode = selectedIds.isNotEmpty()
+    var confirmBulkDelete by remember { mutableStateOf(false) }
+
+    // System-Back: erst aus dem Selection-Mode raus, danach (falls verfügbar) normaler Back.
+    BackHandler(enabled = selectionMode) {
+        selectedIds = emptySet()
+    }
+
+    // Liste neu laden, sobald der Screen wieder in den Vordergrund kommt
+    // (z.B. nach Rückkehr aus einem Chat oder App-Wiederöffnung). Sonst
+    // sieht man neu angelegte Chats erst nach manuellem Pull-down.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                vm.refresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            if (selectionMode) {
+                // Selection-AppBar: zeigt Anzahl, "Alle auswählen", "Löschen".
+                val loadedIds = (state as? ConversationsState.Loaded)?.conversations?.map { it.id }
+                    ?: emptyList()
+                val allSelected = loadedIds.isNotEmpty() && selectedIds.size == loadedIds.size
+                TopAppBar(
+                    title = {
+                        Text(
+                            "${selectedIds.size} ausgewählt",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedIds = emptySet() }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Auswahl abbrechen")
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = {
+                                selectedIds = if (allSelected) emptySet() else loadedIds.toSet()
+                            }
+                        ) {
+                            Icon(
+                                Icons.Filled.SelectAll,
+                                contentDescription = if (allSelected) "Auswahl aufheben" else "Alle auswählen",
+                            )
+                        }
+                        IconButton(onClick = { confirmBulkDelete = true }) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = "Löschen",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
+                )
+            } else {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(
+                                    id = de.smartzone.pocketclaude.R.drawable.pocket_claude_icon
+                                ),
+                                contentDescription = null,
+                                modifier = Modifier.size(36.dp),
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "Alle Chats",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        if (onBack != null) {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Zurück",
+                                )
+                            }
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { searchActive = !searchActive; if (!searchActive) vm.clearSearch() }) {
+                            Icon(
+                                if (searchActive) Icons.Filled.Close else Icons.Filled.Search,
+                                contentDescription = if (searchActive) "Suche schließen" else "Suchen",
+                            )
+                        }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Einstellungen")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
+                )
+            }
+        },
+        floatingActionButton = {
+            if (!selectionMode && (state is ConversationsState.Loaded || state is ConversationsState.Error)) {
+                ExtendedFloatingActionButton(
+                    onClick = { vm.create(onCreated = onOpenChat) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text = { Text("Neuer Chat") },
+                )
+            }
+        },
+    ) { pad ->
+        Column(modifier = Modifier.fillMaxSize().padding(pad)) {
+            // Suchleiste (einklappbar)
+            if (searchActive) {
+                OutlinedTextField(
+                    value = search.query,
+                    onValueChange = vm::setSearchQuery,
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (search.query.isNotEmpty()) {
+                            IconButton(onClick = { vm.setSearchQuery("") }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Löschen")
+                            }
+                        }
+                    },
+                    placeholder = { Text("In allen Chats suchen…") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+            }
+
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (search.active) {
+                    SearchResultsView(
+                        search = search,
+                        onHitClick = { hit -> onOpenChat(hit.conversationId) },
+                    )
+                } else when (val s = state) {
+                ConversationsState.Loading -> CenterLoader()
+                is ConversationsState.NeedsSetup -> NeedsSetupView(onOpenSettings)
+                is ConversationsState.Error -> ErrorView(s.message, onRetry = vm::refresh)
+                is ConversationsState.Loaded -> {
+                    if (s.conversations.isEmpty()) {
+                        EmptyView()
+                    } else {
+                        LazyColumn(
+                            contentPadding = PaddingValues(
+                                start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            items(s.conversations, key = { it.id }) { conv ->
+                                ConversationRow(
+                                    conv = conv,
+                                    selected = selectedIds.contains(conv.id),
+                                    selectionMode = selectionMode,
+                                    onClick = {
+                                        if (selectionMode) {
+                                            selectedIds = if (selectedIds.contains(conv.id)) {
+                                                selectedIds - conv.id
+                                            } else {
+                                                selectedIds + conv.id
+                                            }
+                                        } else {
+                                            onOpenChat(conv.id)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        selectedIds = selectedIds + conv.id
+                                    },
+                                    onRename = {
+                                        renamingId = conv.id
+                                        renamingTitle = conv.title
+                                    },
+                                    onDelete = { confirmDelete = conv.id },
+                                    onTogglePin = { vm.togglePin(conv.id, conv.pinned) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            }
+        }
+    }
+
+    // Rename-Dialog
+    renamingId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { renamingId = null },
+            title = { Text("Umbenennen") },
+            text = {
+                OutlinedTextField(
+                    value = renamingTitle,
+                    onValueChange = { renamingTitle = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (renamingTitle.isNotBlank()) vm.rename(id, renamingTitle.trim())
+                    renamingId = null
+                }) { Text("Speichern") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renamingId = null }) { Text("Abbrechen") }
+            },
+        )
+    }
+
+    // Delete-Confirm
+    confirmDelete?.let { id ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("Chat löschen?") },
+            text = { Text("Dieser Chat und seine Nachrichten werden unwiderruflich gelöscht.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.delete(id)
+                    confirmDelete = null
+                }) {
+                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = null }) { Text("Abbrechen") }
+            },
+        )
+    }
+
+    // Bulk-Delete (mehrere ausgewählte Chats auf einmal)
+    if (confirmBulkDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmBulkDelete = false },
+            title = {
+                Text(
+                    if (selectedIds.size == 1) "Chat löschen?"
+                    else "${selectedIds.size} Chats löschen?"
+                )
+            },
+            text = {
+                Text(
+                    if (selectedIds.size == 1)
+                        "Dieser Chat und seine Nachrichten werden unwiderruflich gelöscht."
+                    else
+                        "Die ausgewählten Chats und ihre Nachrichten werden unwiderruflich gelöscht."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.deleteMany(selectedIds)
+                    confirmBulkDelete = false
+                    selectedIds = emptySet()
+                }) {
+                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmBulkDelete = false }) { Text("Abbrechen") }
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ConversationRow(
+    conv: ConversationDto,
+    selected: Boolean,
+    selectionMode: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onTogglePin: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(18.dp)
+    val bgColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+            .then(
+                if (selected) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape)
+                } else {
+                    Modifier
+                }
+            ),
+        color = bgColor,
+        shape = shape,
+        tonalElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Bubble avatar
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
+                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.85f),
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Chat,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+
+            Spacer(Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (conv.pinned) {
+                        Icon(
+                            Icons.Filled.PushPin,
+                            contentDescription = "Angepinnt",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(
+                        conv.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${conv.messageCount} ${if (conv.messageCount == 1) "Nachricht" else "Nachrichten"} · ${formatRelative(conv.lastMessageAt ?: conv.createdAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                    if (conv.hasMidSummary || conv.hasLongSummary) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(
+                            Icons.Filled.Compress,
+                            contentDescription = "verdichtet",
+                            tint = PocketTheme.colors.accent,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                }
+            }
+
+            if (selectionMode) {
+                // Selection-Indikator statt 3-Dots-Menü
+                Icon(
+                    imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                    contentDescription = if (selected) "Ausgewählt" else "Nicht ausgewählt",
+                    tint = if (selected) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(26.dp),
+                )
+            } else {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = null)
+                    }
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(if (conv.pinned) "Lösen" else "Anpinnen") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Filled.PushPin,
+                                    contentDescription = null,
+                                    tint = if (conv.pinned) MaterialTheme.colorScheme.primary
+                                           else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            onClick = { menuOpen = false; onTogglePin() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Umbenennen") },
+                            leadingIcon = { Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = null) },
+                            onClick = { menuOpen = false; onRename() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Löschen", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            onClick = { menuOpen = false; onDelete() },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchResultsView(
+    search: SearchState,
+    onHitClick: (de.smartzone.pocketclaude.data.SearchHitDto) -> Unit,
+) {
+    when {
+        search.isSearching -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+        }
+        search.error != null -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+            Text(
+                search.error,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        search.hits.isEmpty() -> Box(
+            Modifier.fillMaxSize().padding(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "Keine Treffer für \"${search.query}\"",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        else -> LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(search.hits, key = { it.messageId }) { hit ->
+                SearchHitCard(hit = hit, onClick = { onHitClick(hit) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchHitCard(
+    hit: de.smartzone.pocketclaude.data.SearchHitDto,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    hit.conversationTitle,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
+                val roleLabel = if (hit.role == "user") "Du" else "Claude"
+                Text(
+                    roleLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                highlightSnippet(hit.snippet),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 3,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+/** Wandelt `[[hit]]`-Marker aus dem FTS5-snippet in fett-formatierte Spans. */
+private fun highlightSnippet(raw: String): AnnotatedString {
+    return buildAnnotatedString {
+        var i = 0
+        while (i < raw.length) {
+            val start = raw.indexOf("[[", i)
+            if (start < 0) {
+                append(raw.substring(i))
+                break
+            }
+            val end = raw.indexOf("]]", start + 2)
+            if (end < 0) {
+                append(raw.substring(i))
+                break
+            }
+            append(raw.substring(i, start))
+            withStyle(SpanStyle(fontWeight = FW.SemiBold)) {
+                append(raw.substring(start + 2, end))
+            }
+            i = end + 2
+        }
+    }
+}
+
+@Composable
+private fun CenterLoader() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun EmptyView() {
+    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                painter = painterResource(
+                    id = de.smartzone.pocketclaude.R.drawable.pocket_claude_icon
+                ),
+                contentDescription = null,
+                modifier = Modifier.size(112.dp),
+            )
+            Spacer(Modifier.height(16.dp))
+            Text("Noch keine Chats", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Tipp aufs Plus, um den ersten Chat zu starten.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun NeedsSetupView(onOpenSettings: () -> Unit) {
+    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                painter = painterResource(
+                    id = de.smartzone.pocketclaude.R.drawable.pocket_claude_icon
+                ),
+                contentDescription = null,
+                modifier = Modifier.size(140.dp),
+            )
+            Spacer(Modifier.height(24.dp))
+            Text("Bereit zum Chatten", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Trag in den Einstellungen Server-URL und Token ein, dann geht's los.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = onOpenSettings,
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                Icon(Icons.Filled.Settings, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Einstellungen öffnen")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ErrorView(message: String, onRetry: () -> Unit) {
+    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "Verbindung fehlgeschlagen",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onRetry, shape = RoundedCornerShape(14.dp)) {
+                Text("Erneut versuchen")
+            }
+        }
+    }
+}

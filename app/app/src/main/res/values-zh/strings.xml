@@ -1,0 +1,192 @@
+<resources>
+    <string name="app_name">Pocket Claude</string>
+
+    <!-- ─── Generic actions / common ──────────────────────────────────── -->
+    <string name="action_ok">确定</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_save">保存</string>
+    <string name="action_close">关闭</string>
+    <string name="action_back">返回</string>
+    <string name="action_search">搜索</string>
+    <string name="action_delete">删除</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_share">分享</string>
+    <string name="action_copy">复制</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_done">完成</string>
+    <string name="action_more">更多</string>
+    <string name="action_retry">重试</string>
+    <string name="action_yes">是</string>
+    <string name="action_no">否</string>
+
+    <!-- ─── Screens / navigation titles ───────────────────────────────── -->
+    <string name="title_chat">聊天</string>
+    <string name="title_conversations">会话</string>
+    <string name="title_settings">设置</string>
+    <string name="title_images">图片</string>
+    <string name="title_users">用户</string>
+
+    <!-- ─── First-run / setup ─────────────────────────────────────────── -->
+    <string name="setup_needed_title">准备开始聊天</string>
+    <string name="setup_needed_subtitle">请在设置中添加服务器配置后开始使用。</string>
+    <string name="open_settings">打开设置</string>
+    <string name="connection_failed_prefix">连接失败：%1$s</string>
+    <string name="connection_ok">已连接。模型：%1$s</string>
+    <string name="loading">加载中…</string>
+
+    <!-- ─── Chat screen ───────────────────────────────────────────────── -->
+    <string name="hint_message">输入消息…</string>
+    <string name="hint_image_prompt">描述一张图片…</string>
+    <string name="send">发送</string>
+    <string name="stop">停止</string>
+    <string name="attach">附件</string>
+    <string name="empty_chat_title">新会话</string>
+    <string name="empty_chat_subtitle">在下方输入消息以开始聊天。</string>
+    <string name="effort_label">推理强度</string>
+    <string name="effort_off">关闭</string>
+    <string name="effort_low">低</string>
+    <string name="effort_medium">中</string>
+    <string name="effort_high">高</string>
+    <string name="effort_xhigh">极高</string>
+    <string name="effort_max">最高</string>
+    <string name="copy_message">复制消息</string>
+    <string name="speak_message">朗读</string>
+    <string name="stop_speaking">停止朗读</string>
+    <string name="message_copied">消息已复制</string>
+    <string name="image_edit">编辑图片</string>
+    <string name="image_share">分享图片</string>
+    <string name="image_save">保存到相册</string>
+    <string name="attachment_label">附件：%1$s</string>
+    <string name="search_in_chat">在聊天中搜索</string>
+    <string name="search_no_matches">未找到匹配项</string>
+    <string name="share_as_markdown">以 Markdown 格式分享</string>
+
+    <!-- ─── Drawer / conversation list ────────────────────────────────── -->
+    <string name="new_chat">新建聊天</string>
+    <string name="all_conversations">全部会话</string>
+    <string name="recent_chats">最近聊天</string>
+    <string name="empty_conversations_title">暂无聊天</string>
+    <string name="empty_conversations_subtitle">点击加号按钮开始新的聊天。</string>
+    <string name="conversation_pin">置顶</string>
+    <string name="conversation_unpin">取消置顶</string>
+    <string name="conversation_search_placeholder">搜索会话…</string>
+    <string name="confirm_delete_title">删除此聊天？</string>
+    <string name="confirm_delete_message">此操作无法撤销。</string>
+    <string name="rename_dialog_title">重命名聊天</string>
+
+    <!-- ─── Profiles / login ──────────────────────────────────────────── -->
+    <string name="profile_add">添加配置</string>
+    <string name="profile_remove">删除配置</string>
+    <string name="profile_switch">切换配置</string>
+    <string name="profile_active">当前使用</string>
+    <string name="login_title">登录服务器</string>
+    <string name="server_url">服务器地址</string>
+    <string name="server_url_hint">https://your-host.your-tailnet.ts.net</string>
+    <string name="username">用户名</string>
+    <string name="password">密码</string>
+    <string name="password_new">新密码</string>
+    <string name="password_current">当前密码</string>
+    <string name="password_repeat">重复输入密码</string>
+    <string name="login">登录</string>
+    <string name="logout">退出登录</string>
+    <string name="login_failed">登录失败：%1$s</string>
+    <string name="change_password">修改密码</string>
+    <string name="password_changed">密码已修改。</string>
+    <string name="server_token">Bearer 令牌</string>
+    <string name="server_token_hint">服务器返回的会话令牌</string>
+    <string name="test_connection">测试连接</string>
+
+    <!-- ─── Settings screen — sections ────────────────────────────────── -->
+    <string name="section_profiles_and_connection">配置与连接</string>
+    <string name="section_claude_behavior">Claude 行为</string>
+    <string name="section_skills">技能</string>
+    <string name="section_read_aloud">朗读</string>
+    <string name="section_images">图片</string>
+    <string name="section_chat_backup">聊天备份</string>
+    <string name="section_settings_backup">设置备份</string>
+    <string name="section_appearance">外观</string>
+    <string name="section_about">关于</string>
+
+    <!-- ─── Settings — appearance / theme / language ──────────────────── -->
+    <string name="theme_mode">主题</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="language_label">语言</string>
+    <string name="language_system_default">跟随系统</string>
+    <string name="language_english">English</string>
+    <string name="language_german">Deutsch</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_french">Français</string>
+    <string name="language_portuguese_br">Português (Brasil)</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_japanese">日本語</string>
+
+    <!-- ─── Settings — Claude behavior / system prompts ───────────────── -->
+    <string name="system_prompt_mode">系统提示词</string>
+    <string name="system_prompt_standard">标准</string>
+    <string name="system_prompt_permissive">宽松</string>
+    <string name="system_prompt_ultra_liberal">超自由</string>
+    <string name="system_prompt_custom">自定义</string>
+    <string name="system_prompt_custom_hint">输入自定义系统提示词…</string>
+
+    <!-- ─── Settings — Skills ─────────────────────────────────────────── -->
+    <string name="skill_web_search">网页搜索</string>
+    <string name="skill_web_fetch">网页抓取</string>
+    <string name="skill_bash">Bash 执行</string>
+
+    <!-- ─── Settings — Read aloud (TTS) ───────────────────────────────── -->
+    <string name="tts_provider">服务商</string>
+    <string name="tts_provider_edge">Microsoft Edge（免费）</string>
+    <string name="tts_provider_gemini">Gemini Direct API</string>
+    <string name="tts_provider_cloud">Google Cloud TTS</string>
+    <string name="tts_voice">音色</string>
+    <string name="tts_speed">语速</string>
+    <string name="tts_auto_speak">自动朗读回复</string>
+    <string name="tts_test">试听</string>
+    <string name="tts_model">模型</string>
+    <string name="tts_chunking">分段合成</string>
+    <string name="tts_api_key">API 密钥</string>
+    <string name="tts_api_key_pool">多密钥池</string>
+    <string name="tts_credentials_upload">上传服务账号 JSON</string>
+
+    <!-- ─── Settings — Images ─────────────────────────────────────────── -->
+    <string name="image_api_key">Gemini API 密钥</string>
+    <string name="image_model">模型</string>
+    <string name="image_aspect_ratio">宽高比</string>
+    <string name="image_count">图片数量</string>
+    <string name="image_generate">生成</string>
+
+    <!-- ─── Settings — Backup ─────────────────────────────────────────── -->
+    <string name="backup_export">导出</string>
+    <string name="backup_import">导入</string>
+    <string name="backup_password">备份密码</string>
+    <string name="backup_password_hint">用于加密 ZIP（AES-256）</string>
+    <string name="backup_in_progress">处理中…</string>
+    <string name="backup_done">备份已就绪。</string>
+    <string name="backup_imported">备份已导入。</string>
+
+    <!-- ─── Settings — About ──────────────────────────────────────────── -->
+    <string name="about_version">版本 %1$s</string>
+    <string name="about_source">在 GitHub 上查看源码</string>
+    <string name="about_license">许可证：MIT</string>
+
+    <!-- ─── User management ───────────────────────────────────────────── -->
+    <string name="users_add">添加用户</string>
+    <string name="users_admin_badge">管理员</string>
+    <string name="users_reset_password">重置密码</string>
+
+    <!-- ─── Errors / generic toasts ───────────────────────────────────── -->
+    <string name="error_generic">出错了。</string>
+    <string name="error_network">网络错误。</string>
+    <string name="error_not_logged_in">请先登录。</string>
+    <string name="saved">已保存。</string>
+    <string name="copied_to_clipboard">已复制到剪贴板。</string>
+
+    <!-- ─── Notifications ─────────────────────────────────────────────── -->
+    <string name="notif_channel_streaming">流式传输</string>
+    <string name="notif_channel_result">回复就绪</string>
+    <string name="notif_streaming_title">Pocket Claude</string>
+    <string name="notif_streaming_text">正在回复…</string>
+    <string name="notif_result_title">回复就绪</string>
+</resources>

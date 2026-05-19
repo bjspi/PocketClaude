@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider-Pfade — erlaubt Files aus diesen App-private-Verzeichnissen
+  per content://-URI an andere Apps (Share-Sheet, externe Viewer) zu reichen.
+
+  Wichtig: jede Unter-Verzeichnis-Hierarchie, aus der wir teilen wollen, muss
+  hier explizit registriert sein — sonst kracht FileProvider.getUriForFile()
+  mit IllegalArgumentException ("Failed to find configured root that contains …").
+
+  Wir registrieren den GESAMTEN App-Cache-Wurzelpfad (`path=""`), dann sind
+  alle Sub-Verzeichnisse abgedeckt (exports/, settings-exports/, shared-images/,
+  zukünftige). Bei Bedarf eines feineren Schnitts: hier auf einzelne Sub-Dirs
+  einschränken.
+-->
+<paths>
+    <cache-path name="cache" path="" />
+</paths>

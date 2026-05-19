@@ -1,0 +1,57 @@
+# ─── Server (Python) ─────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.eggs/
+*.egg-info/
+*.egg
+dist/
+
+# Runtime state (server)
+.env
+.env.local
+server/data/
+server/uploads/
+server/google_tts_credentials.json
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ─── App (Android / Gradle) ──────────────────────────────────────────────────
+*.iml
+.gradle/
+.gradle-sandbox/
+local.properties
+.cxx/
+.externalNativeBuild/
+captures/
+build/
+app/build/
+*.apk
+*.aab
+*.keystore
+
+# ─── Editors / IDE ───────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Private operator docs (kept local, never committed) ─────────────────────
+CLAUDE.md
+**/CLAUDE.md
+docs/private/

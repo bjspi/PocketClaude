@@ -1,0 +1,21 @@
+<!--
+  Monochromer Statusbar-Notification-Icon. Android tintet das System-seitig
+  auf Theme-Color, deshalb hier weißer Pfad auf transparentem Hintergrund.
+  Sprechblasen-Form mit kleinem Sternenkreuz — passt zum App-Icon, aber
+  drastisch vereinfacht, damit's auf 24x24 dp lesbar bleibt.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+      Statusbar-Notification-Icon. Android tintet das automatisch monochrom
+      (auf weiß bei dunkelm Statusbar-Theme), deshalb hier rein-weiße Pfade
+      ohne `android:tint` (sonst sucht aapt2 nach colorControlNormal in den
+      App-Themes, was bei pure-Compose-Themes nicht aufgelöst werden kann).
+    -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,4h16a2,2 0 0 1 2,2v10a2,2 0 0 1 -2,2H8l-4,4V6a2,2 0 0 1 2,-2z" />
+</vector>

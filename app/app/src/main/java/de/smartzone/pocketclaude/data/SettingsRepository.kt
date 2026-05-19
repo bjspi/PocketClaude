@@ -1,0 +1,364 @@
+package de.smartzone.pocketclaude.data
+
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+enum class ThemeMode {
+    SYSTEM, LIGHT, DARK;
+
+    companion object {
+        fun fromString(value: String?): ThemeMode = entries.firstOrNull { it.name == value } ?: SYSTEM
+    }
+}
+
+/**
+ * Ein Server-Profil: URL + Login + Session-Token. Mit Multi-User-Server kann
+ * jedes Familienmitglied sein eigenes Profil haben und die App schnell zwischen
+ * ihnen wechseln, ohne sich jedes Mal neu einzuloggen.
+ *
+ * - `username`: Benutzername fürs Login (wird gespeichert, damit der User ihn
+ *   nicht jedes Mal neu eintippen muss).
+ * - `serverToken`: das vom Server zurückgegebene Session-Token. Wenn leer →
+ *   Profil ist noch nicht aktiviert und der nächste API-Call schlägt fehl;
+ *   die App zeigt dann den Login-Screen. Das Passwort wird NICHT gespeichert.
+ *
+ * Migration aus der Token-Only-Zeit: alte Profile haben einen `serverToken`,
+ * aber keinen `username`. Beim ersten Login wird `username` befüllt; das alte
+ * Token gilt einmalig als „Passwort" für den Server (siehe auth.py).
+ */
+@Serializable
+data class Profile(
+    val id: String,
+    val label: String,
+    val serverUrl: String,
+    val serverToken: String,
+    val username: String = "",
+)
+
+data class AppSettings(
+    /** Alle gespeicherten Server-Profile. */
+    val profiles: List<Profile> = emptyList(),
+    /** ID des aktuell aktiven Profils. Leer wenn keins gewählt. */
+    val activeProfileId: String = "",
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Default-Voice ist Edge KatjaNeural (gratis, kein Setup nötig). Passt
+     *  zum Default-Provider `edge_tts`. Für User mit Cloud-TTS-/Gemini-API-
+     *  Setup liefert der Server via /tts/status einen passenden Default
+     *  (chirp3hd-Algenib bzw. gemini-Algenib), und beim Provider-Switch in
+     *  der App wird die Voice automatisch nachgezogen. */
+    val ttsVoice: String = "edge-de-DE-KatjaNeural",
+    val ttsAutoSpeak: Boolean = false,
+    /** Wiedergabegeschwindigkeit [0.25 .. 2.0], Default 1.0. */
+    val ttsSpeed: Float = 1.0f,
+    /** off | low | medium | high | xhigh | max — Denktiefe für Claude.
+     *  `xhigh` ist Opus-4.7-only (fällt auf anderen Modellen auf `high` zurück);
+     *  wir nutzen Opus 4.7, also ist es für uns ein echtes Extra-Level. */
+    val effort: String = "high",
+    /** STANDARD | PERMISSIVE | CUSTOM — welcher System-Prompt soll Claude bekommen. */
+    val systemPromptMode: SystemPromptMode = SystemPromptMode.STANDARD,
+    /** Frei einzugebender Custom-System-Prompt (nur aktiv wenn mode = CUSTOM). */
+    val customSystemPrompt: String = "",
+    /** Lange eigene Nachrichten in der Chat-Ansicht einklappen (à la ChatGPT) —
+     *  nach 6 Zeilen Fade-Out + „Mehr anzeigen"-Toggle. Default: AN. */
+    val collapseLongUserMessages: Boolean = true,
+) {
+    /** Aktuell aktives Profil (oder null wenn keins gewählt). */
+    val activeProfile: Profile?
+        get() = profiles.firstOrNull { it.id == activeProfileId }
+
+    /** Server-URL des aktiven Profils — Kompatibilität mit altem Code. */
+    val serverUrl: String get() = activeProfile?.serverUrl.orEmpty()
+    /** Token des aktiven Profils. */
+    val serverToken: String get() = activeProfile?.serverToken.orEmpty()
+
+    val isConfigured: Boolean
+        get() = serverUrl.isNotBlank() && serverToken.isNotBlank()
+
+    /** Den finalen String, der an den Server geschickt wird. */
+    val resolvedSystemPrompt: String
+        get() = effectiveSystemPrompt(systemPromptMode, customSystemPrompt)
+}
+
+class SettingsRepository(private val dataStore: DataStore<Preferences>) {
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    // Legacy-Keys (für Migration vom Single-Profile-Setup)
+    private val keyServerUrl = stringPreferencesKey("server_url")
+    private val keyServerToken = stringPreferencesKey("server_token")
+
+    private val keyProfiles = stringPreferencesKey("profiles_json")
+    private val keyActiveProfileId = stringPreferencesKey("active_profile_id")
+
+    private val keyLastChatCid = stringPreferencesKey("last_chat_cid")
+    /** Per-Chat-Override für Auto-Speak. JSON: { "cid1": true, "cid2": false }.
+     *  Wenn ein Chat KEINEN Eintrag hat → globaler ttsAutoSpeak greift. */
+    private val keyTtsAutoSpeakPerChat = stringPreferencesKey("tts_auto_speak_per_chat")
+    private val keyThemeMode = stringPreferencesKey("theme_mode")
+    private val keyTtsVoice = stringPreferencesKey("tts_voice")
+    private val keyTtsAutoSpeak = stringPreferencesKey("tts_auto_speak")
+    private val keyTtsSpeed = floatPreferencesKey("tts_speed")
+    private val keyEffort = stringPreferencesKey("effort")
+    private val keySystemPromptMode = stringPreferencesKey("system_prompt_mode")
+    private val keyCustomSystemPrompt = stringPreferencesKey("custom_system_prompt")
+    private val keyCollapseLongUserMessages = stringPreferencesKey("collapse_long_user_messages")
+    private val keyImageHistoryJson = stringPreferencesKey("image_history_json")
+
+    val settingsFlow: Flow<AppSettings> = dataStore.data.map { prefs ->
+        // Profile aus JSON laden; bei leerer Liste aber vorhandenem Legacy-Token
+        // → on-the-fly migrieren (erstes Profil "Standard" anlegen).
+        val profiles = loadProfilesWithMigration(prefs)
+        val activeId = prefs[keyActiveProfileId]?.takeIf { id ->
+            profiles.any { it.id == id }
+        } ?: profiles.firstOrNull()?.id.orEmpty()
+
+        AppSettings(
+            profiles = profiles,
+            activeProfileId = activeId,
+            themeMode = ThemeMode.fromString(prefs[keyThemeMode]),
+            ttsVoice = prefs[keyTtsVoice].orEmpty().ifBlank { "edge-de-DE-KatjaNeural" },
+            ttsAutoSpeak = (prefs[keyTtsAutoSpeak] ?: "false").toBooleanStrictOrNull() ?: false,
+            ttsSpeed = (prefs[keyTtsSpeed] ?: 1.0f).coerceIn(0.25f, 2.0f),
+            effort = prefs[keyEffort]?.takeIf { it.isNotBlank() } ?: "high",
+            systemPromptMode = SystemPromptMode.fromString(prefs[keySystemPromptMode]),
+            customSystemPrompt = prefs[keyCustomSystemPrompt].orEmpty(),
+            collapseLongUserMessages =
+                (prefs[keyCollapseLongUserMessages] ?: "true").toBooleanStrictOrNull() ?: true,
+        )
+    }
+
+    suspend fun setCollapseLongUserMessages(value: Boolean) {
+        dataStore.edit { it[keyCollapseLongUserMessages] = value.toString() }
+    }
+
+    // ---------- Image-Generation-History (App-lokal) ----------
+    //
+    // Speichert die bisherigen Bild-Generierungen als JSON-Blob im DataStore.
+    // Bewusst NICHT in der Server-DB, weil die Bilder selbst dort als
+    // Attachments liegen — wir brauchen hier nur die Liste der Referenzen +
+    // Prompt-Metadaten, damit der Bilder-Screen seinen Verlauf zeigen kann.
+
+    suspend fun getImageHistoryRaw(): String =
+        dataStore.data.first()[keyImageHistoryJson].orEmpty()
+
+    suspend fun setImageHistoryRaw(json: String) {
+        dataStore.edit { prefs ->
+            if (json.isBlank()) prefs.remove(keyImageHistoryJson)
+            else prefs[keyImageHistoryJson] = json
+        }
+    }
+
+    private fun loadProfilesWithMigration(prefs: Preferences): List<Profile> {
+        val raw = prefs[keyProfiles]
+        if (!raw.isNullOrBlank()) {
+            return runCatching { json.decodeFromString<List<Profile>>(raw) }.getOrDefault(emptyList())
+        }
+        // Migration vom Single-Profile-Setup
+        val url = prefs[keyServerUrl].orEmpty().trim().trimEnd('/')
+        val token = prefs[keyServerToken].orEmpty()
+        if (url.isNotBlank() && token.isNotBlank()) {
+            return listOf(Profile(id = "default", label = "Standard", serverUrl = url, serverToken = token))
+        }
+        return emptyList()
+    }
+
+    suspend fun current(): AppSettings = settingsFlow.first()
+
+    /** Fügt ein neues Profil hinzu (oder aktualisiert ein bestehendes mit gleicher id)
+     *  und macht es aktiv. Returnt die ID. */
+    suspend fun upsertProfile(label: String, url: String, token: String,
+                              username: String = "",
+                              makeActive: Boolean = true): String {
+        val cleanUrl = url.trim().trimEnd('/')
+        val cleanTok = token.trim()
+        val cleanUser = username.trim()
+        val id = "p_" + (label.lowercase().replace(Regex("[^a-z0-9]+"), "_") + "_" +
+            System.currentTimeMillis().toString(36))
+        dataStore.edit { prefs ->
+            val list = loadProfilesWithMigration(prefs).toMutableList()
+            list.add(Profile(id = id, label = label.ifBlank { "Profil" },
+                serverUrl = cleanUrl, serverToken = cleanTok, username = cleanUser))
+            prefs[keyProfiles] = json.encodeToString(list)
+            if (makeActive) prefs[keyActiveProfileId] = id
+        }
+        return id
+    }
+
+    suspend fun updateProfile(id: String, label: String? = null,
+                              url: String? = null, token: String? = null,
+                              username: String? = null) {
+        dataStore.edit { prefs ->
+            val list = loadProfilesWithMigration(prefs).map { p ->
+                if (p.id != id) p else p.copy(
+                    label = label ?: p.label,
+                    serverUrl = (url ?: p.serverUrl).trim().trimEnd('/'),
+                    serverToken = (token ?: p.serverToken).trim(),
+                    username = (username ?: p.username).trim(),
+                )
+            }
+            prefs[keyProfiles] = json.encodeToString(list)
+        }
+    }
+
+    /** Aktualisiert den Session-Token des aktiven Profils (nach Login). */
+    suspend fun setActiveSessionToken(token: String, username: String? = null) {
+        val s = current()
+        val active = s.activeProfile ?: return
+        updateProfile(active.id, token = token, username = username)
+    }
+
+    suspend fun deleteProfile(id: String) {
+        dataStore.edit { prefs ->
+            val list = loadProfilesWithMigration(prefs).filterNot { it.id == id }
+            prefs[keyProfiles] = json.encodeToString(list)
+            // Falls das aktive Profil gelöscht wurde, erstes wählen
+            if (prefs[keyActiveProfileId] == id) {
+                prefs[keyActiveProfileId] = list.firstOrNull()?.id.orEmpty()
+            }
+        }
+    }
+
+    suspend fun setActiveProfile(id: String) {
+        dataStore.edit { prefs ->
+            val list = loadProfilesWithMigration(prefs)
+            if (list.any { it.id == id }) prefs[keyActiveProfileId] = id
+        }
+    }
+
+    // Editiert das AKTIVE Profil. Wenn noch keins existiert (erster Setup),
+    // wird automatisch ein erstes "Standard"-Profil angelegt.
+    suspend fun setServerUrl(value: String) {
+        val s = current()
+        val active = s.activeProfile
+        if (active != null) updateProfile(active.id, url = value)
+        else upsertProfile("Standard", value, "", makeActive = true)
+    }
+
+    suspend fun setServerToken(value: String) {
+        val s = current()
+        val active = s.activeProfile
+        if (active != null) updateProfile(active.id, token = value)
+        else upsertProfile("Standard", "", value, makeActive = true)
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        dataStore.edit { it[keyThemeMode] = mode.name }
+    }
+
+    suspend fun setTtsVoice(value: String) {
+        dataStore.edit { it[keyTtsVoice] = value }
+    }
+
+    suspend fun setTtsAutoSpeak(value: Boolean) {
+        dataStore.edit { it[keyTtsAutoSpeak] = value.toString() }
+    }
+
+    suspend fun setTtsSpeed(value: Float) {
+        dataStore.edit { it[keyTtsSpeed] = value.coerceIn(0.25f, 2.0f) }
+    }
+
+    suspend fun setEffort(value: String) {
+        dataStore.edit { it[keyEffort] = value }
+    }
+
+    suspend fun setSystemPromptMode(mode: SystemPromptMode) {
+        dataStore.edit { it[keySystemPromptMode] = mode.name }
+    }
+
+    suspend fun setCustomSystemPrompt(value: String) {
+        dataStore.edit { it[keyCustomSystemPrompt] = value }
+    }
+
+    /** Merkt sich die zuletzt offene Chat-cid, damit die App nach Process Death
+     *  (Speicher knapp + Hintergrund-Kill) wieder im richtigen Chat aufmacht
+     *  statt einen frischen anzulegen. */
+    suspend fun setLastChatCid(cid: String?) {
+        dataStore.edit { prefs ->
+            if (cid.isNullOrBlank()) prefs.remove(keyLastChatCid)
+            else prefs[keyLastChatCid] = cid
+        }
+    }
+
+    suspend fun getLastChatCid(): String? {
+        return dataStore.data.first()[keyLastChatCid]?.takeIf { it.isNotBlank() }
+    }
+
+    // ---------- Per-Chat-Override: TTS Auto-Speak ----------
+    // Bewusst client-only (kein Server-Roundtrip): die Einstellung ist
+    // app-spezifisch (Auto-Vorlesen beim Erhalt einer Antwort) und macht auf
+    // anderen Geräten/Sessions sowieso wenig Sinn.
+
+    private fun parseAutoSpeakMap(raw: String?): Map<String, Boolean> {
+        if (raw.isNullOrBlank()) return emptyMap()
+        return runCatching {
+            json.decodeFromString<Map<String, Boolean>>(raw)
+        }.getOrDefault(emptyMap())
+    }
+
+    /** Returnt: true = Auto-Speak für diesen Chat AN, false = AUS,
+     *  null = kein Override (globaler Default greift). */
+    suspend fun getAutoSpeakOverride(cid: String): Boolean? {
+        val prefs = dataStore.data.first()
+        return parseAutoSpeakMap(prefs[keyTtsAutoSpeakPerChat])[cid]
+    }
+
+    /** Setzt oder löscht (`override=null`) den Override für einen Chat. */
+    suspend fun setAutoSpeakOverride(cid: String, override: Boolean?) {
+        dataStore.edit { prefs ->
+            val map = parseAutoSpeakMap(prefs[keyTtsAutoSpeakPerChat]).toMutableMap()
+            if (override == null) map.remove(cid) else map[cid] = override
+            if (map.isEmpty()) prefs.remove(keyTtsAutoSpeakPerChat)
+            else prefs[keyTtsAutoSpeakPerChat] = json.encodeToString(map)
+        }
+    }
+
+    // ---------- Settings Export / Import (App-Anteil) ----------
+
+    /** Erzeugt ein Snapshot aller App-lokalen Settings für den Export.
+     *  Profile (URL/Token/Username) sind bewusst NICHT enthalten — die
+     *  bleiben pro Gerät. */
+    suspend fun snapshotForExport(): AppSettingsExportDto {
+        val prefs = dataStore.data.first()
+        return AppSettingsExportDto(
+            themeMode = prefs[keyThemeMode] ?: "SYSTEM",
+            ttsVoice = prefs[keyTtsVoice].orEmpty().ifBlank { "edge-de-DE-KatjaNeural" },
+            ttsAutoSpeak = (prefs[keyTtsAutoSpeak] ?: "false").toBooleanStrictOrNull() ?: false,
+            ttsSpeed = (prefs[keyTtsSpeed] ?: 1.0f).coerceIn(0.25f, 2.0f),
+            effort = prefs[keyEffort]?.takeIf { it.isNotBlank() } ?: "high",
+            systemPromptMode = (prefs[keySystemPromptMode] ?: SystemPromptMode.STANDARD.name),
+            customSystemPrompt = prefs[keyCustomSystemPrompt].orEmpty(),
+            ttsAutoSpeakPerChat = parseAutoSpeakMap(prefs[keyTtsAutoSpeakPerChat]),
+            collapseLongUserMessages =
+                (prefs[keyCollapseLongUserMessages] ?: "true").toBooleanStrictOrNull() ?: true,
+        )
+    }
+
+    /** Wendet ein importiertes Snapshot auf die App-lokalen Settings an.
+     *  Profile/Token bleiben unangetastet. */
+    suspend fun applyImport(s: AppSettingsExportDto) {
+        dataStore.edit { prefs ->
+            prefs[keyThemeMode] = s.themeMode
+            prefs[keyTtsVoice] = s.ttsVoice
+            prefs[keyTtsAutoSpeak] = s.ttsAutoSpeak.toString()
+            prefs[keyTtsSpeed] = s.ttsSpeed.coerceIn(0.25f, 2.0f)
+            prefs[keyEffort] = s.effort
+            prefs[keySystemPromptMode] = s.systemPromptMode
+            prefs[keyCustomSystemPrompt] = s.customSystemPrompt
+            prefs[keyCollapseLongUserMessages] = s.collapseLongUserMessages.toString()
+            if (s.ttsAutoSpeakPerChat.isEmpty()) {
+                prefs.remove(keyTtsAutoSpeakPerChat)
+            } else {
+                prefs[keyTtsAutoSpeakPerChat] = json.encodeToString(s.ttsAutoSpeakPerChat)
+            }
+        }
+    }
+}

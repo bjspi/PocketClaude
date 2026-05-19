@@ -1,0 +1,540 @@
+"""Claude-Engine via `claude-agent-sdk` (offizielles Anthropic Python-SDK).
+
+Architektur:
+  - Auth: weiterhin über lokale Claude-Code-Anmeldung (`claude login` → OAuth-Token
+    in `~/.claude/credentials.json`). Kein API-Key nötig.
+  - Unter der Haube spawnt die SDK das gleiche `claude`-Binary, das wir vorher
+    direkt aufgerufen haben. Die SDK gibt uns aber zwei wichtige Knöpfe an die
+    Hand, die das CLI nicht hatte:
+      * `system_prompt="..."` ersetzt den Claude-Code-Default KOMPLETT
+        → keine Coding-Agent-Persona mehr, schlanker Prompt-Overhead
+      * `setting_sources=[]` lädt keine CLAUDE.md o.ä. mehr
+        → kein zusätzlicher Token-Müll aus Projekt-Configs
+  - Sessions: weiterhin per `--resume <id>`-Mechanismus (über
+    `ClaudeAgentOptions.resume=session_id`).
+  - WebSearch standardmäßig erlaubt; Read kommt dazu wenn Anhänge dabei sind.
+
+Anhänge: Text-Dateien werden inline in den Prompt eingebettet (gleiche Logik
+wie zuvor). Bilder/PDFs werden via Read-Tool referenziert.
+"""
+from __future__ import annotations
+
+import logging
+import os
+import re
+import shutil
+from pathlib import Path
+from typing import AsyncIterator
+
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    CLINotFoundError,
+    ProcessError,
+    ResultMessage,
+    StreamEvent,
+    SystemMessage,
+    TextBlock,
+    ThinkingBlock,
+    query,
+)
+
+from pocket_claude import db
+from pocket_claude.config import settings
+
+log = logging.getLogger(__name__)
+
+
+# Slim, claude.ai-style system prompt. Fully replaces the Claude Code default
+# (saves ~10K tokens per turn). Always respond in the user's language.
+SYSTEM_PROMPT = """You are Pocket Claude — a personal chat assistant the user talks \
+to from their phone. Always reply in the same language the user writes in. Be friendly, \
+direct, and helpful, like the Claude assistant on claude.ai. Markdown is allowed and \
+renders nicely in the app; code blocks with a language hint (```kotlin etc.) are great. \
+You have access to the WebSearch tool for current information and to the Read tool when \
+the user attaches an image or PDF. No other tools — you are primarily a conversation \
+partner, not a coding agent."""
+
+
+# ---------- Text-Anhänge-Inline (unverändert aus dem alten Modul) ----------
+
+MAX_TEXT_ATTACHMENT_BYTES = 200_000
+
+_TEXT_MIME_PREFIXES = ("text/",)
+_TEXT_MIME_TYPES = {
+    # Universale Daten-/Konfig-Formate
+    "application/json", "application/ld+json",
+    "application/xml", "application/atom+xml", "application/rss+xml",
+    "application/yaml", "application/x-yaml",
+    "application/toml",
+    "application/x-www-form-urlencoded",
+    # Skript-/Source-Sprachen, die manchmal als application/* kommen
+    "application/javascript", "application/ecmascript",
+    "application/typescript",
+    "application/x-shellscript", "application/x-sh",
+    "application/x-python", "application/x-python-code",
+    "application/x-ruby", "application/x-perl",
+    "application/x-php",
+    "application/sql",
+    # Klassische plain-text Container ohne text/-Prefix
+    "application/csv",
+    "application/x-tex", "application/x-latex",
+    "application/x-makefile",
+}
+_TEXT_EXTENSIONS = {
+    # Klassiker
+    ".md", ".markdown", ".txt", ".log", ".rst", ".adoc",
+    # Daten
+    ".json", ".jsonl", ".ndjson", ".yaml", ".yml", ".xml",
+    ".csv", ".tsv", ".tab", ".toml", ".ini", ".cfg", ".conf", ".env",
+    ".properties", ".plist", ".lock",
+    # Web
+    ".html", ".htm", ".css", ".scss", ".sass", ".less",
+    ".vue", ".svelte", ".astro",
+    # JS-Welt
+    ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx",
+    # Python-Welt
+    ".py", ".pyx", ".pyi", ".ipynb",
+    # JVM-Welt
+    ".kt", ".kts", ".java", ".scala", ".groovy", ".clj", ".cljc", ".cljs",
+    ".gradle",
+    # Native + System
+    ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hxx",
+    ".rs", ".go", ".swift", ".m", ".mm",
+    ".zig", ".nim", ".v", ".d",
+    # Skript-Sprachen
+    ".rb", ".pl", ".pm", ".php", ".lua", ".r", ".jl",
+    ".sh", ".zsh", ".bash", ".fish", ".ps1", ".bat", ".cmd",
+    # Funktional / ML
+    ".ex", ".exs", ".erl", ".hrl", ".hs", ".ml", ".mli", ".elm", ".fs", ".fsi",
+    # Dart / Flutter / sonstige
+    ".dart",
+    # DB / Query
+    ".sql", ".graphql", ".gql", ".proto",
+    # DevOps
+    ".tf", ".tfvars", ".hcl", ".nomad", ".nix",
+    # Sonstiges Text-Heavy
+    ".tex", ".bib", ".diff", ".patch", ".srt", ".vtt",
+}
+
+# Files OHNE Punkt-Extension, die per Konvention reiner Text sind.
+_TEXT_FILENAMES = {
+    "dockerfile", "containerfile",
+    "makefile", "gnumakefile",
+    "rakefile", "gemfile", "procfile", "vagrantfile",
+    "license", "licence", "copying", "readme", "changelog", "authors",
+    "todo", "notes",
+    ".gitignore", ".gitattributes", ".dockerignore", ".editorconfig",
+    ".prettierrc", ".eslintrc", ".babelrc",
+}
+
+
+def _looks_like_text(filename: str, mime: str) -> bool:
+    """Heuristik: gehört der Anhang inline in den Prompt-Text, oder soll er
+    nur per Read-Tool referenziert werden?
+
+    Reihenfolge:
+      1. MIME-Prefix text/* → ja
+      2. MIME aus expliziter Allowlist → ja
+      3. Filename-Extension in der Allowlist → ja
+      4. Filename selbst (ohne Punkt) in der Konventions-Liste → ja
+      5. sonst nein (= Binär, per Read-Tool)
+    """
+    if any(mime.startswith(p) for p in _TEXT_MIME_PREFIXES):
+        return True
+    if mime in _TEXT_MIME_TYPES:
+        return True
+    lower = filename.lower()
+    if any(lower.endswith(ext) for ext in _TEXT_EXTENSIONS):
+        return True
+    # Punkt-loser Filename (z.B. „Dockerfile", „Makefile") → letztes Path-Segment
+    base = lower.rsplit("/", 1)[-1]
+    if base in _TEXT_FILENAMES:
+        return True
+    return False
+
+
+def _build_prompt_text(user_msg: dict, attachments_by_id: dict[str, dict]) -> str:
+    content = user_msg["content"] or ""
+    attach_ids = user_msg.get("attachment_ids") or []
+    if not attach_ids:
+        return content
+    parts: list[str] = []
+    if content.strip():
+        parts.append(content.strip())
+    for aid in attach_ids:
+        a = attachments_by_id.get(aid)
+        if not a:
+            parts.append(f"\n\n[Anhang {aid} unauffindbar.]")
+            continue
+        filename = a["filename"]
+        mime = a["mime_type"] or "application/octet-stream"
+        path = Path(a["path"])
+        if not path.exists():
+            parts.append(f"\n\n[Anhang '{filename}' fehlt auf dem Server.]")
+            continue
+        if _looks_like_text(filename, mime):
+            try:
+                raw = path.read_bytes()
+                truncated = False
+                if len(raw) > MAX_TEXT_ATTACHMENT_BYTES:
+                    raw = raw[:MAX_TEXT_ATTACHMENT_BYTES]
+                    truncated = True
+                text = raw.decode("utf-8", errors="replace")
+                fence = "```"
+                if fence in text:
+                    fence = "````"
+                trunc_note = "\n\n…[gekürzt]" if truncated else ""
+                parts.append(
+                    f"\n\n--- Anhang: **{filename}** "
+                    f"({mime}, {a['size_bytes']} Bytes) ---\n"
+                    f"{fence}\n{text}{trunc_note}\n{fence}\n--- Ende Anhang ---"
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Anhang %s nicht als Text lesbar: %s", filename, exc)
+                parts.append(f"\n\n[Anhang '{filename}' konnte nicht gelesen werden: {exc}]")
+        else:
+            abs_path = path.resolve()
+            parts.append(
+                f"\n\n--- Anhang: **{filename}** ({mime}, {a['size_bytes']} Bytes) ---\n"
+                f"Bitte lies die Datei mit dem `Read`-Tool — absoluter Pfad:\n"
+                f"`{abs_path}`\n"
+                f"--- Ende Anhang ---"
+            )
+    return "".join(parts)
+
+
+def _has_binary_attachments(
+    attach_ids: list[str], attachments_by_id: dict[str, dict]
+) -> bool:
+    for aid in attach_ids:
+        a = attachments_by_id.get(aid)
+        if not a:
+            continue
+        if not _looks_like_text(a["filename"], a["mime_type"]):
+            return True
+    return False
+
+
+# ---------- Streaming via claude-agent-sdk ----------
+
+async def stream_reply(
+    cid: str,
+    user_message_id: int,
+    effort: str = "high",
+    system_prompt: str | None = None,
+    skills: dict | None = None,
+) -> AsyncIterator[dict]:
+    """Yieldet SSE-kompatible Events:
+      - {"type": "delta", "text": "..."}
+      - {"type": "done", "assistant_message_id": int, "tokens_in": int,
+         "tokens_out": int, "tokens_cached_read": int, "tokens_cached_write": int}
+      - {"type": "error", "message": str}
+    """
+    # Defensiv vor-initialisieren — falls eine frühe Exception (DB-Lookup-
+    # Fehler etc.) in den `except ProcessError`-Branch fällt, wo wir
+    # `session_id` lesen, hätten wir sonst einen NameError.
+    session_id: str | None = None
+    try:
+        conv = await db.get_conversation(cid)
+        if not conv:
+            yield {"type": "error", "message": "Konversation nicht gefunden."}
+            return
+
+        all_msgs = await db.list_messages(cid)
+        user_msg = next((m for m in all_msgs if m["id"] == user_message_id), None)
+        if not user_msg:
+            yield {"type": "error", "message": "User-Message in DB nicht gefunden."}
+            return
+
+        # Anhänge laden für Inline-Einbettung
+        attach_ids = user_msg.get("attachment_ids") or []
+        attachments = await db.get_attachments(attach_ids) if attach_ids else []
+        attachments_by_id = {a["id"]: a for a in attachments}
+
+        prompt = _build_prompt_text(user_msg, attachments_by_id)
+        need_read_tool = _has_binary_attachments(attach_ids, attachments_by_id)
+        session_id = conv.get("claude_session_id")
+
+        # Skills → allowed_tools.
+        # Caller (server.py /messages-Endpoint) reicht ein dict mit den
+        # SkillsDto-Feldern durch. Fehlende oder None → Server-Defaults
+        # (WebSearch/WebFetch on, Bash off).
+        sk = skills or {}
+        allowed_tools: list[str] = []
+        if sk.get("web_search", True):
+            allowed_tools.append("WebSearch")
+        if sk.get("web_fetch", True):
+            allowed_tools.append("WebFetch")
+        if sk.get("code_execution", False):
+            allowed_tools.append("Bash")
+        if need_read_tool:
+            allowed_tools.append("Read")
+        log.info("Skills enabled → allowed_tools: %s", allowed_tools)
+
+        # Sandbox-Cwd damit Claude Code (selbst wenn setting_sources Lecks hätte)
+        # KEINE Projekt-CLAUDE.md zieht.
+        sandbox_cwd = Path("/tmp/pocket-claude-sandbox")
+        sandbox_cwd.mkdir(parents=True, exist_ok=True)
+
+        # Effort-Level für Thinking via Env-Var an den Subprocess weitergeben.
+        # Issue #7840: im headless Mode wird Thinking trotz aller Flags nicht
+        # im Stream angezeigt — aber das Modell denkt. Effort steuert die Tiefe.
+        # SDK-Werte: low, medium, high, xhigh, max. "off" → wir setzen die Var
+        # nicht (CLI-Default greift). `xhigh` ist Opus-4.7-only, fällt auf
+        # anderen Modellen auf `high` zurück; wir laufen auf Opus 4.7, also
+        # ist es bei uns ein echtes Extra-Level.
+        valid_efforts = {"low", "medium", "high", "xhigh", "max"}
+        eff = (effort or "").lower().strip()
+        engine_env: dict = {}
+        if eff in valid_efforts:
+            engine_env["CLAUDE_CODE_EFFORT_LEVEL"] = eff
+            log.info("CLAUDE_CODE_EFFORT_LEVEL=%s", eff)
+        elif eff and eff != "off":
+            log.warning("Unbekanntes effort=%r, ignoriert", effort)
+
+        # System-Prompt: kommt von der App; Fallback ist unser kurzer Default.
+        sp = (system_prompt or "").strip() or SYSTEM_PROMPT
+        log.info(
+            "SystemPrompt: %s (%d chars)",
+            "App-supplied" if (system_prompt or "").strip() else "Server-Default",
+            len(sp),
+        )
+
+        options_kwargs: dict = dict(
+            system_prompt=sp,
+            allowed_tools=allowed_tools,
+            permission_mode="bypassPermissions",
+            cwd=str(sandbox_cwd),
+            include_partial_messages=True,
+            resume=session_id,
+            model=settings.claude_model or None,
+            setting_sources=[],  # keine CLAUDE.md o.ä. laden
+            env=engine_env,       # Effort-Level zum Subprocess durchreichen
+        )
+        # cli_path: global installiertes `claude` (Dein Login + Sessions) statt SDK-Bundle
+        resolved_cli = settings.claude_binary or shutil.which("claude")
+        if resolved_cli:
+            options_kwargs["cli_path"] = resolved_cli
+
+        options = ClaudeAgentOptions(**options_kwargs)
+
+        log.info(
+            "SDK-query: %s [tools: %s]",
+            f"resume {session_id[:8]}…" if session_id else "(neue Session)",
+            ", ".join(allowed_tools),
+        )
+
+        # Streaming-Loop
+        full_text_parts: list[str] = []
+        new_session_id: str | None = None
+        input_tokens = 0
+        output_tokens = 0
+        cache_read = 0
+        cache_write = 0
+        emitted_via_stream = False
+
+        async for message in query(prompt=prompt, options=options):
+            # Session-ID aus jedem Event abfischen (Init, Stream, Result haben sie)
+            sid = getattr(message, "session_id", None)
+            if sid:
+                new_session_id = sid
+
+            if isinstance(message, SystemMessage):
+                # Init: enthält Modell, Tools, Cwd etc. — wir loggen nur das Modell
+                if message.subtype == "init" and isinstance(message.data, dict):
+                    mdl = message.data.get("model")
+                    if mdl:
+                        log.info("Modell: %s", mdl)
+
+            elif isinstance(message, StreamEvent):
+                # Token-Deltas — text_delta wird die Antwort, thinking_delta
+                # ist die summarized Reasoning-Spur (display="summarized" oben).
+                # Beide leiten wir an die App durch; die App entscheidet via
+                # Setting, ob das Thinking angezeigt wird.
+                ev = message.event or {}
+                etype_inner = ev.get("type")
+                if etype_inner == "content_block_delta":
+                    delta = ev.get("delta") or {}
+                    delta_type = delta.get("type")
+                    if delta_type == "text_delta":
+                        text = delta.get("text", "")
+                        if text:
+                            full_text_parts.append(text)
+                            emitted_via_stream = True
+                            yield {"type": "delta", "text": text}
+                    elif delta_type == "thinking_delta":
+                        thinking_text = delta.get("thinking", "")
+                        if thinking_text:
+                            log.debug("thinking_delta: %r", thinking_text[:80])
+                            yield {"type": "thinking_delta", "text": thinking_text}
+                    # signature_delta etc. → ignoriert
+                elif etype_inner == "content_block_start":
+                    block = ev.get("content_block") or {}
+                    btype = block.get("type")
+                    log.info("Stream-Block start: type=%s", btype)
+                elif etype_inner == "content_block_stop":
+                    yield {"type": "block_stop"}
+
+            elif isinstance(message, AssistantMessage):
+                # Diagnose: was für Content-Blöcke kommen rein?
+                block_types = [type(b).__name__ for b in message.content]
+                if block_types:
+                    log.info("AssistantMessage block types: %s", block_types)
+                # Falls Stream-Events nicht greifen, Volltext nachholen.
+                if not emitted_via_stream:
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            text = block.text
+                            if text:
+                                full_text_parts.append(text)
+                                yield {"type": "delta", "text": text}
+                        elif isinstance(block, ThinkingBlock):
+                            # Falls aus irgendeinem Grund thinking nicht über
+                            # Stream-Events kommt, dann mal hier abgreifen:
+                            thinking_str = getattr(block, "thinking", "") or ""
+                            if thinking_str:
+                                log.info("ThinkingBlock im AssistantMessage: %d chars", len(thinking_str))
+                                yield {"type": "thinking_delta", "text": thinking_str}
+                # Usage-Stats von AssistantMessage auch ablesen (ResultMessage hat sie
+                # nochmal, aber je nach SDK-Version kann eines davon None sein)
+                _accumulate_usage(message.usage, locals_dict := {})
+                input_tokens = locals_dict.get("input_tokens", input_tokens)
+                output_tokens = locals_dict.get("output_tokens", output_tokens)
+                cache_read = locals_dict.get("cache_read", cache_read)
+                cache_write = locals_dict.get("cache_write", cache_write)
+
+            elif isinstance(message, ResultMessage):
+                # Final stats — autoritativ wenn vorhanden
+                if message.usage:
+                    _accumulate_usage(message.usage, locals_dict := {})
+                    input_tokens = locals_dict.get("input_tokens", input_tokens)
+                    output_tokens = locals_dict.get("output_tokens", output_tokens)
+                    cache_read = locals_dict.get("cache_read", cache_read)
+                    cache_write = locals_dict.get("cache_write", cache_write)
+                if message.is_error:
+                    err_msg = (message.errors or ["unbekannter Fehler"])[0]
+                    yield {"type": "error", "message": f"Claude: {err_msg}"}
+                    return
+
+        full_text = "".join(full_text_parts).strip() or "(leere Antwort)"
+        current_context = input_tokens + output_tokens + cache_read + cache_write
+
+        if new_session_id and new_session_id != session_id:
+            await db.set_claude_session_id(cid, new_session_id)
+
+        msg_id = await db.add_message(
+            cid,
+            role="assistant",
+            content=full_text,
+            tokens=current_context,
+        )
+        await db.set_total_tokens(cid, current_context)
+
+        yield {
+            "type": "done",
+            "assistant_message_id": msg_id,
+            "tokens_in": input_tokens,
+            "tokens_out": output_tokens,
+            "tokens_cached_read": cache_read,
+            "tokens_cached_write": cache_write,
+        }
+
+    except CLINotFoundError as exc:
+        log.error("Claude-CLI nicht gefunden: %s (Pfad: %s)", exc, exc.cli_path)
+        yield {
+            "type": "error",
+            "message": (
+                "Claude-CLI nicht gefunden. Stelle sicher dass `claude` im PATH liegt "
+                "(`which claude`). Ggf. CLAUDE_BINARY in .env auf den Pfad setzen."
+            ),
+        }
+    except ProcessError as exc:
+        stderr_excerpt = (exc.stderr or "").strip()[:1200]
+        log.error(
+            "Claude-Subprocess abgestürzt (exit=%s):\n%s",
+            exc.exit_code, stderr_excerpt or "(kein stderr)",
+        )
+
+        # Auto-Recovery: Session-ID veraltet (z.B. weil sie mit anderer CLI-Installation
+        # angelegt wurde, oder Claude Code hat seinen Session-Storage aufgeräumt).
+        # Wir löschen die Session-ID aus der DB und sagen dem User Bescheid.
+        combined = stderr_excerpt + " " + str(exc)
+        if (
+            "no conversation found" in combined.lower()
+            or "session id" in combined.lower()
+        ) and session_id:
+            log.warning(
+                "Session %s nicht (mehr) auffindbar — lösche aus DB. "
+                "Nächste Nachricht startet eine frische Session.",
+                session_id,
+            )
+            await db.set_claude_session_id(cid, "")
+            yield {
+                "type": "error",
+                "message": (
+                    "Die Claude-Session zu diesem Chat ist nicht mehr verfügbar "
+                    "(vermutlich von einer anderen CLI-Installation angelegt). "
+                    "Schick die Nachricht nochmal — ich starte dann eine neue Session."
+                ),
+            }
+            return
+
+        # Häufige Diagnosen für andere Fehler
+        hint = ""
+        if "Invalid API key" in stderr_excerpt or "authentication" in stderr_excerpt.lower():
+            hint = "  → Auth fehlt. Auf dem Server `claude login` ausführen."
+        elif "unknown option" in stderr_excerpt.lower():
+            hint = "  → Claude-CLI ist veraltet. `npm install -g @anthropic-ai/claude-code` aktualisieren."
+        elif "permission" in stderr_excerpt.lower():
+            hint = "  → Permission-Mode-Problem oder Tool-Zugriff verweigert."
+        yield {
+            "type": "error",
+            "message": (
+                f"Claude-CLI exit={exc.exit_code}.\n\n"
+                f"{stderr_excerpt or '(kein stderr)'}"
+                f"{hint}"
+            ),
+        }
+    except Exception as exc:  # noqa: BLE001
+        log.exception("SDK-Stream-Fehler in %s", cid)
+        yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
+
+
+def _accumulate_usage(usage, out: dict) -> None:
+    """Verträgt sowohl dict-Usage als auch typed-Objekt-Usage.
+
+    Wichtig: wir nutzen `value if value is not None else fallback`, NICHT
+    `value or fallback` — sonst würde ein legitimer 0-Wert (z.B. cache_write=0
+    weil keine neuen Cache-Einträge entstanden sind) auf den Fallback
+    zurückgesetzt und vorhandene Counts überschreiben.
+    """
+    if not usage:
+        return
+
+    def _pick(d_val, fallback):
+        return d_val if d_val is not None else fallback
+
+    if isinstance(usage, dict):
+        out["input_tokens"] = _pick(usage.get("input_tokens"), out.get("input_tokens", 0))
+        out["output_tokens"] = _pick(usage.get("output_tokens"), out.get("output_tokens", 0))
+        out["cache_read"] = _pick(
+            usage.get("cache_read_input_tokens"), out.get("cache_read", 0),
+        )
+        out["cache_write"] = _pick(
+            usage.get("cache_creation_input_tokens"), out.get("cache_write", 0),
+        )
+    else:
+        # Dataclass-Variante (z.B. TaskUsage)
+        out["input_tokens"] = _pick(
+            getattr(usage, "input_tokens", None), out.get("input_tokens", 0),
+        )
+        out["output_tokens"] = _pick(
+            getattr(usage, "output_tokens", None), out.get("output_tokens", 0),
+        )
+        out["cache_read"] = _pick(
+            getattr(usage, "cache_read_input_tokens", None), out.get("cache_read", 0),
+        )
+        out["cache_write"] = _pick(
+            getattr(usage, "cache_creation_input_tokens", None), out.get("cache_write", 0),
+        )
