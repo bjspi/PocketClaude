@@ -19,11 +19,17 @@
 
 ## 关于
 
-**Pocket Claude** 是为 Anthropic [Claude](https://claude.ai) 打造的自托管聊天前端，围绕你已有的 **Claude Pro 或 Max 订阅**构建。一个小巧的 Python 服务运行在你自己的 Linux 主机上（迷你 PC、树莓派、旧笔记本、NAS），并调起本地安装的 `claude` CLI；原生 Android 应用和内置 Web UI 通过 [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) 或 Cloudflare 隧道，从任何地方与之通信。
+**Pocket Claude** 是为 Anthropic [Claude](https://claude.ai) 打造的自托管聊天前端，围绕你已有的 **Claude Pro 或 Max 订阅**构建。一个小巧的 Python 服务运行在你自己的 Linux 主机上（Mini-PC、Raspberry Pi、旧笔记本、NAS），并调起本地安装的 `claude` CLI；原生 Android 应用和内置 Web UI 通过 [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) 或 Cloudflare 隧道，从任何地方与之通信。
 
-**为什么要做这个？** Anthropic 官方移动应用很棒，但它们对 Anthropic API 的计费独立于你的 Pro/Max 套餐。如果你已经付费订阅了 Claude Pro，并希望从手机上使用*这份*订阅 —— 同时具备面向家人/朋友的多用户认证、你自己的对话存储、云端 TTS 朗读、图像生成，以及横跨聊天历史的全文检索 —— 那就自己托管 Pocket Claude。
+**为什么要做这个。** Anthropic 官方的 Claude 应用已经很出色 —— Pocket Claude 的存在，是为了填补那些它们（目前）还没做的事：
 
-**无需额外的 Anthropic API key。** 认证使用的是你本地安装的 Claude Code CLI 所使用的 OAuth 会话（`claude login`）。Pocket Claude 调起 CLI，剩下的事情由 CLI 来处理。
+- **开源。** 可审计、可 fork、可扩展。没有不透明的遥测，也不会突然砍掉功能。
+- **额外特性。** TTS 朗读（三家提供方、锁屏播放控件）、图像生成、ChatGPT 风格的长消息折叠、横跨所有聊天记录的全文检索、加密备份、四种可切换的系统提示词模式。
+- **多用户，一份订阅。** 把你的 Pro/Max 套餐与家人或同事共享 —— 每个用户都有各自私密的聊天、独立的设置，以及自己用于图像生成和 TTS 的 API key。
+- **一个干净的"第二个 Claude"。** 想要严格区分个人与工作场景，又不想为此同时折腾两个 Anthropic 账号？自己起一台服务，和官方客户端并排登录即可。
+- **数据归你所有。** 你的对话保存在你自己硬件上的 SQLite 数据库里。可以迁移、可以备份、可以直接查询 —— 它就是你的。
+
+**无需额外的 Anthropic API key。** 认证使用的是你本地安装的 Claude Code CLI 所使用的 OAuth 会话（`claude login`）。Pocket Claude 调起 CLI，剩下的事情由 CLI 处理 —— 全部跑在你已经付费的那份 Pro/Max 额度之上。
 
 > **注意** —— 这是一个自托管的业余项目，并非 Anthropic 官方产品。你需要自备 Pro/Max 订阅。我们从不查看或代理你的对话。
 

@@ -19,11 +19,17 @@
 
 ## Acerca de
 
-**Pocket Claude** es un front-end de chat autoalojado para [Claude](https://claude.ai) de Anthropic, construido alrededor de tu **suscripción existente de Claude Pro o Max**. Un pequeño servidor Python se ejecuta en tu propia máquina Linux (Mini-PC, Raspberry Pi, laptop vieja, NAS) e inicia la CLI `claude` instalada localmente; una aplicación nativa para Android y una interfaz web integrada se comunican con él desde cualquier lugar a través de [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) o un túnel de Cloudflare.
+**Pocket Claude** es un front-end de chat autoalojado para [Claude](https://claude.ai) de Anthropic, construido en torno a tu **suscripción existente de Claude Pro o Max**. Un pequeño servidor Python se ejecuta en tu propia máquina Linux (Mini-PC, Raspberry Pi, laptop vieja, NAS) e inicia la CLI `claude` instalada localmente; una aplicación nativa para Android y una interfaz web integrada se comunican con él desde cualquier lugar a través de [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) o un túnel de Cloudflare.
 
-**Por qué existe esto.** Las aplicaciones móviles oficiales de Anthropic son geniales, pero facturan la API de Anthropic por separado de tu plan Pro/Max. Si ya estás pagando Claude Pro y quieres usar *esa* suscripción desde tu teléfono — con autenticación multiusuario para familia/amigos, tu propio almacenamiento de conversaciones, lectura en voz alta con TTS en la nube, generación de imágenes y búsqueda de texto completo en todo tu historial de chat — alojas Pocket Claude tú mismo.
+**Por qué existe.** Las aplicaciones oficiales de Claude de Anthropic son geniales — Pocket Claude existe para las cosas que ellas (todavía) no hacen:
 
-**No se requiere una clave de API adicional de Anthropic.** La autenticación es la sesión OAuth que utiliza tu CLI de Claude Code instalada localmente (`claude login`). Pocket Claude inicia la CLI; la CLI se encarga del resto.
+- **Código abierto.** Audítalo, bifúrcalo, extiéndelo. Sin telemetría misteriosa, sin eliminaciones sorpresa de funciones.
+- **Funciones extra.** Lectura en voz alta con TTS (tres proveedores, controles en la pantalla de bloqueo), generación de imágenes, colapso de mensajes largos al estilo ChatGPT, búsqueda de texto completo en todos tus chats, copias de seguridad cifradas, cuatro modos seleccionables de prompt del sistema.
+- **Multiusuario, una suscripción.** Comparte tu plan Pro/Max con tu familia o tus colegas — cada usuario tiene chats privados, ajustes privados y sus propias claves de API para generación de imágenes y TTS.
+- **Un segundo "Claude" limpio.** ¿Quieres una separación estricta entre lo personal y el trabajo sin tener que malabarear dos cuentas de Anthropic? Levanta tu propio servidor, inicia sesión en paralelo con el cliente oficial, listo.
+- **Tú eres dueño de los datos.** Tus conversaciones viven en una base de datos SQLite en tu hardware. Migrala, respáldala, consúltala directamente — es tuya.
+
+**No se requiere una clave de API adicional de Anthropic.** La autenticación es la sesión OAuth que utiliza tu CLI de Claude Code instalada localmente (`claude login`). Pocket Claude inicia la CLI; la CLI se encarga del resto — funcionando con la misma cuota Pro/Max que ya pagas.
 
 > **Nota** — esto es un proyecto autoalojado por afición, no un producto de Anthropic. Tú aportas tu propia suscripción Pro/Max. Nunca vemos ni intermediamos tus conversaciones.
 

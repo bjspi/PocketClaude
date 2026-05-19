@@ -21,9 +21,15 @@
 
 O **Pocket Claude** é um front-end de chat auto-hospedado para o [Claude](https://claude.ai) da Anthropic, construído em torno da sua assinatura existente do **Claude Pro ou Max**. Um pequeno servidor Python roda na sua própria máquina Linux (Mini-PC, Raspberry Pi, notebook antigo, NAS) e inicia o CLI `claude` instalado localmente; um app Android nativo e uma interface web embutida se comunicam com ele de qualquer lugar via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) ou um túnel Cloudflare.
 
-**Por que isso existe.** Os apps móveis oficiais da Anthropic são ótimos, mas eles cobram a API Anthropic separadamente do seu plano Pro/Max. Se você já está pagando pelo Claude Pro e quer usar *essa* assinatura no seu celular — com autenticação multiusuário para família/amigos, seu próprio armazenamento de conversas, leitura em voz alta via TTS na nuvem, geração de imagens e busca de texto completo em todo o seu histórico de chat — você hospeda o Pocket Claude você mesmo.
+**Por que isso existe.** Os apps oficiais do Claude da Anthropic são ótimos — o Pocket Claude existe para o que eles (ainda) não fazem:
 
-**Nenhuma chave de API Anthropic adicional é necessária.** A autenticação é a sessão OAuth que o seu CLI do Claude Code instalado localmente utiliza (`claude login`). O Pocket Claude inicia o CLI; o CLI cuida do resto.
+- **Código aberto.** Audite, faça fork, estenda. Sem telemetria misteriosa, sem remoção surpresa de recursos.
+- **Recursos extras.** Leitura em voz alta via TTS (três provedores, controles na tela de bloqueio), geração de imagens, recolhimento de mensagens longas no estilo do ChatGPT, busca de texto completo em todos os seus chats, backups criptografados, quatro modos selecionáveis de system prompt.
+- **Multiusuário, uma única assinatura.** Compartilhe seu plano Pro/Max com a família ou colegas — cada usuário tem chats privados, configurações privadas e suas próprias chaves de API para geração de imagens e TTS.
+- **Um segundo "Claude" limpinho.** Quer uma separação rigorosa entre pessoal/trabalho sem ter que ficar malabarismando duas contas Anthropic? Suba seu próprio servidor, faça login lado a lado com o cliente oficial, pronto.
+- **Você é dono dos dados.** Suas conversas ficam em um banco SQLite no seu hardware. Migre, faça backup, consulte diretamente — são seus.
+
+**Nenhuma chave de API Anthropic adicional é necessária.** A autenticação é a sessão OAuth que o seu CLI do Claude Code instalado localmente utiliza (`claude login`). O Pocket Claude inicia o CLI; o CLI cuida do resto — rodando na mesma cota Pro/Max que você já paga.
 
 > **Observação** — este é um projeto hobby auto-hospedado, não um produto da Anthropic. Você traz sua própria assinatura Pro/Max. Nunca vemos nem fazemos proxy das suas conversas.
 

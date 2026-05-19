@@ -109,6 +109,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -331,31 +332,30 @@ fun ChatScreen(
                 navigationIcon = {
                     if (state.searchActive) {
                         IconButton(onClick = { vm.closeSearch() }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Suche schließen")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.action_close))
                         }
                     } else {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Chats")
+                            Icon(Icons.Filled.Menu, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.title_conversations))
                         }
                     }
                 },
                 actions = {
                   if (state.searchActive) {
-                    // Im Suchmodus: nur Vor/Zurück, restliche Buttons ausgeblendet.
                     val hasMatches = state.searchMatches.isNotEmpty()
                     IconButton(onClick = { vm.previousMatch() }, enabled = hasMatches) {
-                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Voriger Treffer")
+                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = null)
                     }
                     IconButton(onClick = { vm.nextMatch() }, enabled = hasMatches) {
-                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Nächster Treffer")
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null)
                     }
                   } else {
-                    // Quick-Toggle: Denktiefe ad hoc umschalten
+                    // Quick-toggle for the effort level
                     Box {
                         IconButton(onClick = { effortMenuOpen = true }) {
                             Icon(
                                 Icons.Filled.Psychology,
-                                contentDescription = "Denktiefe",
+                                contentDescription = stringResource(de.smartzone.pocketclaude.R.string.effort_label),
                                 tint = effortTint(appSettings.effort),
                             )
                         }
@@ -380,17 +380,17 @@ fun ChatScreen(
                             }
                         }
                     }
-                    // 3-Punkte-Overflow — Umbenennen/Anpinnen/Teilen/Löschen
+                    // Three-dot overflow — rename / pin / share / delete
                     Box {
                         IconButton(onClick = { moreMenuOpen = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "Mehr")
+                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.action_more))
                         }
                         DropdownMenu(
                             expanded = moreMenuOpen,
                             onDismissRequest = { moreMenuOpen = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Umbenennen") },
+                                text = { Text(stringResource(de.smartzone.pocketclaude.R.string.action_rename)) },
                                 leadingIcon = {
                                     Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = null)
                                 },
@@ -402,7 +402,7 @@ fun ChatScreen(
                             )
                             DropdownMenuItem(
                                 text = {
-                                    Text(if (state.pinned) "Lösen" else "Anpinnen")
+                                    Text(stringResource(if (state.pinned) de.smartzone.pocketclaude.R.string.conversation_unpin else de.smartzone.pocketclaude.R.string.conversation_pin))
                                 },
                                 leadingIcon = {
                                     Icon(
@@ -449,7 +449,7 @@ fun ChatScreen(
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("Im Chat suchen") },
+                                text = { Text(stringResource(de.smartzone.pocketclaude.R.string.search_in_chat)) },
                                 leadingIcon = {
                                     Icon(Icons.Filled.Search, contentDescription = null)
                                 },
@@ -459,7 +459,7 @@ fun ChatScreen(
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("Teilen") },
+                                text = { Text(stringResource(de.smartzone.pocketclaude.R.string.share_as_markdown)) },
                                 leadingIcon = {
                                     Icon(Icons.Filled.IosShare, contentDescription = null)
                                 },
@@ -471,7 +471,7 @@ fun ChatScreen(
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("Löschen", color = MaterialTheme.colorScheme.error) },
+                                text = { Text(stringResource(de.smartzone.pocketclaude.R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                                 leadingIcon = {
                                     Icon(
                                         Icons.Filled.Delete,
@@ -652,11 +652,11 @@ fun ChatScreen(
     }
     } // ModalNavigationDrawer
 
-    // Rename-Dialog
+    // Rename dialog
     if (renameOpen) {
         AlertDialog(
             onDismissRequest = { renameOpen = false },
-            title = { Text("Chat umbenennen") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.rename_dialog_title)) },
             text = {
                 OutlinedTextField(
                     value = renameInput,
@@ -670,30 +670,30 @@ fun ChatScreen(
                 TextButton(onClick = {
                     if (renameInput.isNotBlank()) vm.renameChat(renameInput)
                     renameOpen = false
-                }) { Text("Speichern") }
+                }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { renameOpen = false }) { Text("Abbrechen") }
+                TextButton(onClick = { renameOpen = false }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
 
-    // Delete-Confirm
+    // Delete confirmation
     if (confirmDeleteOpen) {
         AlertDialog(
             onDismissRequest = { confirmDeleteOpen = false },
-            title = { Text("Chat löschen?") },
-            text = { Text("Dieser Chat und seine Nachrichten werden unwiderruflich gelöscht.") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.confirm_delete_title)) },
+            text = { Text(stringResource(de.smartzone.pocketclaude.R.string.confirm_delete_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDeleteOpen = false
                     vm.deleteChat { onNewChat() }
                 }) {
-                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDeleteOpen = false }) { Text("Abbrechen") }
+                TextButton(onClick = { confirmDeleteOpen = false }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
@@ -905,7 +905,7 @@ private fun ChatDrawerContent(
                 painter = painterResource(
                     id = de.smartzone.pocketclaude.R.drawable.pocket_claude_icon
                 ),
-                contentDescription = "Pocket Claude",
+                contentDescription = stringResource(de.smartzone.pocketclaude.R.string.app_name),
                 modifier = Modifier
                     .size(40.dp)
                     .clickable { onAllChats() },
@@ -913,18 +913,18 @@ private fun ChatDrawerContent(
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Pocket Claude",
+                    stringResource(de.smartzone.pocketclaude.R.string.app_name),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "Tipp aufs Logo für die volle Übersicht",
+                    stringResource(de.smartzone.pocketclaude.R.string.all_conversations),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             IconButton(onClick = onSettings) {
-                Icon(Icons.Filled.Settings, contentDescription = "Einstellungen")
+                Icon(Icons.Filled.Settings, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.title_settings))
             }
         }
 
@@ -933,7 +933,7 @@ private fun ChatDrawerContent(
         Spacer(Modifier.height(8.dp))
         NavigationDrawerItem(
             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-            label = { Text("Neuer Chat") },
+            label = { Text(stringResource(de.smartzone.pocketclaude.R.string.new_chat)) },
             selected = false,
             onClick = onNewChat,
             colors = NavigationDrawerItemDefaults.colors(
@@ -941,12 +941,12 @@ private fun ChatDrawerContent(
             ),
             modifier = Modifier.padding(horizontal = 12.dp),
         )
-        // Bilder generieren — nur sichtbar wenn API-Key gesetzt (sonst macht
-        // der Eintrag nichts Sinnvolles). Setup-Flow läuft über Settings.
+        // Image generation — only visible if an API key is configured
+        // (otherwise the entry would do nothing useful). Setup flow runs via Settings.
         if (imageGenAvailable) {
             NavigationDrawerItem(
                 icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
-                label = { Text("Bilder generieren") },
+                label = { Text(stringResource(de.smartzone.pocketclaude.R.string.title_images)) },
                 selected = false,
                 onClick = onGenerateImages,
                 colors = NavigationDrawerItemDefaults.colors(
@@ -957,7 +957,7 @@ private fun ChatDrawerContent(
         }
         NavigationDrawerItem(
             icon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            label = { Text("Alle Chats / Suche") },
+            label = { Text(stringResource(de.smartzone.pocketclaude.R.string.all_conversations)) },
             selected = false,
             onClick = onAllChats,
             colors = NavigationDrawerItemDefaults.colors(
@@ -968,7 +968,7 @@ private fun ChatDrawerContent(
 
         Spacer(Modifier.height(8.dp))
         Text(
-            "Zuletzt",
+            stringResource(de.smartzone.pocketclaude.R.string.recent_chats),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 4.dp),
@@ -1104,7 +1104,7 @@ private fun InputBar(
                 value = value,
                 onValueChange = onChange,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Schreib was…") },
+                placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.hint_message)) },
                 maxLines = 6,
                 shape = RoundedCornerShape(22.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -1150,7 +1150,7 @@ private fun SendButton(
         ) {
             Icon(
                 imageVector = if (sending) Icons.Filled.Stop else Icons.Filled.Send,
-                contentDescription = if (sending) "Stoppen" else "Senden",
+                contentDescription = stringResource(if (sending) de.smartzone.pocketclaude.R.string.stop else de.smartzone.pocketclaude.R.string.send),
                 tint = contentColor,
             )
         }
@@ -1221,7 +1221,7 @@ private fun SearchBarTitle(
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            placeholder = { Text("Im Chat suchen…") },
+            placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.search_in_chat)) },
             singleLine = true,
             modifier = Modifier
                 .weight(1f)

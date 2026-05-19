@@ -21,9 +21,15 @@
 
 **Pocket Claude** ist ein selbst-gehostetes Chat-Frontend für Anthropic's [Claude](https://claude.ai), das auf Deinem bestehenden **Claude-Pro- oder -Max-Abo** läuft. Ein kleiner Python-Server läuft auf Deinem eigenen Linux-Host (Mini-PC, Raspberry Pi, alter Laptop, NAS) und spawnt das lokal installierte `claude`-CLI; eine native Android-App und eine integrierte Web-UI sprechen via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) oder Cloudflare-Tunnel von überall mit ihm.
 
-**Warum?** Anthropics offizielle Mobile-Apps sind super, aber sie rechnen über die separate Anthropic-API ab — nicht über Dein Pro/Max-Abo. Wenn Du bereits für Claude Pro zahlst und *dieses* Abo vom Handy aus nutzen willst — mit Multi-User-Auth für Familie/Freunde, eigenem Storage, Cloud-TTS-Vorlesen, Bild-Generation und Volltextsuche über die ganze Chat-Historie — dann hostest Du Pocket Claude selbst.
+**Warum?** Anthropics offizielle Claude-Apps sind super — Pocket Claude ist für die Dinge da, die sie (noch) nicht können:
 
-**Kein zusätzlicher Anthropic-API-Key nötig.** Authentifizierung läuft über die OAuth-Session, die Dein lokal installiertes Claude-Code-CLI nutzt (`claude login`). Pocket Claude spawnt das CLI; das CLI macht den Rest.
+- **Open Source.** Quellcode einsehbar, forkbar, erweiterbar. Keine Mystery-Telemetrie, keine überraschend entfernten Features.
+- **Mehr Features.** TTS-Vorlesen (drei Provider, Lockscreen-Controls), Bild-Generation, ChatGPT-Style-Einklappen langer Nachrichten, Volltextsuche über alle Chats, verschlüsselte Backups, vier wählbare System-Prompt-Modi.
+- **Multi-User auf einem Abo.** Teile Dein Pro/Max-Abo mit Familie oder Kollegen — jeder User hat eigene Chats, eigene Settings und eigene API-Keys für Bild-Gen und TTS.
+- **Ein zweiter "Claude" sauber getrennt.** Privat und Job strikt trennen, ohne zwei Anthropic-Accounts zu jonglieren? Eigenen Server hochziehen, parallel zum offiziellen Client einloggen, fertig.
+- **Deine Daten gehören Dir.** Konversationen liegen in einer SQLite-DB auf Deiner Hardware. Migrierbar, backup-bar, direkt abfragbar.
+
+**Kein zusätzlicher Anthropic-API-Key nötig.** Authentifizierung läuft über die OAuth-Session, die Dein lokal installiertes Claude-Code-CLI nutzt (`claude login`). Pocket Claude spawnt das CLI; das CLI macht den Rest — auf demselben Pro/Max-Kontingent, das Du bereits bezahlst.
 
 > **Hinweis** — das ist ein selbst-gehostetes Hobby-Projekt, kein Anthropic-Produkt. Du bringst Dein eigenes Pro/Max-Abo mit. Wir sehen oder proxien Deine Konversationen nie.
 

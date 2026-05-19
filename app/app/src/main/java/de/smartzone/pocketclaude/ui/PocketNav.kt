@@ -13,6 +13,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -209,7 +210,10 @@ private fun LaunchScreen(
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         if (errorMessage != null) {
             Text(
-                "Verbindung fehlgeschlagen: $errorMessage",
+                stringResource(
+                    de.smartzone.pocketclaude.R.string.connection_failed_prefix,
+                    errorMessage ?: "",
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(24.dp),

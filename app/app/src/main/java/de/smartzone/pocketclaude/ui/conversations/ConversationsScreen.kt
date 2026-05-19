@@ -11,6 +11,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -184,7 +185,7 @@ fun ConversationsScreen(
                             )
                             Spacer(Modifier.width(12.dp))
                             Text(
-                                "Alle Chats",
+                                stringResource(de.smartzone.pocketclaude.R.string.all_conversations),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -195,7 +196,7 @@ fun ConversationsScreen(
                             IconButton(onClick = onBack) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Zurück",
+                                    contentDescription = stringResource(de.smartzone.pocketclaude.R.string.action_back),
                                 )
                             }
                         }
@@ -204,11 +205,11 @@ fun ConversationsScreen(
                         IconButton(onClick = { searchActive = !searchActive; if (!searchActive) vm.clearSearch() }) {
                             Icon(
                                 if (searchActive) Icons.Filled.Close else Icons.Filled.Search,
-                                contentDescription = if (searchActive) "Suche schließen" else "Suchen",
+                                contentDescription = stringResource(if (searchActive) de.smartzone.pocketclaude.R.string.action_close else de.smartzone.pocketclaude.R.string.action_search),
                             )
                         }
                         IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Einstellungen")
+                            Icon(Icons.Filled.Settings, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.title_settings))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -224,7 +225,7 @@ fun ConversationsScreen(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    text = { Text("Neuer Chat") },
+                    text = { Text(stringResource(de.smartzone.pocketclaude.R.string.new_chat)) },
                 )
             }
         },
@@ -239,11 +240,11 @@ fun ConversationsScreen(
                     trailingIcon = {
                         if (search.query.isNotEmpty()) {
                             IconButton(onClick = { vm.setSearchQuery("") }) {
-                                Icon(Icons.Filled.Close, contentDescription = "Löschen")
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(de.smartzone.pocketclaude.R.string.action_close))
                             }
                         }
                     },
-                    placeholder = { Text("In allen Chats suchen…") },
+                    placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.conversation_search_placeholder)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -311,11 +312,11 @@ fun ConversationsScreen(
         }
     }
 
-    // Rename-Dialog
+    // Rename dialog
     renamingId?.let { id ->
         AlertDialog(
             onDismissRequest = { renamingId = null },
-            title = { Text("Umbenennen") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.action_rename)) },
             text = {
                 OutlinedTextField(
                     value = renamingTitle,
@@ -329,51 +330,43 @@ fun ConversationsScreen(
                 TextButton(onClick = {
                     if (renamingTitle.isNotBlank()) vm.rename(id, renamingTitle.trim())
                     renamingId = null
-                }) { Text("Speichern") }
+                }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { renamingId = null }) { Text("Abbrechen") }
+                TextButton(onClick = { renamingId = null }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
 
-    // Delete-Confirm
+    // Delete confirmation
     confirmDelete?.let { id ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("Chat löschen?") },
-            text = { Text("Dieser Chat und seine Nachrichten werden unwiderruflich gelöscht.") },
+            title = { Text(stringResource(de.smartzone.pocketclaude.R.string.confirm_delete_title)) },
+            text = { Text(stringResource(de.smartzone.pocketclaude.R.string.confirm_delete_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     vm.delete(id)
                     confirmDelete = null
                 }) {
-                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = null }) { Text("Abbrechen") }
+                TextButton(onClick = { confirmDelete = null }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
 
-    // Bulk-Delete (mehrere ausgewählte Chats auf einmal)
+    // Bulk delete (multiple selected chats at once)
     if (confirmBulkDelete) {
         AlertDialog(
             onDismissRequest = { confirmBulkDelete = false },
             title = {
-                Text(
-                    if (selectedIds.size == 1) "Chat löschen?"
-                    else "${selectedIds.size} Chats löschen?"
-                )
+                Text(stringResource(de.smartzone.pocketclaude.R.string.confirm_delete_title))
             },
             text = {
-                Text(
-                    if (selectedIds.size == 1)
-                        "Dieser Chat und seine Nachrichten werden unwiderruflich gelöscht."
-                    else
-                        "Die ausgewählten Chats und ihre Nachrichten werden unwiderruflich gelöscht."
-                )
+                Text(stringResource(de.smartzone.pocketclaude.R.string.confirm_delete_message))
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -381,11 +374,11 @@ fun ConversationsScreen(
                     confirmBulkDelete = false
                     selectedIds = emptySet()
                 }) {
-                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmBulkDelete = false }) { Text("Abbrechen") }
+                TextButton(onClick = { confirmBulkDelete = false }) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_cancel)) }
             },
         )
     }
@@ -518,7 +511,7 @@ private fun ConversationRow(
                         onDismissRequest = { menuOpen = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text(if (conv.pinned) "Lösen" else "Anpinnen") },
+                            text = { Text(stringResource(if (conv.pinned) de.smartzone.pocketclaude.R.string.conversation_unpin else de.smartzone.pocketclaude.R.string.conversation_pin)) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Filled.PushPin,
@@ -530,12 +523,12 @@ private fun ConversationRow(
                             onClick = { menuOpen = false; onTogglePin() },
                         )
                         DropdownMenuItem(
-                            text = { Text("Umbenennen") },
+                            text = { Text(stringResource(de.smartzone.pocketclaude.R.string.action_rename)) },
                             leadingIcon = { Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = null) },
                             onClick = { menuOpen = false; onRename() },
                         )
                         DropdownMenuItem(
-                            text = { Text("Löschen", color = MaterialTheme.colorScheme.error) },
+                            text = { Text(stringResource(de.smartzone.pocketclaude.R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Filled.Delete,

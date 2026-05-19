@@ -21,9 +21,15 @@
 
 **Pocket Claude** is a self-hosted chat front-end for Anthropic's [Claude](https://claude.ai), built around your existing **Claude Pro or Max subscription**. A small Python server runs on your own Linux box (Mini-PC, Raspberry Pi, old laptop, NAS) and spawns the locally-installed `claude` CLI; a native Android app and a built-in web UI talk to it from anywhere via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) or a Cloudflare tunnel.
 
-**Why this exists.** Anthropic's official mobile apps are great, but they bill the Anthropic API separately from your Pro/Max plan. If you're already paying for Claude Pro and want to use *that* subscription from your phone — with multi-user auth for family/friends, your own conversation storage, cloud TTS read-aloud, image generation, and full-text search across your chat history — you host Pocket Claude yourself.
+**Why this exists.** Anthropic's official Claude apps are great — Pocket Claude exists for the things they don't (yet) do:
 
-**No additional Anthropic API key required.** Authentication is the OAuth session your locally-installed Claude Code CLI uses (`claude login`). Pocket Claude spawns the CLI; the CLI handles the rest.
+- **Open source.** Audit it, fork it, extend it. No mystery telemetry, no surprise feature removals.
+- **Extra features.** TTS read-aloud (three providers, lock-screen controls), image generation, ChatGPT-style long-message collapse, full-text search across all your chats, encrypted backups, four selectable system-prompt modes.
+- **Multi-user, one subscription.** Share your Pro/Max plan with family or colleagues — each user has private chats, private settings, and their own API keys for image-gen and TTS.
+- **A clean second "Claude".** Want a strict personal/work separation without juggling two Anthropic accounts? Spin up your own server, log in side-by-side with the official client, done.
+- **You own the data.** Your conversations live in a SQLite database on your hardware. Migrate it, back it up, query it directly — it's yours.
+
+**No additional Anthropic API key required.** Authentication is the OAuth session your locally-installed Claude Code CLI uses (`claude login`). Pocket Claude spawns the CLI; the CLI handles the rest — running on the same Pro/Max quota you already pay for.
 
 > **Note** — this is a self-hosted hobby project, not an Anthropic product. You bring your own Pro/Max subscription. We never see or proxy your conversations.
 
