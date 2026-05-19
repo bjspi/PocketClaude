@@ -471,7 +471,40 @@ async def stream_reply(
                     yield {"type": "error", "message": f"Claude: {err_msg}"}
                     return
 
-        full_text = "".join(full_text_parts).strip() or "(leere Antwort)"
+        full_text = "".join(full_text_parts).strip()
+
+        # Skip-turn guard. Claude Code's headless mode sometimes replies
+        # with a short placeholder when it thinks no response is needed
+        # (intended for agentic runs, not chat). Detect those and surface
+        # an error to the app instead of saving a useless message.
+        SKIP_TURN_SENTINELS = (
+            "no response requested",
+            "(no reply)",
+            "(skip)",
+            "(no response)",
+        )
+        normalized = full_text.lower().rstrip(".").strip()
+        is_skip_turn = (
+            not full_text
+            or normalized in SKIP_TURN_SENTINELS
+            or any(normalized.startswith(s) for s in SKIP_TURN_SENTINELS)
+        )
+        if is_skip_turn:
+            log.warning(
+                "Skip-turn / empty reply detected (text=%r). Surfacing error to client.",
+                full_text[:80],
+            )
+            yield {
+                "type": "error",
+                "message": (
+                    "Claude returned an empty / skip-turn reply. This is a "
+                    "Claude Code CLI optimization for agentic runs that "
+                    "doesn't fit chat. Try rephrasing your message as a "
+                    "question, or re-send to retry."
+                ),
+            }
+            return
+
         current_context = input_tokens + output_tokens + cache_read + cache_write
 
         if new_session_id and new_session_id != session_id:
