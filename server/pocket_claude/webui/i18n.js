@@ -28,6 +28,7 @@
 
   const STRINGS = {
     en: {
+      more: 'More',
       app_name: 'Pocket Claude',
       login_subtitle: 'Connect to your server.',
       server_url: 'Server URL',
@@ -270,6 +271,7 @@
       loading_dots: 'Loading…',
     },
     de: {
+      more: 'Mehr',
       app_name: 'Pocket Claude',
       login_subtitle: 'Mit Deinem Server verbinden.',
       server_url: 'Server-URL',
@@ -512,6 +514,7 @@
       loading_dots: 'Lade…',
     },
     es: {
+      more: 'Más',
       app_name: 'Pocket Claude',
       login_subtitle: 'Conéctate a tu servidor.',
       server_url: 'URL del servidor',
@@ -754,6 +757,7 @@
       loading_dots: 'Cargando…',
     },
     fr: {
+      more: 'Plus',
       app_name: 'Pocket Claude',
       login_subtitle: 'Connectez-vous à votre serveur.',
       server_url: 'URL du serveur',
@@ -996,6 +1000,7 @@
       loading_dots: 'Chargement…',
     },
     'pt-BR': {
+      more: 'Mais',
       app_name: 'Pocket Claude',
       login_subtitle: 'Conecte-se ao seu servidor.',
       server_url: 'URL do servidor',
@@ -1238,6 +1243,7 @@
       loading_dots: 'Carregando…',
     },
     zh: {
+      more: '更多',
       app_name: 'Pocket Claude',
       login_subtitle: '连接到您的服务器。',
       server_url: '服务器 URL',
@@ -1480,6 +1486,7 @@
       loading_dots: '加载中…',
     },
     ja: {
+      more: 'その他',
       app_name: 'Pocket Claude',
       login_subtitle: 'サーバーに接続します。',
       server_url: 'サーバー URL',

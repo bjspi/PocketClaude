@@ -512,13 +512,130 @@ function renderChatList(items) {
       const li = document.createElement('div');
       li.className = 'chat-item' + (c.id === state.cid ? ' active' : '');
       li.dataset.cid = c.id;
-      li.innerHTML = `<span class="title">${escapeHtml(c.title || t('no_title'))}</span>`;
+      li.innerHTML = `
+        <span class="title">${escapeHtml(c.title || t('no_title'))}</span>
+        <button class="chat-row-more" type="button" aria-label="${escapeHtml(t('more'))}"
+                title="${escapeHtml(t('more'))}">
+          <svg><use href="#icon-more"/></svg>
+        </button>
+      `;
+      // Row click → open; "..." click → menu (stopPropagation prevents both)
       li.addEventListener('click', () => openChat(c.id));
+      const moreBtn = li.querySelector('.chat-row-more');
+      moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openChatRowMenu(li, c);
+      });
       grp.appendChild(li);
     }
     els.chatNav.appendChild(grp);
   }
 }
+
+// =========================================================
+// Per-chat row menu (Rename / Pin / Delete)
+// =========================================================
+let openMenu = null;
+
+function closeChatRowMenu() {
+  if (openMenu) {
+    openMenu.remove();
+    openMenu = null;
+  }
+  document.querySelectorAll('.chat-item.menu-open').forEach(el => el.classList.remove('menu-open'));
+}
+
+function openChatRowMenu(rowEl, chat) {
+  closeChatRowMenu();
+  rowEl.classList.add('menu-open');
+
+  const menu = document.createElement('div');
+  menu.className = 'chat-row-menu';
+  menu.innerHTML = `
+    <button data-act="rename" type="button">
+      <svg><use href="#icon-edit"/></svg> ${escapeHtml(t('rename'))}
+    </button>
+    <button data-act="pin" type="button">
+      <svg><use href="#icon-pin"/></svg> ${escapeHtml(chat.pinned ? t('unpin') : t('pin'))}
+    </button>
+    <hr>
+    <button data-act="delete" class="danger" type="button">
+      <svg><use href="#icon-trash"/></svg> ${escapeHtml(t('delete'))}
+    </button>
+  `;
+  // Stop click-through so the row click doesn't fire while the menu is open
+  menu.addEventListener('click', e => e.stopPropagation());
+  document.body.appendChild(menu);
+
+  // Position next to the "..." trigger
+  const btn = rowEl.querySelector('.chat-row-more');
+  const rect = btn.getBoundingClientRect();
+  const menuW = 180;
+  let left = rect.right + 6;
+  if (left + menuW > window.innerWidth - 8) left = rect.left - menuW - 6;
+  menu.style.left = Math.max(8, left) + 'px';
+  menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - 180) + 'px';
+
+  // Wire actions
+  menu.querySelector('[data-act="rename"]').addEventListener('click', async () => {
+    closeChatRowMenu();
+    const next = window.prompt(t('rename'), chat.title || '');
+    if (next === null) return;
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === chat.title) return;
+    try {
+      await api('PATCH', '/conversations/' + chat.id, { title: trimmed });
+      await refreshChatList();
+      if (state.cid === chat.id) {
+        els.chatTitle.textContent = trimmed;
+      }
+    } catch (e) {
+      toast(t('toast_error_prefix', e.message), { error: true });
+    }
+  });
+
+  menu.querySelector('[data-act="pin"]').addEventListener('click', async () => {
+    closeChatRowMenu();
+    try {
+      const next = !chat.pinned;
+      await api('PATCH', '/conversations/' + chat.id, { pinned: next });
+      if (state.cid === chat.id) state.pinned = next;
+      await refreshChatList();
+    } catch (e) {
+      toast(t('toast_error_prefix', e.message), { error: true });
+    }
+  });
+
+  menu.querySelector('[data-act="delete"]').addEventListener('click', async () => {
+    closeChatRowMenu();
+    if (!window.confirm(t('confirm_delete_chat', chat.title || t('no_title')))) return;
+    try {
+      await api('DELETE', '/conversations/' + chat.id);
+      // If the deleted chat was open, drop the active chat
+      if (state.cid === chat.id) {
+        state.cid = null;
+        state.pinned = false;
+        els.messages.innerHTML = '';
+        els.chatTitle.textContent = t('app_name');
+      }
+      await refreshChatList();
+    } catch (e) {
+      toast(t('toast_error_prefix', e.message), { error: true });
+    }
+  });
+
+  openMenu = menu;
+}
+
+// Click anywhere else → close
+document.addEventListener('click', (e) => {
+  if (openMenu && !openMenu.contains(e.target)) closeChatRowMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeChatRowMenu();
+});
+window.addEventListener('resize', closeChatRowMenu);
+els.chatNav.addEventListener('scroll', closeChatRowMenu, { passive: true });
 
 // =========================================================
 // Suche
