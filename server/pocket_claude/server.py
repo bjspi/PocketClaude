@@ -2618,9 +2618,27 @@ async def fallback_error(_request, exc: Exception):  # noqa: ANN001
 # nicht über Cookies — die Statics selbst brauchen daher keinen Auth-Check.
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path as _PathLib
+
+class _HttpOnlyStaticFiles(StaticFiles):
+    """Wrap StaticFiles to gracefully reject non-HTTP ASGI scopes.
+
+    The default StaticFiles asserts ``scope["type"] == "http"`` (see
+    starlette/staticfiles.py:91), which throws AssertionError into the
+    journal every time a service worker or browser-extension speculatively
+    opens a WebSocket on our root mount. Reject those with a clean close
+    so we don't pollute logs with a stack trace per probe.
+    """
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            # Politely close any non-HTTP attempt (websocket, lifespan, …)
+            if scope.get("type") == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
+            return
+        await super().__call__(scope, receive, send)
+
 _webui_dir = _PathLib(__file__).parent / "webui"
 if _webui_dir.exists():
-    app.mount("/", StaticFiles(directory=str(_webui_dir), html=True), name="webui")
+    app.mount("/", _HttpOnlyStaticFiles(directory=str(_webui_dir), html=True), name="webui")
     log.info("Web-UI gemountet aus %s", _webui_dir)
 else:
     log.warning("webui/-Verzeichnis nicht gefunden — Web-UI nicht aktiv.")

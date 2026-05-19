@@ -77,6 +77,7 @@ fun UserBubble(
 
     val showCollapsed = collapseLongMessages && !expanded
     val maxLines = if (showCollapsed) COLLAPSE_MAX_LINES else Int.MAX_VALUE
+    val copy = rememberCopyHandler(text)
 
     Row(
         modifier = modifier
@@ -123,6 +124,20 @@ fun UserBubble(
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = maxLines,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                }
+                // Compact copy-button below the bubble — mirrors the
+                // assistant-side action so the user can lift their own
+                // long messages back to the clipboard for re-use.
+                IconButton(
+                    onClick = copy,
+                    modifier = Modifier.size(28.dp).padding(top = 2.dp, end = 2.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.ContentCopy,
+                        contentDescription = stringResource(R.string.bubble_copy),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(15.dp),
                     )
                 }
             }

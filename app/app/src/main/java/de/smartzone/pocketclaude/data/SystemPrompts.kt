@@ -337,6 +337,23 @@ Claude's reliable knowledge cutoff date - the date past which it cannot answer q
  * Platzhalter `__CURRENT_DATETIME__` wird durch das aktuelle UTC-Datum
  * ersetzt — relevant nur für ULTRA_LIBERAL und ggf. CUSTOM.
  */
+/**
+ * Mandatory addendum appended to EVERY system prompt before we send it to
+ * the CLI. Defeats the Claude-Code "skip-turn" optimization that decides
+ * to reply with "No response requested." when the user's message looks
+ * like a statement rather than a question.
+ *
+ * Pocket Claude is a chat app, not an agent-loop coding tool — there is
+ * always a human waiting for a response. The CLI's skip-turn shortcut
+ * (intended for autonomous task runs) makes no sense here and confuses
+ * users into thinking their message wasn't received.
+ */
+private const val ALWAYS_RESPOND_ADDENDUM = """
+
+<pocket_claude_chat_mode>
+You are running inside Pocket Claude, a personal chat client. Every user message expects a substantive assistant reply — even if the message is a statement, an observation, a single word, or a passing comment rather than an explicit question. Never reply with "No response requested.", "(no reply)", or any other skip-turn placeholder. If you genuinely have nothing to add beyond acknowledging, briefly acknowledge and offer one relevant follow-up thought or question. The interface assumes every turn produces visible text; an empty turn is shown to the user as a silent failure.
+</pocket_claude_chat_mode>"""
+
 fun effectiveSystemPrompt(
     mode: SystemPromptMode,
     customPrompt: String,
@@ -347,7 +364,7 @@ fun effectiveSystemPrompt(
         SystemPromptMode.ULTRA_LIBERAL -> SYSTEM_PROMPT_ULTRA_LIBERAL
         SystemPromptMode.CUSTOM -> customPrompt.trim().ifBlank { SYSTEM_PROMPT_STANDARD }
     }
-    return substituteSystemPromptPlaceholders(raw)
+    return substituteSystemPromptPlaceholders(raw) + ALWAYS_RESPOND_ADDENDUM
 }
 
 /** Ersetzt Platzhalter im fertigen Prompt-String. Aktuell nur `__CURRENT_DATETIME__`. */
