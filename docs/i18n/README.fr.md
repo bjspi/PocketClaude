@@ -4,7 +4,7 @@
 
 # Pocket Claude
 
-**Votre Claude personnel sur votre téléphone — propulsé par votre propre abonnement Claude Pro/Max, hébergé sur votre propre matériel.**
+**Votre Claude personnel sur votre téléphone — propulsé par votre propre abonnement Pro/Max, une clé API Anthropic ou AWS Bedrock. Hébergé sur votre propre matériel.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%2012%2B%20%7C%20Web-blue)](#)
@@ -19,7 +19,13 @@
 
 ## À propos
 
-**Pocket Claude** est une interface de chat auto-hébergée pour [Claude](https://claude.ai) d'Anthropic, pensée autour de votre **abonnement Claude Pro ou Max** existant. Un petit serveur Python tourne sur votre propre machine Linux (Mini-PC, Raspberry Pi, vieux portable, NAS) et lance le CLI `claude` installé localement ; une application Android native et une interface web intégrée dialoguent avec lui depuis n'importe où via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) ou un tunnel Cloudflare.
+**Pocket Claude** est une interface de chat auto-hébergée pour [Claude](https://claude.ai) d'Anthropic. Un petit serveur Python tourne sur votre propre machine Linux (Mini-PC, Raspberry Pi, vieux portable, NAS) ; une application Android native et une interface web intégrée dialoguent avec lui depuis n'importe où via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) ou un tunnel Cloudflare.
+
+**Choisissez le backend par utilisateur**, interchangeable à tout moment depuis l'application :
+
+- **Abonnement Pro/Max** (par défaut) — utilise la session OAuth d'un CLI `claude` local installé sur le serveur, aucune clé API requise, fonctionne sur votre quota Pro/Max.
+- **Clé API Anthropic** — `sk-ant-…` depuis la [Console Anthropic](https://console.anthropic.com), facturation à l'usage.
+- **AWS Bedrock** — vos identifiants AWS, prise en charge de Claude Opus 4.7 via les IDs de modèle spécifiques à Bedrock.
 
 **Pourquoi ce projet existe.** Les applications officielles de Claude sont très bien — Pocket Claude existe pour ce qu'elles ne font pas (encore) :
 

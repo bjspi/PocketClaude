@@ -4,7 +4,7 @@
 
 # Pocket Claude
 
-**你的私人 Claude，运行在你的手机上 —— 使用你自己的 Claude Pro/Max 订阅，托管在你自己的硬件上。**
+**你的私人 Claude，运行在你的手机上 —— 由你自己的 Pro/Max 订阅、Anthropic API key 或 AWS Bedrock 任选其一驱动。托管在你自己的硬件上。**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%2012%2B%20%7C%20Web-blue)](#)
@@ -19,7 +19,13 @@
 
 ## 关于
 
-**Pocket Claude** 是为 Anthropic [Claude](https://claude.ai) 打造的自托管聊天前端，围绕你已有的 **Claude Pro 或 Max 订阅**构建。一个小巧的 Python 服务运行在你自己的 Linux 主机上（Mini-PC、Raspberry Pi、旧笔记本、NAS），并调起本地安装的 `claude` CLI；原生 Android 应用和内置 Web UI 通过 [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) 或 Cloudflare 隧道，从任何地方与之通信。
+**Pocket Claude** 是为 Anthropic [Claude](https://claude.ai) 打造的自托管聊天前端。一个小巧的 Python 服务运行在你自己的 Linux 主机上（Mini-PC、Raspberry Pi、旧笔记本、NAS）；原生 Android 应用和内置 Web UI 通过 [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) 或 Cloudflare 隧道，从任何地方与之通信。
+
+**按用户分别选择后端**，随时可以在 App 内切换：
+
+- **Pro/Max 订阅**（默认）—— 使用服务器上本地 `claude` CLI 的 OAuth 会话，无需 API key，跑在你的 Pro/Max 配额上。
+- **Anthropic API key** —— 来自 [Anthropic Console](https://console.anthropic.com) 的 `sk-ant-…`，按用量计费。
+- **AWS Bedrock** —— 使用你的 AWS 凭证，通过 Bedrock 专用的模型 ID 支持 Claude Opus 4.7。
 
 **为什么要做这个。** Anthropic 官方的 Claude 应用已经很出色 —— Pocket Claude 的存在，是为了填补那些它们（目前）还没做的事：
 

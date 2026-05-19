@@ -639,6 +639,7 @@
     <string name="settings_profile_rename_title">Renomear perfil</string>
     <string name="settings_add_profile_title">Adicionar perfil</string>
     <string name="settings_label_display_name">Nome de exibição (ex.: &quot;Marie&quot;)</string>
+    <string name="settings_label_display_name_optional">Nome de exibição (opcional)</string>
     <string name="settings_label_server_url">URL do servidor</string>
     <string name="settings_label_username">Nome de usuário</string>
     <string name="settings_label_password">Senha</string>

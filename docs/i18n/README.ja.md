@@ -4,7 +4,7 @@
 
 # Pocket Claude
 
-**スマホで使えるあなた専用の Claude — あなた自身の Claude Pro/Max サブスクリプションで動作し、あなた自身のハードウェアでホスティングされます。**
+**スマホで使えるあなた専用の Claude — ご自身の Pro/Max サブスクリプション、Anthropic API キー、または AWS Bedrock のいずれかで動作。ご自身のハードウェアでホスティングされます。**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%2012%2B%20%7C%20Web-blue)](#)
@@ -19,7 +19,13 @@
 
 ## 概要
 
-**Pocket Claude** は、Anthropic の [Claude](https://claude.ai) 向けのセルフホスト型チャットフロントエンドで、お持ちの **Claude Pro または Max サブスクリプション**を中心に構築されています。小さな Python サーバーがご自身の Linux マシン（Mini-PC、Raspberry Pi、古いノート PC、NAS）で動作し、ローカルにインストールされた `claude` CLI を起動します。ネイティブ Android アプリと内蔵 Web UI は、[Tailscale Funnel](https://tailscale.com/kb/1223/funnel) または Cloudflare トンネル経由で、どこからでもサーバーと通信できます。
+**Pocket Claude** は、Anthropic の [Claude](https://claude.ai) 向けのセルフホスト型チャットフロントエンドです。小さな Python サーバーがご自身の Linux マシン（Mini-PC、Raspberry Pi、古いノート PC、NAS）で動作し、ネイティブ Android アプリと内蔵 Web UI が [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) または Cloudflare トンネル経由で、どこからでもサーバーと通信します。
+
+**バックエンドはユーザーごとに選択可能**で、アプリ内でいつでも切り替えられます。
+
+- **Pro/Max サブスクリプション**（デフォルト）— サーバー上のローカル `claude` CLI の OAuth セッションを使用します。API キーは不要で、お持ちの Pro/Max クォータで動作します。
+- **Anthropic API キー** — [Anthropic Console](https://console.anthropic.com) から取得した `sk-ant-…` を使用し、従量課金で利用できます。
+- **AWS Bedrock** — お手持ちの AWS 認証情報を使用し、Bedrock 固有のモデル ID で Claude Opus 4.7 に対応します。
 
 **なぜこれが存在するのか。** Anthropic の公式 Claude アプリは素晴らしいものです — Pocket Claude は、それらが（まだ）対応していない部分のために存在します。
 

@@ -365,10 +365,17 @@ private fun ProfileAndServerCard(
         )
     }
 
-    // Profil-Liste (Multi-User), nur wenn relevant
-    if (settings.profiles.isNotEmpty() || settings.activeProfile == null) {
-        ProfilesCard(vm = vm, settings = settings)
+    // First-run UX: no profiles yet → show the sign-in form directly,
+    // skip the "Add profile" detour. Users only see the multi-profile UI
+    // after they're successfully logged in once.
+    if (settings.profiles.isEmpty()) {
+        FirstRunSignInCard(vm = vm)
+        return
     }
+
+    // Multi-profile list — only shown once the user has at least one
+    // profile (so the first-run screen stays simple).
+    ProfilesCard(vm = vm, settings = settings)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2205,6 +2212,134 @@ private fun shareBackupZip(context: android.content.Context, bytes: ByteArray, f
         android.widget.Toast.makeText(
             context, context.getString(de.smartzone.pocketclaude.R.string.settings_backup_share_failed, e.message ?: ""), android.widget.Toast.LENGTH_LONG,
         ).show()
+    }
+}
+
+/**
+ * First-run sign-in card. Shown when the user has zero profiles. Replaces
+ * the "empty profile-list + add-profile-dialog detour" with an inline
+ * Server-URL + Username + Password form so the very first interaction is
+ * obvious. Profile-label is moved to the bottom and marked optional —
+ * users who don't bother get a sensible default ("Server").
+ */
+@Composable
+private fun FirstRunSignInCard(vm: SettingsViewModel) {
+    val loginState by vm.loginState.collectAsState()
+    val working = loginState is LoginUiState.Working
+
+    var url by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var label by remember { mutableStateOf("") }
+    var showPw by remember { mutableStateOf(false) }
+    var attempted by remember { mutableStateOf(false) }
+
+    // Clear any stale state on first composition
+    LaunchedEffect(Unit) { vm.clearLoginState() }
+    DisposableEffect(Unit) { onDispose { vm.clearLoginState() } }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                stringResource(de.smartzone.pocketclaude.R.string.login_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FW.SemiBold,
+            )
+            Text(
+                stringResource(de.smartzone.pocketclaude.R.string.settings_profile_first_run),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = { Text(stringResource(de.smartzone.pocketclaude.R.string.server_url)) },
+                placeholder = { Text(stringResource(de.smartzone.pocketclaude.R.string.server_url_hint)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                enabled = !working,
+            )
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text(stringResource(de.smartzone.pocketclaude.R.string.username)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                enabled = !working,
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text(stringResource(de.smartzone.pocketclaude.R.string.password)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    IconButton(onClick = { showPw = !showPw }) {
+                        Icon(
+                            if (showPw) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = stringResource(
+                                if (showPw) de.smartzone.pocketclaude.R.string.settings_label_hide
+                                else de.smartzone.pocketclaude.R.string.settings_label_show
+                            ),
+                        )
+                    }
+                },
+                enabled = !working,
+            )
+            OutlinedTextField(
+                value = label,
+                onValueChange = { label = it },
+                label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_label_display_name_optional)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                enabled = !working,
+            )
+
+            val state = loginState
+            if (attempted && state is LoginUiState.Failure) {
+                Text(
+                    state.reason,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            Button(
+                onClick = {
+                    if (url.isNotBlank() && username.isNotBlank() && password.isNotBlank()) {
+                        attempted = true
+                        vm.addProfileAndLogin(label, url, username, password)
+                    }
+                },
+                enabled = !working && url.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (working) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_signing_in))
+                } else {
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_sign_in_btn))
+                }
+            }
+        }
     }
 }
 

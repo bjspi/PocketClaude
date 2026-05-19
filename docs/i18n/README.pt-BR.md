@@ -4,7 +4,7 @@
 
 # Pocket Claude
 
-**Seu Claude pessoal no seu celular — rodando na sua própria assinatura Claude Pro/Max, hospedado no seu próprio hardware.**
+**Seu Claude pessoal no seu celular — movido pela sua própria assinatura Pro/Max, por uma chave de API da Anthropic ou pelo AWS Bedrock. Hospedado no seu próprio hardware.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%2012%2B%20%7C%20Web-blue)](#)
@@ -19,7 +19,13 @@
 
 ## Sobre
 
-O **Pocket Claude** é um front-end de chat auto-hospedado para o [Claude](https://claude.ai) da Anthropic, construído em torno da sua assinatura existente do **Claude Pro ou Max**. Um pequeno servidor Python roda na sua própria máquina Linux (Mini-PC, Raspberry Pi, notebook antigo, NAS) e inicia o CLI `claude` instalado localmente; um app Android nativo e uma interface web embutida se comunicam com ele de qualquer lugar via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) ou um túnel Cloudflare.
+O **Pocket Claude** é um front-end de chat auto-hospedado para o [Claude](https://claude.ai) da Anthropic. Um pequeno servidor Python roda na sua própria máquina Linux (Mini-PC, Raspberry Pi, notebook antigo, NAS); um app Android nativo e uma interface web embutida se comunicam com ele de qualquer lugar via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) ou um túnel Cloudflare.
+
+**Escolha o backend por usuário**, podendo trocar a qualquer momento dentro do app:
+
+- **Assinatura Pro/Max** (padrão) — usa a sessão OAuth de um CLI `claude` local no servidor, sem precisar de chave de API, rodando na sua cota Pro/Max.
+- **Chave de API da Anthropic** — `sk-ant-…` do [Console da Anthropic](https://console.anthropic.com), cobrança por uso.
+- **AWS Bedrock** — suas credenciais AWS, com suporte ao Claude Opus 4.7 pelos IDs de modelo específicos do Bedrock.
 
 **Por que isso existe.** Os apps oficiais do Claude da Anthropic são ótimos — o Pocket Claude existe para o que eles (ainda) não fazem:
 

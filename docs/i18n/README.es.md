@@ -4,7 +4,7 @@
 
 # Pocket Claude
 
-**Tu Claude personal en tu teléfono — funcionando con tu propia suscripción de Claude Pro/Max, alojado en tu propio hardware.**
+**Tu Claude personal en tu teléfono — respaldado por tu propia suscripción Pro/Max, una clave de API de Anthropic o AWS Bedrock. Alojado en tu propio hardware.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%2012%2B%20%7C%20Web-blue)](#)
@@ -19,7 +19,13 @@
 
 ## Acerca de
 
-**Pocket Claude** es un front-end de chat autoalojado para [Claude](https://claude.ai) de Anthropic, construido en torno a tu **suscripción existente de Claude Pro o Max**. Un pequeño servidor Python se ejecuta en tu propia máquina Linux (Mini-PC, Raspberry Pi, laptop vieja, NAS) e inicia la CLI `claude` instalada localmente; una aplicación nativa para Android y una interfaz web integrada se comunican con él desde cualquier lugar a través de [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) o un túnel de Cloudflare.
+**Pocket Claude** es un front-end de chat autoalojado para [Claude](https://claude.ai) de Anthropic. Un pequeño servidor Python se ejecuta en tu propia máquina Linux (Mini-PC, Raspberry Pi, laptop vieja, NAS); una aplicación nativa para Android y una interfaz web integrada se comunican con él desde cualquier lugar a través de [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) o un túnel de Cloudflare.
+
+**Elige el backend por usuario**, intercambiable en cualquier momento desde la app:
+
+- **Suscripción Pro/Max** (predeterminado) — usa la sesión OAuth de una CLI `claude` local en el servidor, sin clave de API, contra tu cuota Pro/Max.
+- **Clave de API de Anthropic** — `sk-ant-…` desde la [Consola de Anthropic](https://console.anthropic.com), facturación por consumo.
+- **AWS Bedrock** — tus credenciales de AWS, compatible con Claude Opus 4.7 mediante los IDs de modelo específicos de Bedrock.
 
 **Por qué existe.** Las aplicaciones oficiales de Claude de Anthropic son geniales — Pocket Claude existe para las cosas que ellas (todavía) no hacen:
 

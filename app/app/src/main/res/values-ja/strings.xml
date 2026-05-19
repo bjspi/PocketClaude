@@ -639,6 +639,7 @@
     <string name="settings_profile_rename_title">プロファイルの名前を変更</string>
     <string name="settings_add_profile_title">プロファイルを追加</string>
     <string name="settings_label_display_name">表示名（例: &quot;Marie&quot;）</string>
+    <string name="settings_label_display_name_optional">表示名 (任意)</string>
     <string name="settings_label_server_url">サーバーURL</string>
     <string name="settings_label_username">ユーザー名</string>
     <string name="settings_label_password">パスワード</string>

@@ -4,7 +4,7 @@
 
 # Pocket Claude
 
-**Your personal Claude on your phone — running on your own Claude Pro/Max subscription, hosted on your own hardware.**
+**Your personal Claude on your phone — backed by your own Pro/Max subscription, an Anthropic API key, or AWS Bedrock. Hosted on your own hardware.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%2012%2B%20%7C%20Web-blue)](#)
@@ -19,7 +19,13 @@
 
 ## About
 
-**Pocket Claude** is a self-hosted chat front-end for Anthropic's [Claude](https://claude.ai), built around your existing **Claude Pro or Max subscription**. A small Python server runs on your own Linux box (Mini-PC, Raspberry Pi, old laptop, NAS) and spawns the locally-installed `claude` CLI; a native Android app and a built-in web UI talk to it from anywhere via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) or a Cloudflare tunnel.
+**Pocket Claude** is a self-hosted chat front-end for Anthropic's [Claude](https://claude.ai). A small Python server runs on your own Linux box (Mini-PC, Raspberry Pi, old laptop, NAS); a native Android app and a built-in web UI talk to it from anywhere via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) or a Cloudflare tunnel.
+
+**Pick the backend per user**, switchable any time in the app:
+
+- **Pro/Max subscription** (default) — uses the OAuth session of a local `claude` CLI on the server, no API key needed, runs against your Pro/Max quota.
+- **Anthropic API key** — `sk-ant-…` from the [Anthropic Console](https://console.anthropic.com), pay-as-you-go billing.
+- **AWS Bedrock** — your AWS credentials, supports Claude Opus 4.7 on Bedrock-pinned model IDs.
 
 **Why this exists.** Anthropic's official Claude apps are great — Pocket Claude exists for the things they don't (yet) do:
 
