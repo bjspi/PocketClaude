@@ -1,10 +1,10 @@
 [Unit]
-# Pocket Claude Server — Hauptprozess (FastAPI + uvicorn).
-# Wird via deploy/install-linux.sh installiert und unter dem Service-User
-# `pocket-claude` ausgeführt. Tunnel läuft als separater Service
-# (pocket-claude-tunnel.service ODER cloudflared.service je nach Setup).
+# Pocket Claude server — main process (FastAPI + uvicorn).
+# Installed by deploy/install-linux.sh and run under the service user
+# `pocket-claude`. The tunnel is a separate unit
+# (pocket-claude-tunnel.service OR cloudflared.service depending on setup).
 Description=Pocket Claude — Personal Claude Chat Server
-Documentation=https://github.com/joshtech90/PocketClaude-Server
+Documentation=https://github.com/joshtech90/PocketClaude
 After=network-online.target
 Wants=network-online.target
 
@@ -14,22 +14,21 @@ User=@SERVICE_USER@
 Group=@SERVICE_USER@
 WorkingDirectory=@PROJECT_DIR@
 EnvironmentFile=@PROJECT_DIR@/.env
-# Wichtig: `claude`-Binary muss im PATH des Service-Users liegen. Wir setzen
-# /usr/local/bin (default npm-global-prefix) explizit drauf, falls systemd
-# den PATH knapp hält.
+# Important: the `claude` binary must be in the service user's PATH. We
+# explicitly add /usr/local/bin (default npm-global prefix) in case systemd
+# starts with a sparse PATH.
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 ExecStart=@PROJECT_DIR@/.venv/bin/python -m pocket_claude
 
-# Robustheit
+# Robustness
 Restart=always
 RestartSec=5
 StartLimitInterval=600
 StartLimitBurst=10
 
-# Wenn `claude login` noch fehlt, crasht der Server beim ersten Request mit
-# CLINotFoundError o.ä. Wir wollen aber NICHT in eine endlose Restart-Schleife
-# rennen, also den Burst-Limiter respektieren — der lässt nach 10 Crashs in
-# 10 Min Pause.
+# When `claude login` hasn't been run yet, the first request crashes with
+# CLINotFoundError or similar. We do NOT want to spin in an infinite restart
+# loop — respect the burst limiter; it pauses after 10 crashes in 10 min.
 
 StandardOutput=journal
 StandardError=journal
@@ -44,7 +43,7 @@ ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 ReadWritePaths=@PROJECT_DIR@
-# Service-User-Home für ~/.claude/credentials.json beschreibbar lassen
+# Keep the service user's home writable (~/.claude/credentials.json)
 ReadWritePaths=/home/@SERVICE_USER@
 
 [Install]

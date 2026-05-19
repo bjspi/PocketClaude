@@ -284,10 +284,10 @@ async def send_message(cid: str, body: SendMessageRequest, user=Depends(require_
     if body.attachment_ids:
         existing = await db.get_attachments(body.attachment_ids)
         if len(existing) != len(body.attachment_ids):
-            raise HTTPException(400, "Mindestens ein Attachment-ID ungültig.")
+            raise HTTPException(400, "One or more attachment IDs are invalid.")
         for a in existing:
             if a.get("user_id") and a["user_id"] != user["id"]:
-                raise HTTPException(403, "Attachment gehört einem anderen User.")
+                raise HTTPException(403, "Attachment belongs to a different user.")
 
     # User-Message speichern (Token-Schätzung machen wir grob über Zeichenlänge ÷ 4,
     # die genauen Werte trägt das message_start-Event später nach)
@@ -447,7 +447,7 @@ async def upload_attachment(file: UploadFile = File(...), user=Depends(require_u
     contents = await file.read()
     max_bytes = settings.max_upload_mb * 1024 * 1024
     if len(contents) > max_bytes:
-        raise HTTPException(413, f"Datei zu groß (max {settings.max_upload_mb} MB).")
+        raise HTTPException(413, f"File too large (max {settings.max_upload_mb} MB).")
 
     filename = file.filename or "upload"
     mime = file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
@@ -539,7 +539,7 @@ async def export_markdown(cid: str, user=Depends(require_user)):
     lines: list[str] = [
         f"# {title}",
         "",
-        f"_Pocket-Claude-Export · gestartet {created} · {len(messages)} Nachrichten_",
+        f"_Pocket Claude export · started {created} · {len(messages)} messages_",
         "",
         "---",
         "",
@@ -556,7 +556,7 @@ async def export_markdown(cid: str, user=Depends(require_user)):
         if m.get("attachment_ids"):
             atts = await db.get_attachments(m["attachment_ids"])
             for a in atts:
-                lines.append(f"\n> 📎 Anhang: `{a['filename']}` ({a['mime_type']}, {a['size_bytes']} Bytes)")
+                lines.append(f"\n> 📎 Attachment: `{a['filename']}` ({a['mime_type']}, {a['size_bytes']} bytes)")
         lines.append("")
         lines.append("---")
         lines.append("")
@@ -1007,8 +1007,8 @@ async def tts_set_provider(body: TtsProviderRequest, user=Depends(require_user))
     "cloud_tts" (Service-Account-JSON, kein direkter Hard-Cap)."""
     prov = (body.provider or "").strip()
     if prov not in tts.VALID_PROVIDERS:
-        raise HTTPException(400, f"Ungültiger provider {prov!r}. "
-                                  f"Erlaubt: {sorted(tts.VALID_PROVIDERS)}")
+        raise HTTPException(400, f"Invalid provider {prov!r}. "
+                                  f"Allowed: {sorted(tts.VALID_PROVIDERS)}")
     await db.kv_set_many({_KV_TTS_PROVIDER: prov}, scope=user["id"])
     log.info("TTS-Provider von user=%s auf %s gesetzt", user["id"], prov)
     # Provider-Wechsel ist user-spezifisch und sagt nichts über den globalen
@@ -1041,8 +1041,8 @@ async def tts_set_model(body: TtsModelRequest, user=Depends(require_user)) -> Tt
     mid = (body.model_id or "").strip()
     if not tts.is_valid_gemini_model(mid):
         allowed = [m["id"] for m in tts.AVAILABLE_GEMINI_TTS_MODELS]
-        raise HTTPException(400, f"Ungültiges TTS-Modell {mid!r}. "
-                                  f"Erlaubt: {allowed}")
+        raise HTTPException(400, f"Invalid TTS model {mid!r}. "
+                                  f"Allowed: {allowed}")
     await db.kv_set_many({_KV_TTS_MODEL: mid}, scope=user["id"])
     log.info("TTS-Modell von user=%s auf %s gesetzt", user["id"], mid)
     return await _build_tts_status(user["id"])
@@ -1753,7 +1753,7 @@ async def images_generate(body: dict, user=Depends(require_user)):
         raw_count = body.get("count")
         count_val = int(raw_count) if raw_count not in (None, "") else 1
     except (TypeError, ValueError):
-        raise HTTPException(400, f"Ungültiger count-Wert: {raw_count!r}")
+        raise HTTPException(400, f"Invalid count value: {raw_count!r}")
     try:
         images = await image_engine.generate(
             api_key=api_key,
@@ -2200,12 +2200,12 @@ async def reset_user_password_endpoint(user_id: str, body: dict | None = None,
 @app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_endpoint(user_id: str, user=Depends(require_admin)):
     if user_id == user["id"]:
-        raise HTTPException(400, "Du kannst Dich nicht selbst löschen.")
+        raise HTTPException(400, "You cannot delete your own account.")
     target = await db.get_user_by_id(user_id)
     if target is None:
         raise HTTPException(404, "User nicht gefunden.")
     if target["is_admin"] and await db.count_admins() <= 1:
-        raise HTTPException(400, "Letzter Admin kann nicht gelöscht werden.")
+        raise HTTPException(400, "Cannot delete the last admin user.")
     await db.delete_user(user_id)
     return JSONResponse(status_code=204, content=None)
 
@@ -2316,20 +2316,20 @@ async def settings_import(body: SettingsImportRequest,
     if body.tts_provider is not None:
         prov = body.tts_provider.strip()
         if prov and prov not in tts.VALID_PROVIDERS:
-            raise HTTPException(400, f"Ungültiger tts_provider: {prov!r}")
+            raise HTTPException(400, f"Invalid tts_provider: {prov!r}")
         updates[_KV_TTS_PROVIDER] = prov
 
     if body.tts_model is not None:
         mid = body.tts_model.strip()
         if mid and not tts.is_valid_gemini_model(mid):
             allowed = [m["id"] for m in tts.AVAILABLE_GEMINI_TTS_MODELS]
-            raise HTTPException(400, f"Ungültiges tts_model {mid!r}. Erlaubt: {allowed}")
+            raise HTTPException(400, f"Invalid tts_model {mid!r}. Allowed: {allowed}")
         updates[_KV_TTS_MODEL] = mid
 
     if body.tts_chunking_enabled is not None:
         v = (body.tts_chunking_enabled or "").strip()
         if v not in ("", "0", "1"):
-            raise HTTPException(400, f"Ungültiger tts_chunking_enabled: {v!r} (erlaubt: '', '0', '1')")
+            raise HTTPException(400, f"Invalid tts_chunking_enabled: {v!r} (allowed: '', '0', '1')")
         updates[_KV_TTS_CHUNKING_ENABLED] = v
 
     if body.image_api_key is not None:

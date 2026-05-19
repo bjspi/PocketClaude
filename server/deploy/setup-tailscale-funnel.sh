@@ -38,32 +38,32 @@ c_red()    { printf '\033[1;31m%s\033[0m\n' "$*" >&2; }
 step()     { echo; c_blue "==> $*"; }
 
 if [[ $EUID -ne 0 ]]; then
-    c_red "Bitte mit sudo aufrufen."
+    c_red "Please run with sudo."
     exit 1
 fi
 
 # ---------------------------------------------------------------- Tailscale check
-step "Tailscale-Status prüfen"
+step "Checking Tailscale status"
 if ! command -v tailscale >/dev/null 2>&1; then
-    c_yellow "    Tailscale ist nicht installiert. Installiere via offizielles Skript…"
+    c_yellow "    Tailscale is not installed. Installing via the official script..."
     curl -fsSL https://tailscale.com/install.sh | sh
 fi
 
-# Backend muss "Running" sein — also `tailscale up` schon einmal gelaufen.
+# Backend must be "Running" — i.e. `tailscale up` has been run at least once.
 if ! tailscale status --json 2>/dev/null | grep -q '"BackendState":"Running"'; then
     echo
-    c_yellow "    Tailscale läuft nicht / Mini-PC ist nicht im Tailnet."
-    c_yellow "    Starte Login-Flow — Du bekommst eine URL, die Du auf einem anderen"
-    c_yellow "    Gerät öffnest, das schon im Tailnet ist."
+    c_yellow "    Tailscale is not running / the host is not in the tailnet."
+    c_yellow "    Starting login flow — you will get a URL to open on another"
+    c_yellow "    device that is already in the tailnet."
     echo
     tailscale up --ssh
 fi
 
-# ---------------------------------------------------------------- URL ermitteln
-# Wir lesen den FQDN dieses Knotens aus dem tailscale-Status — das ist die URL,
-# die später für Funnel benutzt wird. Wenn MagicDNS aus ist oder der Tailnet
-# noch keinen Public-Namen hat, brechen wir mit klarer Anleitung ab.
-step "Tailnet-Konfiguration auslesen"
+# ---------------------------------------------------------------- Determine URL
+# Read this node's FQDN from the tailscale status — that's the URL used
+# for Funnel later. If MagicDNS is off or the tailnet has no public name
+# yet, we abort with a clear hint.
+step "Reading tailnet configuration"
 TS_FQDN="$(tailscale status --json 2>/dev/null | python3 -c '
 import json, sys
 try:
@@ -74,70 +74,70 @@ except Exception:
 ' 2>/dev/null)"
 
 if [[ -z "$TS_FQDN" ]] || [[ "$TS_FQDN" != *.ts.net ]]; then
-    c_red "    Kein Tailscale-FQDN auf diesem Knoten gefunden."
-    echo "    Stelle sicher dass im Tailnet-Admin MagicDNS aktiviert ist:"
+    c_red "    No Tailscale FQDN found on this node."
+    echo "    Make sure MagicDNS is enabled in the tailnet admin:"
     echo "        https://login.tailscale.com/admin/dns"
     exit 1
 fi
 c_green "    FQDN: $TS_FQDN"
 
-# ---------------------------------------------------------------- HTTPS-Cert
-step "HTTPS-Cert-Provisioning checken"
-# `tailscale cert` legt das Cert provisorisch an — falls die Tailnet-Feature
-# „HTTPS Certificates" noch nicht aktiviert ist, scheitert das hier mit einer
-# klaren Fehlermeldung. Wir machen einen leichtgewichtigen Probe-Lauf.
+# ---------------------------------------------------------------- HTTPS cert
+step "Checking HTTPS cert provisioning"
+# `tailscale cert` provisions the cert — if the tailnet feature
+# "HTTPS Certificates" is not yet enabled, this fails with a clear error
+# message. We do a lightweight probe run.
 if ! tailscale cert --cert-file=/tmp/tspc-probe.crt --key-file=/tmp/tspc-probe.key "$TS_FQDN" >/dev/null 2>&1; then
     rm -f /tmp/tspc-probe.crt /tmp/tspc-probe.key
-    c_yellow "    HTTPS-Cert-Provisioning ist (noch) nicht aktiviert."
+    c_yellow "    HTTPS cert provisioning is not (yet) enabled."
     echo
-    echo "    Aktiviere im Tailscale-Admin EINMALIG:"
+    echo "    Enable this ONCE in the Tailscale admin:"
     c_yellow "        https://login.tailscale.com/admin/dns"
-    echo "        → \"HTTPS Certificates\" → Enable"
+    echo "        -> \"HTTPS Certificates\" -> Enable"
     echo
-    read -rp "    Aktiviert? Drücke Enter zum Erneut-Probieren … " _
+    read -rp "    Enabled? Press Enter to retry... " _
     if ! tailscale cert --cert-file=/tmp/tspc-probe.crt --key-file=/tmp/tspc-probe.key "$TS_FQDN" >/dev/null 2>&1; then
-        c_red "    Klappt immer noch nicht — bitte HTTPS im Admin aktivieren und Skript erneut starten."
+        c_red "    Still not working — please enable HTTPS in the admin and re-run the script."
         exit 1
     fi
 fi
 rm -f /tmp/tspc-probe.crt /tmp/tspc-probe.key
-c_green "    HTTPS-Cert verfügbar."
+c_green "    HTTPS cert available."
 
-# ---------------------------------------------------------------- Funnel aktivieren
-step "Funnel auf Port 443 → localhost:$LOCAL_PORT"
-# Tailscale 1.96+ hat die funnel/serve-CLI vereinfacht — `funnel <target>`
-# erledigt beides (serve + public-machen) in einem Aufruf. Idempotent — vorhandene
-# Routes werden überschrieben, falls schon was da war.
+# ---------------------------------------------------------------- Enable Funnel
+step "Funnel on port 443 -> localhost:$LOCAL_PORT"
+# Tailscale 1.96+ simplified the funnel/serve CLI — `funnel <target>`
+# does both (serve + make public) in a single call. Idempotent — any existing
+# routes are overwritten.
 tailscale funnel reset 2>/dev/null || true
 tailscale serve reset 2>/dev/null || true
 
-# Funnel direkt aufs lokale Target schicken — kein separates `serve` mehr nötig.
+# Point Funnel directly at the local target — no separate `serve` needed.
 tailscale funnel --bg "http://localhost:$LOCAL_PORT"
 
-# ---------------------------------------------------------------- Verifikation
-step "Verifikation"
-# 1. Status-Output von Tailscale
+# ---------------------------------------------------------------- Verification
+step "Verification"
+# 1. Status output from Tailscale
 tailscale funnel status 2>&1 | sed 's/^/    /'
 
-# 2. Quick-Test: läuft der Pocket-Claude-Server lokal?
+# 2. Quick test: is the Pocket Claude server running locally?
 if curl -fsS --max-time 5 "http://localhost:$LOCAL_PORT/health" >/dev/null 2>&1; then
-    c_green "    ✓ Pocket Claude antwortet auf localhost:$LOCAL_PORT/health"
+    c_green "    ✓ Pocket Claude responds on localhost:$LOCAL_PORT/health"
 else
-    c_yellow "    ⚠ Pocket Claude antwortet NICHT auf localhost:$LOCAL_PORT — Funnel ist trotzdem aktiv."
-    c_yellow "      Prüfe:  systemctl status pocket-claude"
+    c_yellow "    ! Pocket Claude does NOT respond on localhost:$LOCAL_PORT — Funnel is still active."
+    c_yellow "      Check:  systemctl status pocket-claude"
 fi
 
 echo
 echo "============================================================"
-c_green "✅ Tailscale Funnel läuft."
+c_green "Tailscale Funnel is running."
 echo "============================================================"
 echo
-echo "Pocket Claude ist jetzt PERMANENT erreichbar unter:"
+echo "Pocket Claude is now PERMANENTLY reachable at:"
 c_green "  https://$TS_FQDN"
 echo
-echo "Diese URL überlebt jeden Reboot — in der Pocket-Claude-App eintragen."
+echo "This URL survives any reboot — enter it in the Pocket Claude app."
 echo
 echo "Status:       tailscale funnel status"
-echo "Abschalten:   tailscale funnel --https=443 off"
-echo "Wieder an:    tailscale funnel --bg 443 on"
+echo "Disable:      tailscale funnel --https=443 off"
+echo "Re-enable:    tailscale funnel --bg 443 on"
 echo
