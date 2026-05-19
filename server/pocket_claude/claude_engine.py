@@ -287,9 +287,12 @@ async def stream_reply(
             allowed_tools.append("Read")
         log.info("Skills enabled → allowed_tools: %s", allowed_tools)
 
-        # Sandbox-Cwd damit Claude Code (selbst wenn setting_sources Lecks hätte)
-        # KEINE Projekt-CLAUDE.md zieht.
-        sandbox_cwd = Path("/tmp/pocket-claude-sandbox")
+        # Sandbox cwd so Claude Code (even if setting_sources had leaks)
+        # doesn't pick up any project CLAUDE.md. We place it under the
+        # data directory because systemd's PrivateTmp=true would otherwise
+        # hide it from the subprocess — the data dir is explicitly granted
+        # ReadWritePaths in the service unit.
+        sandbox_cwd = settings.data_dir / "claude-sandbox"
         sandbox_cwd.mkdir(parents=True, exist_ok=True)
 
         # Effort-Level für Thinking via Env-Var an den Subprocess weitergeben.

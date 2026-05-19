@@ -34,16 +34,22 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=pocket-claude
 
-# Hardening — defense in depth
+# Hardening — defense in depth.
+#
+# NOTE: ProtectHome must stay OFF. The Claude CLI reads its OAuth credentials
+# from /home/<service-user>/.claude/.credentials.json. With ProtectHome=true,
+# that directory is masked for the service even when ReadWritePaths is also
+# set — ReadWritePaths only widens write permissions, it does NOT undo the
+# home-directory masking. Symptom: the service starts cleanly, the CLI spawns,
+# but the SDK's control_request:initialize handshake silently times out after
+# 60 s with no useful error. Confirmed empirically 2026-05-19.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 ReadWritePaths=@PROJECT_DIR@
-# Keep the service user's home writable (~/.claude/credentials.json)
 ReadWritePaths=/home/@SERVICE_USER@
 
 [Install]
