@@ -24,8 +24,8 @@ from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from pocket_claude import (
-    __version__, backup, billing, claude_engine, db, image_engine,
-    system_prompts, tts, tts_cache,
+    __version__, auth_modes, backup, billing, claude_engine, db, image_engine,
+    system_prompts, tts, tts_cache, usage,
 )
 from pocket_claude.auth import (
     require_admin,
@@ -39,6 +39,8 @@ from pocket_claude.models import (
     AttachmentOut,
     AttachmentRef,
     BillingStatusDto,
+    ClaudeAuthDto,
+    ClaudeAuthUpdateRequest,
     ConversationCreate,
     ConversationDetail,
     ConversationOut,
@@ -65,6 +67,7 @@ from pocket_claude.models import (
     TtsProviderRequest,
     TtsStatusDto,
     TtsVoiceDto,
+    UsageStatsDto,
 )
 
 log = logging.getLogger("pocket_claude")
@@ -77,6 +80,7 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
     await db.init_db()
+    await usage.ensure_schema()
     log.info("Pocket Claude Server v%s gestartet — DB: %s", __version__, settings.db_path)
     # TTS-Pre-Warm: Service-Account-JSON laden, OAuth-Token holen, gRPC-Channel
     # zu Google öffnen — spart 200-500ms beim ersten echten TTS-Tap.
@@ -330,6 +334,7 @@ async def send_message(cid: str, body: SendMessageRequest, user=Depends(require_
             effort=effort,
             system_prompt=system_prompt,
             skills=skills_dict,
+            user_id=user["id"],
         ):
             etype = ev.pop("type")
             if etype == "done":
@@ -2123,6 +2128,79 @@ async def auth_logout_all(user=Depends(require_user)):
     """Aus allen Sessions ausloggen (inkl. der aktuellen)."""
     await db.delete_sessions_for_user(user["id"])
     return JSONResponse(status_code=204, content=None)
+
+
+# ---------- Claude auth mode (Pro/Max | direct API | Bedrock) ----------
+
+@app.get("/me/claude-auth", response_model=ClaudeAuthDto)
+async def get_claude_auth(user=Depends(require_user)):
+    """Return the current user's Claude provider config (secrets masked)."""
+    kv = await db.kv_get_all(scope=user["id"])
+    return ClaudeAuthDto(
+        mode=kv.get(auth_modes.KV_MODE) or auth_modes.MODE_PRO_MAX,
+        api_key_masked=auth_modes.mask_secret(kv.get(auth_modes.KV_API_KEY)),
+        aws_region=kv.get(auth_modes.KV_AWS_REGION) or "",
+        aws_access_key_id_masked=auth_modes.mask_secret(kv.get(auth_modes.KV_AWS_ACCESS_KEY_ID)),
+        aws_secret_access_key_masked=auth_modes.mask_secret(kv.get(auth_modes.KV_AWS_SECRET_ACCESS_KEY)),
+        aws_session_token_masked=auth_modes.mask_secret(kv.get(auth_modes.KV_AWS_SESSION_TOKEN)),
+        bedrock_opus_model=kv.get(auth_modes.KV_BEDROCK_OPUS) or auth_modes.DEFAULT_BEDROCK_OPUS,
+        bedrock_sonnet_model=kv.get(auth_modes.KV_BEDROCK_SONNET) or auth_modes.DEFAULT_BEDROCK_SONNET,
+        bedrock_haiku_model=kv.get(auth_modes.KV_BEDROCK_HAIKU) or auth_modes.DEFAULT_BEDROCK_HAIKU,
+        bedrock_model_alias=kv.get(auth_modes.KV_BEDROCK_ALIAS) or auth_modes.DEFAULT_BEDROCK_ALIAS,
+        api_key_set=bool(kv.get(auth_modes.KV_API_KEY)),
+        aws_access_key_set=bool(kv.get(auth_modes.KV_AWS_ACCESS_KEY_ID)),
+        aws_secret_set=bool(kv.get(auth_modes.KV_AWS_SECRET_ACCESS_KEY)),
+    )
+
+
+@app.put("/me/claude-auth", response_model=ClaudeAuthDto)
+async def update_claude_auth(body: ClaudeAuthUpdateRequest, user=Depends(require_user)):
+    """Partial update. Setting a credential field to empty clears it."""
+    updates: dict[str, str] = {}
+
+    if body.mode is not None:
+        if body.mode not in auth_modes.VALID_MODES:
+            raise HTTPException(
+                400,
+                f"Invalid mode {body.mode!r}. Allowed: {sorted(auth_modes.VALID_MODES)}",
+            )
+        updates[auth_modes.KV_MODE] = body.mode
+
+    # Map of (incoming-field, kv-key). String fields: empty string clears.
+    field_map = (
+        ("api_key", auth_modes.KV_API_KEY),
+        ("aws_region", auth_modes.KV_AWS_REGION),
+        ("aws_access_key_id", auth_modes.KV_AWS_ACCESS_KEY_ID),
+        ("aws_secret_access_key", auth_modes.KV_AWS_SECRET_ACCESS_KEY),
+        ("aws_session_token", auth_modes.KV_AWS_SESSION_TOKEN),
+        ("bedrock_opus_model", auth_modes.KV_BEDROCK_OPUS),
+        ("bedrock_sonnet_model", auth_modes.KV_BEDROCK_SONNET),
+        ("bedrock_haiku_model", auth_modes.KV_BEDROCK_HAIKU),
+        ("bedrock_model_alias", auth_modes.KV_BEDROCK_ALIAS),
+    )
+    for attr, kv_key in field_map:
+        val = getattr(body, attr)
+        if val is None:
+            continue
+        # Empty string = clear. Strip whitespace to avoid leading/trailing
+        # spaces on copied credentials.
+        updates[kv_key] = val.strip()
+
+    if updates:
+        await db.kv_set_many(updates, scope=user["id"])
+
+    return await get_claude_auth(user=user)
+
+
+# ---------- Token usage ----------
+
+@app.get("/me/usage", response_model=UsageStatsDto)
+async def get_my_usage(period: str = "month", user=Depends(require_user)):
+    """Aggregated per-user token usage. `period` = 'month' (default) or 'all'."""
+    if period not in ("month", "all"):
+        raise HTTPException(400, "period must be 'month' or 'all'")
+    stats = await usage.stats_for(user["id"], period=period)
+    return UsageStatsDto(**stats)
 
 
 # ---------- Admin: User-CRUD ----------

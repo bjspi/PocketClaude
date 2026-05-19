@@ -326,3 +326,64 @@ class SearchHitOut(BaseModel):
 class SearchResponseOut(BaseModel):
     query: str
     hits: list[SearchHitOut]
+
+
+# ─── Auth modes (Pro/Max | direct API | Bedrock) ─────────────────────────────
+
+class ClaudeAuthDto(BaseModel):
+    """Per-user Claude-provider configuration.
+
+    Secrets come back masked (last 4 chars visible) — never plaintext. Set
+    a field to empty string in the PUT request to clear it.
+    """
+    mode: str  # "pro_max" | "api_key" | "bedrock"
+    api_key_masked: str = ""
+    aws_region: str = ""
+    aws_access_key_id_masked: str = ""
+    aws_secret_access_key_masked: str = ""
+    aws_session_token_masked: str = ""
+    bedrock_opus_model: str = ""
+    bedrock_sonnet_model: str = ""
+    bedrock_haiku_model: str = ""
+    bedrock_model_alias: str = "opus"
+    # Booleans for "is this set?" — lets the UI show a green check without
+    # ever needing to reveal the value
+    api_key_set: bool = False
+    aws_access_key_set: bool = False
+    aws_secret_set: bool = False
+
+
+class ClaudeAuthUpdateRequest(BaseModel):
+    """Partial-update payload. Any field set to None is left untouched.
+    Setting a credential field to empty string clears it."""
+    mode: str | None = None
+    api_key: str | None = None
+    aws_region: str | None = None
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    aws_session_token: str | None = None
+    bedrock_opus_model: str | None = None
+    bedrock_sonnet_model: str | None = None
+    bedrock_haiku_model: str | None = None
+    bedrock_model_alias: str | None = None
+
+
+# ─── Usage tracking ──────────────────────────────────────────────────────────
+
+class UsageStatsDto(BaseModel):
+    """Aggregated token usage for the current user.
+
+    `period`: "month" (calendar month, billing-month equivalent) or "all".
+    Always returns 0s for Pro/Max users — their usage doesn't bill per-token,
+    so we don't bother counting.
+    """
+    period: str
+    period_start: str  # ISO date
+    period_end: str    # ISO date
+    input_tokens: int
+    output_tokens: int
+    cache_create_tokens: int
+    cache_read_tokens: int
+    request_count: int
+    # Coarse provider attribution: "anthropic" | "bedrock" | "pro_max" | "mixed"
+    provider: str

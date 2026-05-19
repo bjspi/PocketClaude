@@ -14,5 +14,5 @@ edge-tts>=6.1,<7.0
 # AES-encrypted ZIPs (backup export/import with password).
 # Drop-in for stdlib zipfile; without a password it behaves like zipfile.
 pyzipper>=0.3,<1.0
-claude-agent-sdk>=0.1.81,<0.2
+claude-agent-sdk>=0.2.82,<1.0
 anthropic>=0.40,<1.0

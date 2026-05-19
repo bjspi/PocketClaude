@@ -39,7 +39,7 @@ from claude_agent_sdk import (
     query,
 )
 
-from pocket_claude import db
+from pocket_claude import auth_modes, db, usage
 from pocket_claude.config import settings
 
 log = logging.getLogger(__name__)
@@ -224,12 +224,17 @@ async def stream_reply(
     effort: str = "high",
     system_prompt: str | None = None,
     skills: dict | None = None,
+    user_id: int | None = None,
 ) -> AsyncIterator[dict]:
     """Yieldet SSE-kompatible Events:
       - {"type": "delta", "text": "..."}
       - {"type": "done", "assistant_message_id": int, "tokens_in": int,
          "tokens_out": int, "tokens_cached_read": int, "tokens_cached_write": int}
       - {"type": "error", "message": str}
+
+    `user_id` enables per-user auth-mode resolution (Pro/Max OAuth vs.
+    direct API key vs. AWS Bedrock). When None, falls back to the operator's
+    `claude login` session (Pro/Max).
     """
     # Defensiv vor-initialisieren — falls eine frühe Exception (DB-Lookup-
     # Fehler etc.) in den `except ProcessError`-Branch fällt, wo wir
@@ -267,7 +272,17 @@ async def stream_reply(
         if sk.get("web_fetch", True):
             allowed_tools.append("WebFetch")
         if sk.get("code_execution", False):
-            allowed_tools.append("Bash")
+            # Server-side veto: even if the client requested Bash, drop it
+            # unless the operator explicitly opted in via ALLOW_BASH=1 in
+            # .env. Without this, any app user could run arbitrary commands
+            # as the pocket-claude system user.
+            if settings.allow_bash:
+                allowed_tools.append("Bash")
+            else:
+                log.warning(
+                    "Bash requested by client but blocked by server policy "
+                    "(ALLOW_BASH=false). Set ALLOW_BASH=1 in .env to enable."
+                )
         if need_read_tool:
             allowed_tools.append("Read")
         log.info("Skills enabled → allowed_tools: %s", allowed_tools)
@@ -293,6 +308,18 @@ async def stream_reply(
         elif eff and eff != "off":
             log.warning("Unbekanntes effort=%r, ignoriert", effort)
 
+        # Multi-provider auth: load the user's configured auth mode and inject
+        # the right env vars (ANTHROPIC_API_KEY for direct-API mode, or
+        # CLAUDE_CODE_USE_BEDROCK=1 + AWS creds for Bedrock). Pro/Max OAuth is
+        # the default and needs no extra env.
+        model_override: str | None = None
+        if user_id is not None:
+            provider_env, model_override = await auth_modes.build_provider_env(user_id)
+            if provider_env:
+                engine_env.update(provider_env)
+                mode = await auth_modes.get_mode(user_id)
+                log.info("Auth-mode=%s, %d env override(s)", mode, len(provider_env))
+
         # System-Prompt: kommt von der App; Fallback ist unser kurzer Default.
         sp = (system_prompt or "").strip() or SYSTEM_PROMPT
         log.info(
@@ -301,6 +328,18 @@ async def stream_reply(
             len(sp),
         )
 
+        # For Bedrock mode the user pinned a specific Bedrock model ID
+        # (`us.anthropic.claude-opus-4-7` etc.) — pass it as the explicit
+        # model. Otherwise stick with the server-default (`claude-opus-4-7[1m]`
+        # for Pro/Max + API-key modes, which both speak the same model namespace).
+        effective_model = model_override or (settings.claude_model or None)
+
+        # Permission mode: bypassPermissions skips per-tool prompts, which is
+        # what we want for the read-only tools (WebSearch / WebFetch / Read).
+        # The only way "destructive" tools reach this point is if the operator
+        # set ALLOW_BASH=1 AND the user opted in per-chat — at that point the
+        # operator has accepted the risk explicitly, so we still bypass to
+        # avoid hanging on prompts the headless mode can't answer.
         options_kwargs: dict = dict(
             system_prompt=sp,
             allowed_tools=allowed_tools,
@@ -308,9 +347,9 @@ async def stream_reply(
             cwd=str(sandbox_cwd),
             include_partial_messages=True,
             resume=session_id,
-            model=settings.claude_model or None,
-            setting_sources=[],  # keine CLAUDE.md o.ä. laden
-            env=engine_env,       # Effort-Level zum Subprocess durchreichen
+            model=effective_model,
+            setting_sources=[],
+            env=engine_env,
         )
         # cli_path: global installiertes `claude` (Dein Login + Sessions) statt SDK-Bundle
         resolved_cli = settings.claude_binary or shutil.which("claude")
@@ -430,6 +469,24 @@ async def stream_reply(
             tokens=current_context,
         )
         await db.set_total_tokens(cid, current_context)
+
+        # Persist this turn's token usage if we have a user. Pro/Max calls
+        # still flow through here so the operator can see the same chart for
+        # all three modes — the UI just labels "pro_max" vs "billed" usage.
+        if user_id is not None:
+            try:
+                mode = await auth_modes.get_mode(user_id)
+                await usage.record(
+                    user_id=user_id,
+                    provider=mode,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cache_create=cache_write,
+                    cache_read=cache_read,
+                )
+            except Exception as e:  # noqa: BLE001
+                # Usage tracking must never break the user's chat reply.
+                log.warning("usage.record failed: %s", e)
 
         yield {
             "type": "done",

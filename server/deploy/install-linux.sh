@@ -24,7 +24,7 @@ set -euo pipefail
 INSTALL_DIR="${INSTALL_DIR:-/opt/pocket-claude}"
 SERVICE_USER="${SERVICE_USER:-pocket-claude}"
 SERVICE_NAME="pocket-claude"
-REPO_URL="${REPO_URL:-https://github.com/joshtech90/PocketClaude-Server.git}"
+REPO_URL="${REPO_URL:-https://github.com/joshtech90/PocketClaude.git}"
 
 # Source directory: either the repo where the script lives (dev path), or
 # a fresh clone from GitHub (fresh-install path).
@@ -66,6 +66,20 @@ if ! $is_debian && ! $is_redhat; then
     is_debian=true
 fi
 
+# ---------------------------------------------------------------- Pre-check: is `claude` already usable?
+# If the operator already has a working Claude CLI on PATH (very common —
+# many users install it manually before running our installer), we can skip
+# the whole Node + npm dance below. Saves install time and avoids version
+# collisions with whatever Node version they're already running.
+claude_already_present=false
+if command -v claude >/dev/null 2>&1; then
+    if claude_version_output="$(claude --version 2>&1)" && [[ -n "$claude_version_output" ]]; then
+        claude_already_present=true
+        c_green "Detected existing Claude CLI: $claude_version_output"
+        c_green "Skipping Node.js + npm + claude-cli install."
+    fi
+fi
+
 # ---------------------------------------------------------------- System packages
 step "Installing system packages"
 if $is_debian; then
@@ -73,35 +87,42 @@ if $is_debian; then
     apt-get install -y --no-install-recommends \
         python3 python3-venv python3-pip \
         curl ca-certificates git
-    # nodejs/npm separately: if a version is already installed (e.g. via
-    # NodeSource), don't overwrite — the NodeSource packages already bundle
-    # `npm`, an additional `apt install npm` would collide.
-    if ! command -v node >/dev/null 2>&1; then
-        apt-get install -y --no-install-recommends nodejs npm
-    elif ! command -v npm >/dev/null 2>&1; then
-        # nodejs without npm (unusual but possible) → install npm
-        apt-get install -y --no-install-recommends npm
+    if ! $claude_already_present; then
+        # nodejs/npm separately: if a version is already installed (e.g. via
+        # NodeSource), don't overwrite — the NodeSource packages already bundle
+        # `npm`, an additional `apt install npm` would collide.
+        if ! command -v node >/dev/null 2>&1; then
+            apt-get install -y --no-install-recommends nodejs npm
+        elif ! command -v npm >/dev/null 2>&1; then
+            apt-get install -y --no-install-recommends npm
+        fi
     fi
 elif $is_redhat; then
     dnf install -y python3 python3-pip python3-virtualenv \
         curl ca-certificates git
-    if ! command -v node >/dev/null 2>&1; then
-        dnf install -y nodejs npm
-    elif ! command -v npm >/dev/null 2>&1; then
-        dnf install -y npm
+    if ! $claude_already_present; then
+        if ! command -v node >/dev/null 2>&1; then
+            dnf install -y nodejs npm
+        elif ! command -v npm >/dev/null 2>&1; then
+            dnf install -y npm
+        fi
     fi
 fi
 
-# Check Node version — claude CLI requires >= 18
-node_major="$(node -v 2>/dev/null | sed 's/^v//;s/\..*//' || echo 0)"
-if [[ "$node_major" -lt 18 ]]; then
-    c_yellow "Node $node_major is too old (claude CLI requires >=18). Installing NodeSource Node 20..."
-    if $is_debian; then
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-        apt-get install -y nodejs
-    else
-        curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
-        dnf install -y nodejs
+# Check Node version — claude CLI requires >= 18. Only relevant if we're going
+# to install the CLI ourselves; if claude is already on PATH, the operator's
+# existing Node setup is by definition fine.
+if ! $claude_already_present; then
+    node_major="$(node -v 2>/dev/null | sed 's/^v//;s/\..*//' || echo 0)"
+    if [[ "$node_major" -lt 18 ]]; then
+        c_yellow "Node $node_major is too old (claude CLI requires >=18). Installing NodeSource Node 20..."
+        if $is_debian; then
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+            apt-get install -y nodejs
+        else
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+            dnf install -y nodejs
+        fi
     fi
 fi
 
@@ -159,12 +180,27 @@ sudo -u "$SERVICE_USER" "$INSTALL_DIR/.venv/bin/pip" install --quiet -r "$INSTAL
 c_green "    Dependencies installed."
 
 # ---------------------------------------------------------------- Claude CLI
-step "Claude CLI (npm install -g @anthropic-ai/claude-code)"
-if ! command -v claude >/dev/null 2>&1; then
+step "Claude CLI"
+if $claude_already_present; then
+    c_green "    Re-using existing Claude CLI at $(command -v claude)"
+    c_green "    Version: $claude_version_output"
+elif command -v claude >/dev/null 2>&1; then
+    # Could only happen if claude appeared on PATH between the pre-check and
+    # here (very unlikely). Still: don't reinstall.
+    c_green "    Claude CLI already present ($(claude --version 2>&1 | head -1))."
+else
     npm install -g @anthropic-ai/claude-code
     c_green "    Claude CLI installed."
-else
-    c_green "    Claude CLI already present ($(claude --version 2>&1 | head -1))."
+fi
+
+# Verify the service user can actually run `claude`. The npm-global path
+# (/usr/local/bin) is usually on the service user's PATH, but if the operator
+# installed Claude into ~/.npm-global or a non-standard prefix, the service
+# user won't see it. Surface this immediately rather than at first request.
+if ! sudo -u "$SERVICE_USER" -H bash -lc 'command -v claude' >/dev/null 2>&1; then
+    c_yellow "Note: 'claude' is on the root PATH but not on the service user's PATH."
+    c_yellow "Either move the binary to /usr/local/bin, or set CLAUDE_BINARY in $INSTALL_DIR/.env"
+    c_yellow "to its absolute path (e.g. CLAUDE_BINARY=$(command -v claude))."
 fi
 
 # ---------------------------------------------------------------- .env

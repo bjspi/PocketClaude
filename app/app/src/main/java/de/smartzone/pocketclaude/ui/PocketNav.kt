@@ -31,6 +31,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.launch
 import de.smartzone.pocketclaude.data.AppContainer
 import de.smartzone.pocketclaude.ui.chat.ChatScreen
 import de.smartzone.pocketclaude.ui.chat.ChatViewModel
@@ -53,6 +54,7 @@ object Routes {
 @Composable
 fun PocketNav(container: AppContainer, initialChatCid: String? = null) {
     val nav = rememberNavController()
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     // Re-Open mit cid aus Notification, App war bereits geladen: zum Ziel-Chat
     // navigieren statt am Launch hängen zu bleiben.
@@ -122,11 +124,17 @@ fun PocketNav(container: AppContainer, initialChatCid: String? = null) {
                 onOpenConversations = { nav.navigate(Routes.CONVERSATIONS) },
                 onOpenImages = { nav.navigate(Routes.IMAGES) },
                 onNewChat = {
-                    // Über LAUNCH gehen — der legt einen frischen Chat an.
-                    // Den aktuellen Chat aus dem Backstack popen.
-                    nav.navigate(Routes.LAUNCH) {
-                        popUpTo(Routes.CHAT) { inclusive = true }
-                        launchSingleTop = true
+                    // Create a fresh chat directly. Going through LAUNCH would
+                    // hit the process-death-restore path which navigates back
+                    // to the last chat — wrong for an explicit "New chat" tap.
+                    coroutineScope.launch {
+                        runCatching { container.chatRepository.create() }
+                            .onSuccess { fresh ->
+                                nav.navigate(Routes.chat(fresh.id)) {
+                                    popUpTo(Routes.CHAT) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
                     }
                 },
                 onSwitchChat = { newCid ->

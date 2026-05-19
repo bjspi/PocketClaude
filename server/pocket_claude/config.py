@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Security: allow the per-chat "Bash" skill at all? Off by default — an
+    # app user would otherwise be able to execute arbitrary commands on the
+    # host as the `pocket-claude` system user. Operators who explicitly want
+    # Bash set ALLOW_BASH=1 in .env.
+    allow_bash: bool = False
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "pocket_claude.db"
