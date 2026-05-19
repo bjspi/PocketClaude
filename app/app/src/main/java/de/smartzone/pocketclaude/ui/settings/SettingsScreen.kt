@@ -979,12 +979,12 @@ private fun SubsectionLabel(text: String) {
 @Composable
 private fun EffortChips(selected: String, onSelect: (String) -> Unit) {
     val options = listOf(
-        "off" to "Aus",
-        "low" to "Niedrig",
-        "medium" to "Mittel",
-        "high" to "Hoch",
-        "xhigh" to "Sehr hoch",
-        "max" to "Maximum",
+        "off" to stringResource(de.smartzone.pocketclaude.R.string.effort_off),
+        "low" to stringResource(de.smartzone.pocketclaude.R.string.effort_low),
+        "medium" to stringResource(de.smartzone.pocketclaude.R.string.effort_medium),
+        "high" to stringResource(de.smartzone.pocketclaude.R.string.effort_high),
+        "xhigh" to stringResource(de.smartzone.pocketclaude.R.string.effort_xhigh),
+        "max" to stringResource(de.smartzone.pocketclaude.R.string.effort_max),
     )
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),

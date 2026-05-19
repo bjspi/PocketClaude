@@ -1747,6 +1747,9 @@
           ? String(args[i]) : '';
       });
     }
+    // Collapse the printf-escape `%%` to a literal `%` (must run AFTER
+    // positional substitution above, otherwise we'd eat `%1` etc.).
+    str = str.replace(/%%/g, '%');
     return str;
   }
 

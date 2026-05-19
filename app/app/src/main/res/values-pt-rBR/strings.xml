@@ -17,6 +17,7 @@
     <string name="action_more">Mais</string>
     <string name="action_retry">Tentar novamente</string>
     <string name="action_yes">Sim</string>
+    <string name="action_got_it">Entendi</string>
     <string name="action_no">Não</string>
 
     <!-- ─── Screens / navigation titles ───────────────────────────────── -->
@@ -492,7 +493,7 @@
     <string name="settings_section_profile_card_title">Perfil &amp; servidor</string>
     <string name="settings_section_claude_card_title">Claude</string>
     <string name="settings_tts_section_edge_body">Vozes de leitura do Microsoft Edge, totalmente gratuito — sem chave de API, sem conta de serviço. Qualidade inferior ao Gemini/Chirp, mas adequada para leitura rápida.</string>
-    <string name="settings_tts_section_cloud_body">Suave para a cota diária. Ative o chunking abaixo,</string>
+    <string name="settings_tts_section_cloud_body">Suave para a cota mensal gratuita. Ative o chunking abaixo para paralelizar trechos longos e manter a latência razoável.</string>
     <string name="settings_tts_section_paragraph_chunking_help">Se uma resposta longa responder lentamente: tente ativar o chunking (abaixo) — ele reduz bastante o &quot;tempo até o primeiro áudio&quot; no Cloud TTS.</string>
     <string name="settings_tts_section_paragraph_pool_fast">O Free Tier por chave acaba rapidamente. Adicione mais chaves abaixo para mais throughput.</string>
     <string name="settings_tts_auto_default_on">Padrão automático: LIGADO (para %1$s).</string>

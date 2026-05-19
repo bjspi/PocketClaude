@@ -446,6 +446,21 @@ async def set_claude_session_id(cid: str, session_id: str) -> None:
         await db.commit()
 
 
+async def clear_user_session_ids(user_id: str) -> int:
+    """Drop the cached CLI session ID for every conversation owned by the
+    user. Used when the user switches Claude auth modes (the cached session
+    belongs to the previous provider and can't be resumed). Returns the
+    number of rows affected."""
+    async with get_db() as db:
+        cur = await db.execute(
+            "UPDATE conversations SET claude_session_id = NULL "
+            "WHERE user_id = ? AND claude_session_id IS NOT NULL",
+            (user_id,),
+        )
+        await db.commit()
+        return cur.rowcount or 0
+
+
 async def set_conversation_skills_override(
     cid: str, override_json: str | None, user_id: str | None = None,
 ) -> bool:

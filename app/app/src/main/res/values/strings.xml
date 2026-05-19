@@ -18,6 +18,7 @@
     <string name="action_retry">Retry</string>
     <string name="action_yes">Yes</string>
     <string name="action_no">No</string>
+    <string name="action_got_it">Got it</string>
 
     <!-- ─── Screens / navigation titles ───────────────────────────────── -->
     <string name="title_chat">Chat</string>
@@ -492,7 +493,7 @@
     <string name="settings_section_profile_card_title">Profile &amp; server</string>
     <string name="settings_section_claude_card_title">Claude</string>
     <string name="settings_tts_section_edge_body">Microsoft Edge reading voices, completely free — no API key, no service account. Quality weaker than Gemini/Chirp but fine for quick reading.</string>
-    <string name="settings_tts_section_cloud_body">Schonend fürs Tageskontingent. Chunking unten anschalten,</string>
+    <string name="settings_tts_section_cloud_body">Easy on the monthly free quota. Enable chunking below to parallelize long passages and keep latency reasonable.</string>
     <string name="settings_tts_section_paragraph_chunking_help">If a long answer responds slowly: try enabling chunking (below) — it brings the &quot;time to first audio&quot; down a lot on Cloud TTS.</string>
     <string name="settings_tts_section_paragraph_pool_fast">Free Tier per key runs out quickly. Add more keys below for more throughput.</string>
     <string name="settings_tts_auto_default_on">Auto-default: ON (for %1$s).</string>

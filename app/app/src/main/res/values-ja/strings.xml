@@ -17,6 +17,7 @@
     <string name="action_more">その他</string>
     <string name="action_retry">再試行</string>
     <string name="action_yes">はい</string>
+    <string name="action_got_it">了解</string>
     <string name="action_no">いいえ</string>
 
     <!-- ─── Screens / navigation titles ───────────────────────────────── -->
@@ -492,7 +493,7 @@
     <string name="settings_section_profile_card_title">プロファイル &amp; サーバー</string>
     <string name="settings_section_claude_card_title">Claude</string>
     <string name="settings_tts_section_edge_body">Microsoft Edgeの読み上げ音声、完全無料 — APIキーもサービスアカウントも不要。品質はGemini/Chirpより劣りますが、簡単な読み上げには十分です。</string>
-    <string name="settings_tts_section_cloud_body">1日あたりの枠を節約します。下でチャンク化を有効にして、</string>
+    <string name="settings_tts_section_cloud_body">毎月の無料枠にやさしいプロバイダーです。下でチャンク化を有効にすると、長い文章を並列処理してレイテンシを抑えられます。</string>
     <string name="settings_tts_section_paragraph_chunking_help">長い回答の応答が遅い場合: チャンク化（下記）を有効にしてみてください — Cloud TTSでは「最初の音声までの時間」が大幅に短縮されます。</string>
     <string name="settings_tts_section_paragraph_pool_fast">キーごとの無料枠はすぐに枯渇します。スループットを上げるには、下にキーを追加してください。</string>
     <string name="settings_tts_auto_default_on">自動デフォルト: オン（%1$sの場合）。</string>

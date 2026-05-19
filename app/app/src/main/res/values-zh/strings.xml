@@ -17,6 +17,7 @@
     <string name="action_more">更多</string>
     <string name="action_retry">重试</string>
     <string name="action_yes">是</string>
+    <string name="action_got_it">知道了</string>
     <string name="action_no">否</string>
 
     <!-- ─── Screens / navigation titles ───────────────────────────────── -->
@@ -492,7 +493,7 @@
     <string name="settings_section_profile_card_title">配置 &amp; 服务器</string>
     <string name="settings_section_claude_card_title">Claude</string>
     <string name="settings_tts_section_edge_body">Microsoft Edge 朗读语音,完全免费 — 无需 API 密钥,无需服务账户。质量比 Gemini/Chirp 弱,但满足快速阅读需求。</string>
-    <string name="settings_tts_section_cloud_body">节省每日配额。在下方开启分块,</string>
+    <string name="settings_tts_section_cloud_body">节省每月免费额度。在下方开启分块以并行处理长段落,保持合理延迟。</string>
     <string name="settings_tts_section_paragraph_chunking_help">如果长回复响应较慢:尝试启用分块(下方)— 在 Cloud TTS 上可大幅降低&quot;首段音频时间&quot;。</string>
     <string name="settings_tts_section_paragraph_pool_fast">每个密钥的免费档很快用完。在下方添加更多密钥以获得更高吞吐量。</string>
     <string name="settings_tts_auto_default_on">自动默认:开启(对应 %1$s)。</string>

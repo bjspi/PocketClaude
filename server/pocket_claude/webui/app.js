@@ -1446,7 +1446,10 @@ function toggleTts(messageId, btn) {
 // =========================================================
 // Settings-Modal
 // =========================================================
-els.settingsBtn.addEventListener('click', openSettings);
+// Late-bind so the addEventListener picks up the openSettings reassignment
+// further down the file (which extends the modal-open with user-list +
+// image-key + auth + usage loaders).
+els.settingsBtn.addEventListener('click', () => openSettings());
 els.settingsClose.addEventListener('click', () => els.settingsModal.classList.add('hidden'));
 els.settingsModal.addEventListener('click', (e) => {
   if (e.target === els.settingsModal) els.settingsModal.classList.add('hidden');
@@ -1994,7 +1997,7 @@ if (imgKeyDelete) imgKeyDelete.addEventListener('click', async () => {
         await putClaudeAuth({ mode: el.value });
         await loadClaudeAuth();
       } catch (e) {
-        $('claude-auth-status').textContent = `Error: ${e.message}`;
+        $('claude-auth-status').textContent = t('toast_error_prefix', e.message);
       }
     });
   });
@@ -2010,7 +2013,7 @@ if (imgKeyDelete) imgKeyDelete.addEventListener('click', async () => {
         $('claude-auth-status').textContent = t('saved');
         await loadClaudeAuth();
       } catch (e) {
-        $('claude-auth-status').textContent = `Error: ${e.message}`;
+        $('claude-auth-status').textContent = t('toast_error_prefix', e.message);
       }
     });
   }
@@ -2021,7 +2024,7 @@ if (imgKeyDelete) imgKeyDelete.addEventListener('click', async () => {
         await putClaudeAuth({ api_key: '' });
         await loadClaudeAuth();
       } catch (e) {
-        $('claude-auth-status').textContent = `Error: ${e.message}`;
+        $('claude-auth-status').textContent = t('toast_error_prefix', e.message);
       }
     });
   }
@@ -2050,14 +2053,14 @@ if (imgKeyDelete) imgKeyDelete.addEventListener('click', async () => {
         $('claude-auth-status').textContent = t('saved');
         await loadClaudeAuth();
       } catch (e) {
-        $('claude-auth-status').textContent = `Error: ${e.message}`;
+        $('claude-auth-status').textContent = t('toast_error_prefix', e.message);
       }
     });
   }
   document.querySelectorAll('input[name="bedrock-alias"]').forEach((el) => {
     el.addEventListener('change', async () => {
       try { await putClaudeAuth({ bedrock_model_alias: el.value }); await loadClaudeAuth(); }
-      catch (e) { $('claude-auth-status').textContent = `Error: ${e.message}`; }
+      catch (e) { $('claude-auth-status').textContent = t('toast_error_prefix', e.message); }
     });
   });
 
@@ -2095,11 +2098,24 @@ if (imgKeyDelete) imgKeyDelete.addEventListener('click', async () => {
     $('usage-refresh').addEventListener('click', loadUsage);
   }
 
-  // Trigger initial loads when the settings modal is opened
+  // Trigger initial loads when the settings modal is opened. No setTimeout
+  // needed — the modal is already in the DOM, openSettings just toggles
+  // the .hidden class, so we can fetch immediately.
   const settingsBtn = $('settings-btn');
   if (settingsBtn) {
     settingsBtn.addEventListener('click', () => {
-      setTimeout(() => { loadClaudeAuth(); loadUsage(); }, 100);
+      loadClaudeAuth();
+      loadUsage();
+    });
+  }
+
+  // Also clear stale status text whenever the modal closes — keeps users
+  // from seeing yesterday's "Error: …" the next time they reopen settings.
+  const settingsClose = $('settings-close');
+  if (settingsClose) {
+    settingsClose.addEventListener('click', () => {
+      const s = $('claude-auth-status');
+      if (s) s.textContent = '';
     });
   }
 })();

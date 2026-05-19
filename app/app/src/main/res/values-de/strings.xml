@@ -17,6 +17,7 @@
     <string name="action_more">Mehr</string>
     <string name="action_retry">Erneut versuchen</string>
     <string name="action_yes">Ja</string>
+    <string name="action_got_it">Verstanden</string>
     <string name="action_no">Nein</string>
 
     <!-- ─── Screens / navigation titles ───────────────────────────────── -->
@@ -492,7 +493,7 @@
     <string name="settings_section_profile_card_title">Profil &amp; Server</string>
     <string name="settings_section_claude_card_title">Claude</string>
     <string name="settings_tts_section_edge_body">Vorlese-Stimmen von Microsoft Edge, komplett kostenlos — kein API-Key, kein Service-Account. Qualität schwächer als Gemini/Chirp, aber gut zum schnellen Vorlesen.</string>
-    <string name="settings_tts_section_cloud_body">Schonend fürs Tageskontingent. Chunking unten anschalten,</string>
+    <string name="settings_tts_section_cloud_body">Schonend fürs monatliche Freikontingent. Chunking unten aktivieren, um lange Passagen zu parallelisieren und die Latenz im Rahmen zu halten.</string>
     <string name="settings_tts_section_paragraph_chunking_help">Wenn eine lange Antwort langsam vorgelesen wird: probier Chunking zu aktivieren (unten) — bei Cloud TTS senkt das die &quot;Time to first audio&quot; deutlich.</string>
     <string name="settings_tts_section_paragraph_pool_fast">Free Tier pro Key ist schnell aufgebraucht. Unten weitere Keys hinzufügen, um den Durchsatz zu erhöhen.</string>
     <string name="settings_tts_auto_default_on">Auto-Default: AN (für %1$s).</string>

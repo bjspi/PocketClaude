@@ -2157,6 +2157,7 @@ async def get_claude_auth(user=Depends(require_user)):
 async def update_claude_auth(body: ClaudeAuthUpdateRequest, user=Depends(require_user)):
     """Partial update. Setting a credential field to empty clears it."""
     updates: dict[str, str] = {}
+    mode_changed = False
 
     if body.mode is not None:
         if body.mode not in auth_modes.VALID_MODES:
@@ -2164,7 +2165,41 @@ async def update_claude_auth(body: ClaudeAuthUpdateRequest, user=Depends(require
                 400,
                 f"Invalid mode {body.mode!r}. Allowed: {sorted(auth_modes.VALID_MODES)}",
             )
+        # Detect whether this is a real switch — if so, we need to drop the
+        # cached CLI session IDs of existing conversations so they don't try
+        # to resume a session that belonged to the previous provider.
+        prior_mode = await auth_modes.get_mode(user["id"])
+        if body.mode != prior_mode:
+            mode_changed = True
         updates[auth_modes.KV_MODE] = body.mode
+
+    if body.bedrock_model_alias is not None:
+        v = body.bedrock_model_alias.strip().lower()
+        if v and v not in ("opus", "sonnet", "haiku"):
+            raise HTTPException(
+                400,
+                f"Invalid bedrock_model_alias {body.bedrock_model_alias!r}. "
+                f"Allowed: opus, sonnet, haiku",
+            )
+
+    # Pre-flight: switching to bedrock without AWS credentials is a recipe
+    # for opaque downstream errors. Reject it eagerly with a clear message.
+    if body.mode == "bedrock":
+        kv = await db.kv_get_all(scope=user["id"])
+        has_akid = bool(
+            (body.aws_access_key_id and body.aws_access_key_id.strip())
+            or kv.get(auth_modes.KV_AWS_ACCESS_KEY_ID)
+        )
+        has_secret = bool(
+            (body.aws_secret_access_key and body.aws_secret_access_key.strip())
+            or kv.get(auth_modes.KV_AWS_SECRET_ACCESS_KEY)
+        )
+        if not (has_akid and has_secret):
+            raise HTTPException(
+                400,
+                "Bedrock mode requires AWS credentials. Set aws_access_key_id + "
+                "aws_secret_access_key first (or include them in this request).",
+            )
 
     # Map of (incoming-field, kv-key). String fields: empty string clears.
     field_map = (
@@ -2188,6 +2223,13 @@ async def update_claude_auth(body: ClaudeAuthUpdateRequest, user=Depends(require
 
     if updates:
         await db.kv_set_many(updates, scope=user["id"])
+
+    # When the user actually switches modes, invalidate cached CLI session
+    # IDs across their conversations — resuming a previous mode's session
+    # will reliably fail and the user would have to send their next message
+    # twice. Better to start fresh sessions automatically.
+    if mode_changed:
+        await db.clear_user_session_ids(user["id"])
 
     return await get_claude_auth(user=user)
 

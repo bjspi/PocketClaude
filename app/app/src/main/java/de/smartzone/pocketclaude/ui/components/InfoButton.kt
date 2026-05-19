@@ -1,6 +1,7 @@
 package de.smartzone.pocketclaude.ui.components
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -72,7 +73,9 @@ fun InfoButton(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { open = false }) { Text("Verstanden") }
+                TextButton(onClick = { open = false }) {
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.action_got_it))
+                }
             },
         )
     }
