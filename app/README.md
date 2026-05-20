@@ -4,6 +4,16 @@ Native Android client for [Pocket Claude](../README.md). Kotlin + Jetpack Compos
 
 For project overview, architecture, and quickstart, see the [top-level README](../README.md).
 
+## What's inside
+
+- **First-run sign-in card** — when no profile exists, the Settings screen renders an inline Server URL + Username + Password form directly. No detour through a separate "+ Add profile" dialog.
+- **Multi-profile management** — once at least one profile exists, switch between server accounts, rename, delete, re-login.
+- **Per-user Claude backend** — pick **Pro/Max OAuth**, **Anthropic API key**, or **AWS Bedrock** under **Settings → Claude connection**. Switching modes invalidates cached CLI sessions across your conversations automatically.
+- **Token-usage widget** — this-month aggregate of input/output/cache tokens under **Settings → Token usage**. Useful for the API-key + Bedrock paths.
+- **7 languages** — language picker under **Settings → Appearance → Language**.
+- **Lock-screen audio controls** via Media3 ExoPlayer + MediaSession for the TTS read-aloud feature.
+- **In-chat search** with spring-to-match, native text selection, copy button on both assistant and user bubbles, ChatGPT-style collapse for long messages.
+
 ## Layout
 
 ```

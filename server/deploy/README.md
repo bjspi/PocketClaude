@@ -106,14 +106,26 @@ breaking anything. It does:
 After the script finishes, the service is **not yet running**, because
 `claude` has not been logged in.
 
-### Step 3: Log in to Claude
+### Step 3: Pick a Claude backend
+
+Pocket Claude can talk to Claude through three different backends, switchable
+per user inside the app (**Settings → Claude connection**):
+
+| Backend | Setup needed on the server | Billing |
+|---|---|---|
+| **Pro/Max OAuth** (default) | `claude login` once | Your existing Claude Pro/Max subscription |
+| **Anthropic API key** | Nothing — enter the `sk-ant-…` key in the app | Pay-as-you-go on the Anthropic Console account |
+| **AWS Bedrock** | Nothing — enter AWS credentials in the app | Pay-as-you-go on your AWS account |
+
+If you intend to use **only** the API-key or Bedrock path, you can skip the
+OAuth login. Otherwise (recommended for most users), run:
 
 ```bash
 sudo -u pocket-claude -H claude login
 ```
 
 This opens a URL. Open it on another device (phone/Mac), sign in with your
-Claude Pro account, and paste the code back into the mini-PC terminal.
+Claude Pro/Max account, and paste the code back into the mini-PC terminal.
 
 After that:
 
@@ -122,7 +134,9 @@ sudo systemctl restart pocket-claude
 sudo systemctl status pocket-claude
 ```
 
-It should show `active (running)`.
+It should show `active (running)`. Users who later add an Anthropic API key
+or AWS credentials in the app's settings will use those instead of OAuth on
+the next message — you don't need to redeploy.
 
 ### Step 4: Set up the tunnel
 
@@ -355,6 +369,70 @@ If that also fails: check your subscription status at claude.com, and re-run
 - Pocket Claude installed on the mini-PC? `ssh ... 'ls /opt/pocket-claude'`
 - Passwordless `sudo`? If not, edit `sudoers` once or enter the password by
   hand (the migration script prompts).
+
+### "Chat hangs / journal shows `Control request timeout: initialize`"
+
+This is **NOT** a normal SDK timeout — it's the Claude CLI silently failing
+to read its OAuth credentials because the systemd sandbox has masked
+`/home/pocket-claude`. The unit file in this repo already has the fix, but
+if you wrote your own systemd unit (or copied an old example), make sure
+**`ProtectHome=true` is NOT set**:
+
+```bash
+# Inspect the unit file
+sudo systemctl cat pocket-claude | grep -i protecthome
+
+# If ProtectHome=true appears, drop it:
+sudo sed -i '/^ProtectHome=true/d' /etc/systemd/system/pocket-claude.service
+sudo systemctl daemon-reload
+sudo systemctl restart pocket-claude
+```
+
+Background: `ReadWritePaths=/home/<service-user>` does NOT undo
+`ProtectHome=true` — it only widens write permissions on a directory that's
+already been masked. The CLI sees an empty home dir, can't find its
+credential file, and silently hangs in the SDK handshake.
+
+The other hardening flags (`NoNewPrivileges`, `PrivateTmp`, `ProtectSystem`,
+`ProtectKernelTunables/Modules/ControlGroups`) are all verified safe and
+should stay enabled.
+
+### "Chat reply comes back empty / 'No response requested.'"
+
+The Claude Code CLI has an internal "skip turn" optimization for agentic
+runs that sometimes fires on bare user statements ("I'll have a coffee").
+Pocket Claude detects this and surfaces an error to the app so you don't
+see a silent empty bubble.
+
+The app's bundled system prompt explicitly forbids skip-turn replies, so
+this should never fire in practice. If you wrote a **custom system prompt**
+in the app and the CLI starts producing empty replies, add this line to
+your custom prompt:
+
+> Every user message expects a substantive reply. Never reply with "No
+> response requested." or similar skip-turn placeholders.
+
+### "Server stack-traces with `AssertionError` in `staticfiles.py:91`"
+
+Browser DevTools or a stale service worker is trying to upgrade a request
+on `/` to a WebSocket. Static files only handle HTTP. We already wrap
+`StaticFiles` in `_HttpOnlyStaticFiles` to drop those silently, so this
+should not appear after `v0.2.0`. If it does, you may be running an older
+deploy — pull the latest `pocket_claude/server.py`.
+
+### "SDK times out after a pip upgrade"
+
+The Python SDK ships with a bundled `claude` binary in its `_bundled/`
+directory that's sometimes older than what your system has. Bug #922
+upstream. Workaround:
+
+```bash
+sudo ln -sf "$(command -v claude)" \
+  /opt/pocket-claude/.venv/lib/python3.12/site-packages/claude_agent_sdk/_bundled/claude
+sudo systemctl restart pocket-claude
+```
+
+(Replace `python3.12` with whatever venv Python you actually have.)
 
 ---
 
