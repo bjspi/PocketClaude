@@ -532,50 +532,53 @@ fun ChatScreen(
                             }
                         }
                         // Streaming-Bubble läuft als VIRTUELLES letztes Element
-                        // im gleichen items()-Block. Damit bleibt der LazyColumn-
-                        // Slot über den gesamten Stream-Lebenszyklus stabil:
-                        // beim Done-Event wird derselbe Slot in den finalen
-                        // AssistantBubble rekomponiert — kein Remove-and-Add,
-                        // kein Re-Anchor, kein Sprung der Scrollposition. Aus
-                        // demselben Grund kein `key = { it.id }`: Index-basierte
-                        // Default-Keys machen auch den UserSaved-Id-Swap
-                        // (optimistic → real) slot-stabil.
+                        // im gleichen items()-Block. Slot bleibt index-basiert
+                        // stabil über den gesamten Stream-Lebenszyklus (kein
+                        // `key = { it.id }`, dann ist auch der UserSaved-Id-Swap
+                        // slot-stabil).
+                        //
+                        // WICHTIG: Stream-Bubble und finale Bubble teilen sich
+                        // EINEN AssistantBubble-Call-Site. Wenn sie an zwei
+                        // verschiedenen Call-Sites hängen (z.B. `if (msg ==
+                        // null) AssistantBubble(...) else AssistantBubble(...)`),
+                        // sieht Compose das beim Done als Dispose + Re-Mount,
+                        // nicht als Recompose — MarkdownText-Cache weg, Bubble
+                        // wird frisch gemessen, sichtbarer Scroll-Sprung.
+                        // Hier deshalb genau EIN Call-Site mit umgeschwenkten
+                        // Parametern (text / isStreaming / onSpeakClick).
                         val msgs = state.messages
                         val displayCount = msgs.size + (if (state.isStreaming) 1 else 0)
                         items(count = displayCount) { i ->
                             val msg = msgs.getOrNull(i)
-                            if (msg == null) {
-                                // Letztes Element während Streaming. Wird beim
-                                // Done durch den realen Assistant-Message im
-                                // selben Slot ersetzt — Compose recomposes nur.
-                                AssistantBubble(
-                                    text = state.streamingText,
-                                    isStreaming = true,
-                                    thinkingText = state.streamingThinking,
-                                )
-                            } else when (msg.role) {
-                                "user" -> UserBubble(
+                            val isStreamingSlot = msg == null
+                            if (msg?.role == "user") {
+                                UserBubble(
                                     text = msg.content,
                                     attachments = msg.attachments,
                                     collapseLongMessages = appSettings.collapseLongUserMessages,
                                 )
-                                "assistant" -> {
-                                    val ttsState = when {
-                                        audioState.loadingMessageId == msg.id -> TtsState.Loading
-                                        audioState.playingMessageId == msg.id -> TtsState.Playing
-                                        audioState.pausedMessageId == msg.id -> TtsState.Paused
-                                        else -> TtsState.Idle
-                                    }
-                                    AssistantBubble(
-                                        text = msg.content,
-                                        ttsState = ttsState,
-                                        onSpeakClick = { vm.speak(msg.id) },
-                                        onPauseClick = { vm.pauseSpeaking() },
-                                        onResumeClick = { vm.resumeSpeaking() },
-                                        onStopClick = { vm.stopSpeaking() },
-                                    )
-                                }
-                                else -> Unit
+                            } else if (isStreamingSlot || msg?.role == "assistant") {
+                                val bubbleText = msg?.content ?: state.streamingText
+                                val bubbleThinking = if (isStreamingSlot) state.streamingThinking else ""
+                                val ttsState = if (msg != null) when {
+                                    audioState.loadingMessageId == msg.id -> TtsState.Loading
+                                    audioState.playingMessageId == msg.id -> TtsState.Playing
+                                    audioState.pausedMessageId == msg.id -> TtsState.Paused
+                                    else -> TtsState.Idle
+                                } else TtsState.Idle
+                                val onSpeakClick: (() -> Unit)? = if (msg != null) {
+                                    { vm.speak(msg.id) }
+                                } else null
+                                AssistantBubble(
+                                    text = bubbleText,
+                                    isStreaming = isStreamingSlot,
+                                    thinkingText = bubbleThinking,
+                                    ttsState = ttsState,
+                                    onSpeakClick = onSpeakClick,
+                                    onPauseClick = { vm.pauseSpeaking() },
+                                    onResumeClick = { vm.resumeSpeaking() },
+                                    onStopClick = { vm.stopSpeaking() },
+                                )
                             }
                         }
                         item { Spacer(Modifier.height(8.dp)) }
