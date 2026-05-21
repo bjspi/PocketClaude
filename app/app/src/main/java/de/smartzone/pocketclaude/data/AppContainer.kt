@@ -122,4 +122,10 @@ class AppContainer(context: Context) {
     val chatRepository: ChatRepository = ChatRepository(apiClient, context)
 
     val audioController: AudioController = AudioController(context, streamingHttpClient)
+
+    /** Voice-Input (Mic → Groq Whisper). Eine globale Instanz reicht — es
+     *  läuft sowieso nur eine Aufnahme zur Zeit, und der MediaRecorder wird
+     *  beim Stop sauber freigegeben. Stateful zwischen Activities (Auto-Modus). */
+    val voiceRecorder: de.smartzone.pocketclaude.audio.VoiceRecorder =
+        de.smartzone.pocketclaude.audio.VoiceRecorder(appContext)
 }

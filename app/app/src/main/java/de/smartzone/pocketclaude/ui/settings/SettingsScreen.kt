@@ -271,6 +271,32 @@ fun SettingsScreen(
             }
 
             ExpandableSection(
+                title = stringResource(de.smartzone.pocketclaude.R.string.settings_section_voice_title),
+                subtitle = stringResource(de.smartzone.pocketclaude.R.string.settings_subtitle_voice),
+                initiallyExpanded = false,
+                infoTitle = stringResource(de.smartzone.pocketclaude.R.string.settings_info_voice_title),
+                infoBody = {
+                    InfoParagraph(
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_voice_intro)
+                    )
+                    InfoBulletParagraph(
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_voice_step1),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_voice_step1_body),
+                    )
+                    InfoBulletParagraph(
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_voice_step2),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_voice_step2_body),
+                    )
+                    InfoBulletParagraph(
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_voice_automode_label),
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_info_voice_automode_body),
+                    )
+                },
+            ) {
+                VoiceSection(vm = vm)
+            }
+
+            ExpandableSection(
                 title = stringResource(de.smartzone.pocketclaude.R.string.section_appearance),
                 subtitle = when (settings.themeMode) {
                     ThemeMode.SYSTEM -> stringResource(de.smartzone.pocketclaude.R.string.settings_theme_system)
@@ -3256,6 +3282,102 @@ private fun ImageGenSection(vm: SettingsViewModel) {
             }
             Text(
                 stringResource(de.smartzone.pocketclaude.R.string.settings_image_help_text),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * Voice-Input-Section: Groq-API-Key paste/save/remove, Status-Anzeige.
+ * Spiegelt das Pattern von ImageGenSection 1:1 — bewusst, damit beide
+ * "User-API-Key"-Widgets sich identisch anfühlen.
+ */
+@Composable
+private fun VoiceSection(vm: SettingsViewModel) {
+    val cfg by vm.voiceConfig.collectAsState()
+    val busy by vm.voiceKeyBusy.collectAsState()
+    val msg by vm.voiceKeyMessage.collectAsState()
+    var apiKey by remember { mutableStateOf("") }
+    var showKey by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                stringResource(de.smartzone.pocketclaude.R.string.settings_voice_intro),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            cfg?.let { c ->
+                if (c.configured) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Filled.CheckCircle, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                        Text(
+                            stringResource(
+                                de.smartzone.pocketclaude.R.string.settings_voice_configured,
+                                c.apiKeyMasked ?: "", c.model,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                } else {
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_no_key),
+                         style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.error)
+                }
+            } ?: Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_loading_status),
+                      style = MaterialTheme.typography.bodySmall,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            OutlinedTextField(
+                value = apiKey,
+                onValueChange = { apiKey = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_new_api_key)) },
+                placeholder = { Text("gsk_…") },
+                singleLine = true,
+                visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { showKey = !showKey }) {
+                        Icon(if (showKey) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                             contentDescription = null)
+                    }
+                },
+                shape = RoundedCornerShape(14.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(
+                    onClick = { vm.setVoiceApiKey(apiKey); apiKey = "" },
+                    enabled = !busy && apiKey.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp),
+                ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_save_btn)) }
+                TextButton(
+                    onClick = { vm.deleteVoiceApiKey() },
+                    enabled = !busy && cfg?.configured == true,
+                ) {
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_remove_btn),
+                         color = MaterialTheme.colorScheme.error)
+                }
+                if (busy) {
+                    Spacer(Modifier.width(8.dp))
+                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                }
+            }
+            msg?.let { m ->
+                Text(m, style = MaterialTheme.typography.bodySmall,
+                     color = if (m.startsWith("Fehler") || m.startsWith("Error"))
+                                 MaterialTheme.colorScheme.error
+                             else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                stringResource(de.smartzone.pocketclaude.R.string.settings_voice_help_text),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

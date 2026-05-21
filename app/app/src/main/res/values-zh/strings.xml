@@ -692,6 +692,37 @@
     <string name="settings_image_save_btn">保存</string>
     <string name="settings_image_remove_btn">移除</string>
     <string name="settings_image_help_text">在 aistudio.google.com/apikey 获取密钥。生成图片要求 Cloud 项目带有结算账户(免费档仅涵盖文本)。</string>
+
+    <!-- Voice input (Groq Whisper) -->
+    <string name="settings_section_voice_title">语音输入</string>
+    <string name="settings_subtitle_voice">麦克风 → Groq Whisper Large v3 Turbo</string>
+    <string name="settings_info_voice_title">语音输入 — 工作原理</string>
+    <string name="settings_info_voice_intro">在聊天输入栏点击麦克风开始录音。再次点击时,音频会发送到 Groq Whisper Large v3 Turbo,转写结果出现在文本框中。录音时长按可取消而不发送。</string>
+    <string name="settings_info_voice_step1">获取 Groq API 密钥:</string>
+    <string name="settings_info_voice_step1_body">在 console.groq.com 注册免费档 — 创建 API key 并粘贴到下方。密钥以 “gsk_” 开头。Whisper Large v3 Turbo 在免费档中可用,速率限制适合个人使用。</string>
+    <string name="settings_info_voice_step2">语言跟随 App:</string>
+    <string name="settings_info_voice_step2_body">转写提示会根据当前 App 语言自动选择 — 标点、大小写和技术词汇都按你预期的方式呈现。</string>
+    <string name="settings_info_voice_automode_label">自动模式:</string>
+    <string name="settings_info_voice_automode_body">位于聊天的 ⋮ 菜单中。录音结束后消息自动发送,回复自动朗读,然后麦克风自行启动 — 双手解放对话。点击 “自动模式启用中” 标签可停止循环。</string>
+    <string name="settings_voice_intro">你自己的 Groq API 密钥。仅为你保存,不会共享。</string>
+    <string name="settings_voice_configured">✓ Groq API 密钥已设置: %1$s · %2$s</string>
+    <string name="settings_voice_no_key">未设置 Groq API 密钥。</string>
+    <string name="settings_voice_loading_status">正在加载状态…</string>
+    <string name="settings_voice_new_api_key">新 Groq API 密钥</string>
+    <string name="settings_voice_save_btn">保存</string>
+    <string name="settings_voice_remove_btn">移除</string>
+    <string name="settings_voice_help_text">在 console.groq.com/keys 获取密钥。免费档覆盖 Whisper Large v3 Turbo,速率限制适合个人使用。</string>
+
+    <!-- Voice button + chat overflow + runtime errors -->
+    <string name="voice_mic_idle_cd">录制语音消息</string>
+    <string name="voice_mic_recording_cd">正在录音 — 点击停止,长按取消</string>
+    <string name="voice_error_no_permission">麦克风权限被拒。请在 Android 设置中授予权限以使用语音输入。</string>
+    <string name="voice_error_start_failed">无法开始录音: %1$s</string>
+    <string name="voice_error_transcribe_failed">转写失败: %1$s</string>
+    <string name="voice_error_auto_loop">自动模式已停止: %1$s</string>
+    <string name="chat_auto_mode_start">启动自动模式(语音循环)</string>
+    <string name="chat_auto_mode_stop">停止自动模式</string>
+    <string name="chat_auto_mode_pill">自动模式启用中 — 点击停止</string>
     <string name="settings_billing_widget_title">本月 Cloud 使用</string>
     <string name="settings_billing_info_widget_title">Cloud 使用 — 这显示什么?</string>
     <string name="settings_billing_info_widget_para1">你看到的是本月 Cloud TTS 支出的估算值。估算来自服务器内部字符计数器 × 每 100 万字符的语音价格。</string>

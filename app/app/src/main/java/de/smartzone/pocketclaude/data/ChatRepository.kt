@@ -32,6 +32,11 @@ class ChatRepository(
     suspend fun generateImage(req: ImageGenerateRequest): ImageGenerateResponse =
         api.generateImage(req)
 
+    // Voice-Input (Groq Whisper)
+    suspend fun voiceConfig(): VoiceConfigDto = api.voiceConfig()
+    suspend fun setVoiceApiKey(key: String) = api.setVoiceApiKey(key)
+    suspend fun deleteVoiceApiKey() = api.deleteVoiceApiKey()
+
     suspend fun list(): List<ConversationDto> = api.listConversations()
 
     suspend fun create(title: String? = null): ConversationDto = api.createConversation(title)

@@ -7,12 +7,15 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import de.smartzone.pocketclaude.PocketClaudeApp
 import de.smartzone.pocketclaude.R
+import de.smartzone.pocketclaude.audio.VoiceRecorder
+import de.smartzone.pocketclaude.data.ApiClient
 import de.smartzone.pocketclaude.data.AppContainer
 import de.smartzone.pocketclaude.data.AttachmentDto
 import de.smartzone.pocketclaude.data.AttachmentRefDto
 import de.smartzone.pocketclaude.data.AudioController
 import de.smartzone.pocketclaude.data.ChatRepository
 import de.smartzone.pocketclaude.data.ConversationDetailDto
+import de.smartzone.pocketclaude.data.LocalePrefs
 import de.smartzone.pocketclaude.data.MessageDto
 import de.smartzone.pocketclaude.data.SettingsRepository
 import de.smartzone.pocketclaude.data.SkillsDto
@@ -21,11 +24,18 @@ import de.smartzone.pocketclaude.service.NotificationHelper
 import de.smartzone.pocketclaude.service.StreamingService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import java.time.OffsetDateTime
 
 data class PendingAttachment(
@@ -72,11 +82,25 @@ data class ChatUiState(
     val searchMatches: List<Long> = emptyList(),
     /** Aktuell anvisierter Treffer-Index in `searchMatches`. -1 = kein Treffer. */
     val searchIndex: Int = -1,
+    // ───── Voice-Input ─────
+    val voiceState: VoiceState = VoiceState.Idle,
+    /** Letzter Voice-Fehler (Permission denied, Groq-Fehler, Timeout, …). UI
+     *  zeigt das einmal als Snackbar und ruft `clearVoiceError()`. */
+    val voiceError: String? = null,
+    /** Auto-Modus: nach jedem Stream-Done wird automatisch vorgelesen, dann
+     *  startet die Aufnahme von alleine wieder. User stoppt mit Toggle aus. */
+    val autoMode: Boolean = false,
 ) {
     /** Die aktuell anvisierte Message-ID, oder null wenn kein Treffer. */
     val currentMatchMessageId: Long?
         get() = searchMatches.getOrNull(searchIndex)
 }
+
+/** Drei Phasen des Voice-Input-Zyklus.
+ *  - Idle: Mic-Button bereit
+ *  - Recording: MediaRecorder läuft, Pulsing-Halo sichtbar
+ *  - Transcribing: Recorder gestoppt, Audio wird hochgeladen, Spinner sichtbar */
+enum class VoiceState { Idle, Recording, Transcribing }
 
 class ChatViewModel(
     private val repo: ChatRepository,
@@ -84,6 +108,8 @@ class ChatViewModel(
     private val audio: AudioController,
     private val settingsRepo: SettingsRepository,
     private val appContext: Context,
+    private val apiClient: ApiClient,
+    private val voiceRecorder: VoiceRecorder,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatUiState(conversationId = cid))
@@ -92,6 +118,15 @@ class ChatViewModel(
     val audioState: StateFlow<AudioController.State> = audio.state
 
     private var streamJob: Job? = null
+
+    /** Einmal-Events für den ChatScreen: transkribierter Text, der ins
+     *  Input-Feld eingefügt werden soll (nur im manuellen Modus — im
+     *  Auto-Modus geht der Transkript direkt zu `send()`, ohne UI-Detour). */
+    private val _transcriptToInsert = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val transcriptToInsert: SharedFlow<String> = _transcriptToInsert.asSharedFlow()
+
+    /** Laufender Auto-Mode-Loop, oder null wenn aus. */
+    private var autoModeJob: Job? = null
 
     init {
         refresh()
@@ -362,11 +397,12 @@ class ChatViewModel(
                 // App im Hintergrund? → Notification posten
                 postResultNotificationIfBackground(finalText)
                 // Auto-Speak: per-Chat-Override (falls gesetzt) hat Vorrang,
-                // sonst globaler ttsAutoSpeak.
+                // sonst globaler ttsAutoSpeak. Im Auto-Modus IMMER vorlesen —
+                // ohne TTS-Schritt wäre der Loop nutzlos.
                 viewModelScope.launch {
                     val s = settingsRepo.current()
                     val override = _state.value.autoSpeakOverride
-                    val shouldSpeak = override ?: s.ttsAutoSpeak
+                    val shouldSpeak = _state.value.autoMode || (override ?: s.ttsAutoSpeak)
                     if (shouldSpeak) {
                         speak(ev.assistantMessageId)
                     }
@@ -529,6 +565,185 @@ class ChatViewModel(
     // tot, lassen wir aber als private fun bestehen wäre verwirrend — also
     // raus. Falls noch ein Aufrufer existiert: Compile-Fehler ist gewollt.
 
+    // ===================== Voice-Input (Groq Whisper) =====================
+
+    /** Mic-Tap: Toggle Recording. Falls bereits transkribiert wird oder ein
+     *  Stream läuft, ignorieren (UI sollte den Button dann sowieso disabled
+     *  zeigen — aber doppelt hält besser). */
+    fun toggleRecording() {
+        val st = _state.value
+        when (st.voiceState) {
+            VoiceState.Idle -> startRecordingInternal()
+            VoiceState.Recording -> stopRecordingAndTranscribe()
+            VoiceState.Transcribing -> Unit
+        }
+    }
+
+    /** Long-Press auf Mic während Recording: Abbrechen ohne zu transkribieren. */
+    fun cancelRecording() {
+        if (_state.value.voiceState != VoiceState.Recording) return
+        runCatching { voiceRecorder.cancel() }
+        _state.update { it.copy(voiceState = VoiceState.Idle) }
+        // Wenn der Cancel im Auto-Modus passiert, Auto-Modus mit-aushebeln —
+        // der User wollte explizit nicht senden.
+        if (_state.value.autoMode) setAutoMode(false)
+    }
+
+    fun clearVoiceError() = _state.update { it.copy(voiceError = null) }
+
+    private fun startRecordingInternal() {
+        if (!voiceRecorder.hasPermission()) {
+            _state.update {
+                it.copy(voiceError = appContext.getString(R.string.voice_error_no_permission))
+            }
+            return
+        }
+        try {
+            voiceRecorder.start()
+            _state.update { it.copy(voiceState = VoiceState.Recording, voiceError = null) }
+        } catch (t: Throwable) {
+            _state.update {
+                it.copy(
+                    voiceState = VoiceState.Idle,
+                    voiceError = appContext.getString(
+                        R.string.voice_error_start_failed, t.message ?: ""
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun stopRecordingAndTranscribe() {
+        val file = voiceRecorder.stop()
+        if (file == null) {
+            _state.update { it.copy(voiceState = VoiceState.Idle) }
+            return
+        }
+        _state.update { it.copy(voiceState = VoiceState.Transcribing) }
+        viewModelScope.launch {
+            try {
+                val bytes = withContext(Dispatchers.IO) { file.readBytes() }
+                runCatching { withContext(Dispatchers.IO) { file.delete() } }
+
+                // UI-Locale aus den Prefs ziehen (leer = System-Locale → ISO).
+                val locale = LocalePrefs.get(appContext).ifBlank {
+                    java.util.Locale.getDefault().toLanguageTag()
+                }
+
+                val resp = apiClient.transcribeVoice(
+                    bytes = bytes,
+                    filename = file.name,
+                    mime = "audio/mp4",
+                    language = locale,
+                )
+                val text = resp.text.trim()
+                _state.update { it.copy(voiceState = VoiceState.Idle) }
+                if (text.isEmpty()) return@launch
+                if (_state.value.autoMode) {
+                    // Direkt schicken — kein Input-Detour
+                    send(text)
+                } else {
+                    _transcriptToInsert.emit(text)
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        voiceState = VoiceState.Idle,
+                        voiceError = appContext.getString(
+                            R.string.voice_error_transcribe_failed, e.message ?: ""
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    // ===================== Auto-Modus =====================
+
+    fun setAutoMode(enabled: Boolean) {
+        if (_state.value.autoMode == enabled) return
+        _state.update { it.copy(autoMode = enabled) }
+        autoModeJob?.cancel()
+        autoModeJob = null
+        if (enabled) {
+            autoModeJob = viewModelScope.launch { runAutoModeLoop() }
+        } else {
+            // Beim Ausschalten: laufende Aufnahme abbrechen (NICHT transkribieren).
+            if (_state.value.voiceState == VoiceState.Recording) {
+                runCatching { voiceRecorder.cancel() }
+                _state.update { it.copy(voiceState = VoiceState.Idle) }
+            }
+        }
+    }
+
+    /** Der Loop: Recording → User stoppt → Transkript → auto-Send →
+     *  Stream-Done → TTS-Vorlesen → wieder Recording, und so weiter. Bricht
+     *  bei autoMode=false oder Fehler ab. */
+    private suspend fun runAutoModeLoop() {
+        // Erste Phase: alles ruhig kriegen (kein Stream, kein Audio).
+        try {
+            waitForStreamSettled()
+            waitForAudioIdle()
+            while (_state.value.autoMode) {
+                // 1) Recording starten (sobald Mic + Stream frei)
+                if (_state.value.voiceState != VoiceState.Idle) {
+                    state.first { it.voiceState == VoiceState.Idle || !it.autoMode }
+                }
+                if (!_state.value.autoMode) return
+                startRecordingInternal()
+                if (_state.value.voiceState != VoiceState.Recording) {
+                    // Permission / Mikro fehlgeschlagen — Auto-Mode abbrechen
+                    _state.update { it.copy(autoMode = false) }
+                    return
+                }
+                // 2) Auf User-Stop warten (er tippt Mic erneut → Transcribing)
+                state.first {
+                    it.voiceState != VoiceState.Recording || !it.autoMode
+                }
+                if (!_state.value.autoMode) return
+                // 3) Auf Transcribe-Ende warten (entweder Idle wegen Fehler
+                //    oder Idle UND wir senden gleich)
+                state.first { it.voiceState == VoiceState.Idle || !it.autoMode }
+                if (!_state.value.autoMode) return
+                // 4) Falls send() ausgelöst hat → auf Stream-Ende warten
+                if (_state.value.isStreaming) {
+                    state.first { !it.isStreaming || !_state.value.autoMode }
+                }
+                if (!_state.value.autoMode) return
+                // 5) TTS startet asynchron im Done-Handler (wir forcen das
+                //    da). Kurz warten, dann auf Audio-Idle.
+                delay(200)
+                waitForAudioIdle()
+            }
+        } catch (e: Exception) {
+            _state.update {
+                it.copy(
+                    autoMode = false,
+                    voiceError = appContext.getString(
+                        R.string.voice_error_auto_loop, e.message ?: ""
+                    ),
+                )
+            }
+        }
+    }
+
+    private suspend fun waitForStreamSettled() {
+        if (_state.value.isStreaming) {
+            state.first { !it.isStreaming || !_state.value.autoMode }
+        }
+    }
+
+    private suspend fun waitForAudioIdle() {
+        val s = audio.state.value
+        val busy = s.loadingMessageId != null || s.playingMessageId != null
+        if (busy) {
+            audio.state.first {
+                (it.loadingMessageId == null && it.playingMessageId == null) ||
+                    !_state.value.autoMode
+            }
+        }
+    }
+
     companion object {
         fun factory(container: AppContainer, cid: String): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
@@ -540,6 +755,8 @@ class ChatViewModel(
                         audio = container.audioController,
                         settingsRepo = container.settingsRepository,
                         appContext = container.appContext,
+                        apiClient = container.apiClient,
+                        voiceRecorder = container.voiceRecorder,
                     ) as T
                 }
             }

@@ -692,6 +692,37 @@
     <string name="settings_image_save_btn">Salvar</string>
     <string name="settings_image_remove_btn">Remover</string>
     <string name="settings_image_help_text">Obtenha uma chave em aistudio.google.com/apikey. Para geração de imagens o projeto Cloud precisa de uma conta de cobrança (o free tier cobre apenas texto).</string>
+
+    <!-- Voice input (Groq Whisper) -->
+    <string name="settings_section_voice_title">Entrada de voz</string>
+    <string name="settings_subtitle_voice">Microfone → Groq Whisper Large v3 Turbo</string>
+    <string name="settings_info_voice_title">Entrada de voz — como funciona</string>
+    <string name="settings_info_voice_intro">Toque no microfone do chat para gravar. Ao tocar de novo, o áudio vai para o Groq Whisper Large v3 Turbo e a transcrição aparece no campo de texto. Pressione e segure durante a gravação para cancelar sem enviar.</string>
+    <string name="settings_info_voice_step1">Obtenha uma chave de API Groq:</string>
+    <string name="settings_info_voice_step1_body">Free tier em console.groq.com — cadastre-se, crie uma chave de API, cole abaixo. As chaves começam com “gsk_”. Whisper Large v3 Turbo está incluído no free tier com limites razoáveis.</string>
+    <string name="settings_info_voice_step2">O idioma segue o app:</string>
+    <string name="settings_info_voice_step2_body">O prompt de transcrição é escolhido automaticamente conforme o idioma ativo — pontuação, maiúsculas e termos técnicos saem do jeito que você escreve.</string>
+    <string name="settings_info_voice_automode_label">Auto-Modo:</string>
+    <string name="settings_info_voice_automode_body">No menu ⋮ do chat. Após a gravação a mensagem é enviada, a resposta é lida em voz alta e o microfone reinicia sozinho — conversa mãos-livres. Toque no chip “Auto-Modo ativo” para parar.</string>
+    <string name="settings_voice_intro">Sua própria chave de API Groq. Salva apenas para você, nunca compartilhada.</string>
+    <string name="settings_voice_configured">✓ Chave de API Groq configurada: %1$s · %2$s</string>
+    <string name="settings_voice_no_key">Nenhuma chave de API Groq definida.</string>
+    <string name="settings_voice_loading_status">Carregando status…</string>
+    <string name="settings_voice_new_api_key">Nova chave de API Groq</string>
+    <string name="settings_voice_save_btn">Salvar</string>
+    <string name="settings_voice_remove_btn">Remover</string>
+    <string name="settings_voice_help_text">Obtenha uma chave em console.groq.com/keys. O free tier cobre Whisper Large v3 Turbo com limites suficientes para uso pessoal.</string>
+
+    <!-- Voice button + chat overflow + runtime errors -->
+    <string name="voice_mic_idle_cd">Gravar mensagem de voz</string>
+    <string name="voice_mic_recording_cd">Gravando — toque para parar, segure para cancelar</string>
+    <string name="voice_error_no_permission">Permissão de microfone negada. Conceda nas configurações do Android para usar a entrada de voz.</string>
+    <string name="voice_error_start_failed">Não foi possível iniciar a gravação: %1$s</string>
+    <string name="voice_error_transcribe_failed">Falha na transcrição: %1$s</string>
+    <string name="voice_error_auto_loop">Auto-Modo interrompido: %1$s</string>
+    <string name="chat_auto_mode_start">Iniciar Auto-Modo (loop de voz)</string>
+    <string name="chat_auto_mode_stop">Parar Auto-Modo</string>
+    <string name="chat_auto_mode_pill">Auto-Modo ativo — toque para parar</string>
     <string name="settings_billing_widget_title">Uso da Cloud este mês</string>
     <string name="settings_billing_info_widget_title">Uso da Cloud — o que isso mostra?</string>
     <string name="settings_billing_info_widget_para1">Você vê uma ESTIMATIVA de quanto gastou em Cloud TTS este mês. A estimativa vem do contador de caracteres interno do servidor × preço da voz por 1M.</string>

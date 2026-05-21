@@ -137,6 +137,7 @@ class SettingsViewModel(
             settings.first { it.isConfigured }
             refreshTtsStatus()
             refreshImageConfig()
+            refreshVoiceConfig()
             refreshDefaultSkills()
             refreshTtsKeyPool()
             refreshBillingStatus()
@@ -569,6 +570,52 @@ class SettingsViewModel(
     }
 
     fun clearImageKeyMessage() { _imageKeyMessage.value = null }
+
+    // ----- Voice-Input (Groq Whisper) -----
+
+    private val _voiceConfig =
+        MutableStateFlow<de.smartzone.pocketclaude.data.VoiceConfigDto?>(null)
+    val voiceConfig: StateFlow<de.smartzone.pocketclaude.data.VoiceConfigDto?> =
+        _voiceConfig.asStateFlow()
+
+    private val _voiceKeyBusy = MutableStateFlow(false)
+    val voiceKeyBusy: StateFlow<Boolean> = _voiceKeyBusy.asStateFlow()
+
+    private val _voiceKeyMessage = MutableStateFlow<String?>(null)
+    val voiceKeyMessage: StateFlow<String?> = _voiceKeyMessage.asStateFlow()
+
+    fun refreshVoiceConfig() = viewModelScope.launch {
+        if (!settings.value.isConfigured) return@launch
+        runCatching { chatRepo.voiceConfig() }
+            .onSuccess { _voiceConfig.value = it }
+            .onFailure { _voiceKeyMessage.value = "Voice-Config nicht ladbar: ${it.message}" }
+    }
+
+    fun setVoiceApiKey(key: String) = viewModelScope.launch {
+        val k = key.trim()
+        if (k.isEmpty()) return@launch
+        _voiceKeyBusy.value = true
+        _voiceKeyMessage.value = null
+        try {
+            chatRepo.setVoiceApiKey(k)
+            _voiceKeyMessage.value = "✓ Key gespeichert"
+            refreshVoiceConfig().join()
+        } catch (e: Exception) {
+            _voiceKeyMessage.value = "Fehler: ${e.message}"
+        } finally {
+            _voiceKeyBusy.value = false
+        }
+    }
+
+    fun deleteVoiceApiKey() = viewModelScope.launch {
+        _voiceKeyBusy.value = true
+        runCatching { chatRepo.deleteVoiceApiKey() }
+        _voiceKeyMessage.value = "Key entfernt"
+        refreshVoiceConfig().join()
+        _voiceKeyBusy.value = false
+    }
+
+    fun clearVoiceKeyMessage() { _voiceKeyMessage.value = null }
 
     // ----- Backup / Import -----
 

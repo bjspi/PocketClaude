@@ -692,6 +692,37 @@
     <string name="settings_image_save_btn">Speichern</string>
     <string name="settings_image_remove_btn">Entfernen</string>
     <string name="settings_image_help_text">Key bei aistudio.google.com/apikey holen. Für die Bilderzeugung braucht das Cloud-Projekt ein Billing-Konto (Free Tier deckt nur Text ab).</string>
+
+    <!-- Voice input (Groq Whisper) -->
+    <string name="settings_section_voice_title">Spracheingabe</string>
+    <string name="settings_subtitle_voice">Mikrofon → Groq Whisper Large v3 Turbo</string>
+    <string name="settings_info_voice_title">Spracheingabe — so funktioniert\'s</string>
+    <string name="settings_info_voice_intro">Tippe das Mikro im Chat-Input, um aufzunehmen. Beim zweiten Tap geht das Audio an Groq Whisper Large v3 Turbo, der Transkript landet im Textfeld. Long-Press während der Aufnahme bricht ab, ohne zu senden.</string>
+    <string name="settings_info_voice_step1">Groq-API-Key holen:</string>
+    <string name="settings_info_voice_step1_body">Free Tier bei console.groq.com — registrieren, API-Key anlegen, unten einfügen. Keys beginnen mit „gsk_". Whisper Large v3 Turbo ist im Free Tier mit normalen Rate-Limits enthalten.</string>
+    <string name="settings_info_voice_step2">Sprache folgt der App:</string>
+    <string name="settings_info_voice_step2_body">Der Transkriptions-Prompt wird automatisch zur App-Sprache passend gewählt — Zeichensetzung, Großschreibung und Tech-Begriffe kommen raus wie gewünscht.</string>
+    <string name="settings_info_voice_automode_label">Auto-Modus:</string>
+    <string name="settings_info_voice_automode_body">Im Chat-Overflow-Menü (⋮). Nach der Aufnahme schickt die Nachricht ab, die Antwort wird vorgelesen und das Mikro startet von alleine wieder — Freihand-Konversation. Tap auf den „Auto-Modus aktiv"-Pill stoppt den Loop.</string>
+    <string name="settings_voice_intro">Dein eigener Groq-API-Key. Wird nur für Dich gespeichert, nicht geteilt.</string>
+    <string name="settings_voice_configured">✓ Groq-API-Key gesetzt: %1$s · %2$s</string>
+    <string name="settings_voice_no_key">Kein Groq-API-Key gesetzt.</string>
+    <string name="settings_voice_loading_status">Status wird geladen…</string>
+    <string name="settings_voice_new_api_key">Neuer Groq-API-Key</string>
+    <string name="settings_voice_save_btn">Speichern</string>
+    <string name="settings_voice_remove_btn">Entfernen</string>
+    <string name="settings_voice_help_text">Key bei console.groq.com/keys holen. Free Tier deckt Whisper Large v3 Turbo mit Rate-Limits für persönlichen Gebrauch ab.</string>
+
+    <!-- Voice button + chat overflow + runtime errors -->
+    <string name="voice_mic_idle_cd">Sprachnachricht aufnehmen</string>
+    <string name="voice_mic_recording_cd">Aufnahme läuft — Tap stoppt, Long-Press bricht ab</string>
+    <string name="voice_error_no_permission">Mikrofon-Berechtigung verweigert. In den Android-Einstellungen erteilen, um Spracheingabe zu nutzen.</string>
+    <string name="voice_error_start_failed">Aufnahme konnte nicht gestartet werden: %1$s</string>
+    <string name="voice_error_transcribe_failed">Transkription fehlgeschlagen: %1$s</string>
+    <string name="voice_error_auto_loop">Auto-Modus gestoppt: %1$s</string>
+    <string name="chat_auto_mode_start">Auto-Modus starten (Voice-Loop)</string>
+    <string name="chat_auto_mode_stop">Auto-Modus stoppen</string>
+    <string name="chat_auto_mode_pill">Auto-Modus aktiv — Tap zum Stoppen</string>
     <string name="settings_billing_widget_title">Cloud-Verbrauch diesen Monat</string>
     <string name="settings_billing_info_widget_title">Cloud-Verbrauch — was wird hier angezeigt?</string>
     <string name="settings_billing_info_widget_para1">Du siehst eine SCHÄTZUNG, wie viel du diesen Monat für Cloud TTS ausgegeben hast. Die Schätzung stammt aus dem serverinternen Zeichen-Zähler × Stimmen-Preis pro 1 Mio.</string>

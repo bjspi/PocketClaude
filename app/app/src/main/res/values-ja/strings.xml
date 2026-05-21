@@ -692,6 +692,37 @@
     <string name="settings_image_save_btn">保存</string>
     <string name="settings_image_remove_btn">削除</string>
     <string name="settings_image_help_text">aistudio.google.com/apikeyでキーを取得します。画像生成にはCloudプロジェクトに請求アカウントが必要です（無料枠ではテキストのみ）。</string>
+
+    <!-- Voice input (Groq Whisper) -->
+    <string name="settings_section_voice_title">音声入力</string>
+    <string name="settings_subtitle_voice">マイク → Groq Whisper Large v3 Turbo</string>
+    <string name="settings_info_voice_title">音声入力 — 使い方</string>
+    <string name="settings_info_voice_intro">チャット入力欄のマイクをタップして録音開始。もう一度タップすると音声が Groq Whisper Large v3 Turbo へ送られ、書き起こしがテキスト欄に入ります。録音中の長押しで送信せずにキャンセル。</string>
+    <string name="settings_info_voice_step1">Groq API キーを取得:</string>
+    <string name="settings_info_voice_step1_body">console.groq.com で無料登録 — API キーを作成して下に貼り付け。キーは「gsk_」で始まります。Whisper Large v3 Turbo は無料枠で個人利用に十分なレート制限のもと使えます。</string>
+    <string name="settings_info_voice_step2">言語はアプリに追従:</string>
+    <string name="settings_info_voice_step2_body">書き起こしプロンプトは現在の UI 言語に合わせて自動選択 — 句読点・大文字小文字・技術用語が思った通りに出てきます。</string>
+    <string name="settings_info_voice_automode_label">オートモード:</string>
+    <string name="settings_info_voice_automode_body">チャットの ⋮ メニューから。録音後にメッセージが送信され、返信が読み上げられ、マイクが自動で再開 — ハンズフリーで往復会話。「オートモード有効中」のチップをタップで停止。</string>
+    <string name="settings_voice_intro">あなた専用の Groq API キー。共有されることはありません。</string>
+    <string name="settings_voice_configured">✓ Groq API キー設定済み: %1$s · %2$s</string>
+    <string name="settings_voice_no_key">Groq API キーが未設定です。</string>
+    <string name="settings_voice_loading_status">状態を読み込み中…</string>
+    <string name="settings_voice_new_api_key">新しい Groq API キー</string>
+    <string name="settings_voice_save_btn">保存</string>
+    <string name="settings_voice_remove_btn">削除</string>
+    <string name="settings_voice_help_text">console.groq.com/keys でキーを取得。無料枠で Whisper Large v3 Turbo を個人利用に十分なレートでカバー。</string>
+
+    <!-- Voice button + chat overflow + runtime errors -->
+    <string name="voice_mic_idle_cd">音声メッセージを録音</string>
+    <string name="voice_mic_recording_cd">録音中 — タップで停止、長押しでキャンセル</string>
+    <string name="voice_error_no_permission">マイクの権限が拒否されました。音声入力を使うには Android 設定で許可してください。</string>
+    <string name="voice_error_start_failed">録音を開始できません: %1$s</string>
+    <string name="voice_error_transcribe_failed">書き起こしに失敗: %1$s</string>
+    <string name="voice_error_auto_loop">オートモード停止: %1$s</string>
+    <string name="chat_auto_mode_start">オートモード開始（音声ループ）</string>
+    <string name="chat_auto_mode_stop">オートモード停止</string>
+    <string name="chat_auto_mode_pill">オートモード有効中 — タップで停止</string>
     <string name="settings_billing_widget_title">今月のCloud使用量</string>
     <string name="settings_billing_info_widget_title">Cloud使用量 — これは何を表示していますか？</string>
     <string name="settings_billing_info_widget_para1">今月のCloud TTSにかかった費用の見積もりを表示します。見積もりはサーバー内部の文字カウンター × 100万あたりの音声価格から計算されます。</string>

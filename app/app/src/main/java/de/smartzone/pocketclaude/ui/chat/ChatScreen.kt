@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Check
@@ -263,6 +264,36 @@ fun ChatScreen(
         }
     }
 
+    // ───── Voice-Input: Mic-Permission, Transkript-Empfang, Fehler ─────
+    var pendingMicAction by remember { mutableStateOf(false) }
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted && pendingMicAction) {
+            vm.toggleRecording()
+        } else if (!granted) {
+            scope.launch {
+                snackbar.showSnackbar(
+                    context.getString(de.smartzone.pocketclaude.R.string.voice_error_no_permission)
+                )
+            }
+        }
+        pendingMicAction = false
+    }
+    // Transkript aus dem VM ins Input-Feld einfügen (nur im manuellen Modus —
+    // im Auto-Modus geht der Text direkt zu send(), nicht über input).
+    LaunchedEffect(Unit) {
+        vm.transcriptToInsert.collect { transcript ->
+            input = if (input.isBlank()) transcript else "$input $transcript"
+        }
+    }
+    LaunchedEffect(state.voiceError) {
+        state.voiceError?.let { msg ->
+            snackbar.showSnackbar(msg)
+            vm.clearVoiceError()
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -455,6 +486,52 @@ fun ChatScreen(
                                     autoSpeakDialogOpen = true
                                 },
                             )
+                            // Auto-Mode: Voice-Loop (Recording → Senden →
+                            // TTS-Vorlesen → wieder Recording).
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (state.autoMode)
+                                            stringResource(de.smartzone.pocketclaude.R.string.chat_auto_mode_stop)
+                                        else
+                                            stringResource(de.smartzone.pocketclaude.R.string.chat_auto_mode_start)
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Filled.Loop,
+                                        contentDescription = null,
+                                        tint = if (state.autoMode) MaterialTheme.colorScheme.primary
+                                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                onClick = {
+                                    moreMenuOpen = false
+                                    val turnOn = !state.autoMode
+                                    if (turnOn) {
+                                        // Permission vorher klären — sonst landet
+                                        // der Loop im Error-Branch.
+                                        if (container.voiceRecorder.hasPermission()) {
+                                            vm.setAutoMode(true)
+                                        } else {
+                                            pendingMicAction = true
+                                            micPermissionLauncher.launch(
+                                                android.Manifest.permission.RECORD_AUDIO
+                                            )
+                                            // Permission-Result-Handler ruft
+                                            // toggleRecording() — wir starten
+                                            // den Auto-Mode hier separat, wenn
+                                            // sich der Grant einstellt:
+                                            // einfacher Trick: Auto-Mode flag
+                                            // gleich setzen, der Loop wartet
+                                            // dann auf den Mic-Start.
+                                            vm.setAutoMode(true)
+                                        }
+                                    } else {
+                                        vm.setAutoMode(false)
+                                    }
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(de.smartzone.pocketclaude.R.string.search_in_chat)) },
                                 leadingIcon = {
@@ -640,6 +717,40 @@ fun ChatScreen(
                 }
             }
 
+            // Auto-Mode-Status-Pill — sichtbar, solange der Loop läuft, mit
+            // einem Tap aushebelbar. So weiß der User immer, dass das Mikro
+            // sich gleich wieder von selbst meldet, und kann's stoppen.
+            AnimatedVisibility(visible = state.autoMode) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    AssistChip(
+                        onClick = { vm.setAutoMode(false) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Filled.Loop,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                        label = {
+                            Text(
+                                stringResource(de.smartzone.pocketclaude.R.string.chat_auto_mode_pill),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
+                    )
+                }
+            }
+
             // Input — Image-Mode wurde nach images/ ausgelagert, daher keine
             // Mode-Unterscheidung mehr im Chat. Bilder generieren läuft über
             // Drawer → „Bilder generieren" → eigener Screen.
@@ -669,6 +780,16 @@ fun ChatScreen(
                 },
                 sending = state.isStreaming,
                 hasContent = input.isNotBlank() || state.pending.any { it.uploaded != null },
+                voiceState = state.voiceState,
+                onMicTap = {
+                    if (container.voiceRecorder.hasPermission()) {
+                        vm.toggleRecording()
+                    } else {
+                        pendingMicAction = true
+                        micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                onMicCancel = { vm.cancelRecording() },
             )
         }
     }
@@ -1090,6 +1211,9 @@ private fun InputBar(
     onAttachDocument: () -> Unit,
     sending: Boolean,
     hasContent: Boolean,
+    voiceState: VoiceState,
+    onMicTap: () -> Unit,
+    onMicCancel: () -> Unit,
 ) {
     var attachMenu by remember { mutableStateOf(false) }
     Row(
@@ -1121,6 +1245,19 @@ private fun InputBar(
                 )
             }
         }
+
+        // Mic-Button: idle / recording (pulsierend grün) / transcribing (Spinner).
+        // Long-Press während Recording bricht ab statt zu transkribieren.
+        de.smartzone.pocketclaude.ui.components.MicButton(
+            state = when (voiceState) {
+                VoiceState.Idle -> de.smartzone.pocketclaude.ui.components.MicState.Idle
+                VoiceState.Recording -> de.smartzone.pocketclaude.ui.components.MicState.Recording
+                VoiceState.Transcribing -> de.smartzone.pocketclaude.ui.components.MicState.Transcribing
+            },
+            onTap = onMicTap,
+            onCancel = onMicCancel,
+            enabled = !sending && voiceState != VoiceState.Transcribing,
+        )
 
         Box(modifier = Modifier.weight(1f)) {
             OutlinedTextField(

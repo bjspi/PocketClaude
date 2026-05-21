@@ -209,6 +209,42 @@ class ApiClient(
     suspend fun generateImage(req: ImageGenerateRequest): ImageGenerateResponse =
         postJson("/images/generate", req)
 
+    // ---------- Voice-Input (Groq Whisper) ----------
+
+    suspend fun voiceConfig(): VoiceConfigDto = get("/voice/config")
+
+    suspend fun setVoiceApiKey(apiKey: String): Map<String, String> =
+        putJson("/voice/credentials", VoiceCredentialsRequest(apiKey))
+
+    suspend fun deleteVoiceApiKey() = delete("/voice/credentials")
+
+    /** Schickt eine Audio-Datei (m4a/aac, mono 16 kHz) an Groq Whisper,
+     *  zurück kommt der Transkript-Text. `language` ist die UI-Locale
+     *  (`en`, `de`, `pt-BR`, …) — der Server mappt auf den passenden
+     *  Whisper-Bias-Prompt. */
+    suspend fun transcribeVoice(
+        bytes: ByteArray,
+        filename: String,
+        mime: String,
+        language: String,
+    ): VoiceTranscribeResponse {
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart(
+                "file",
+                filename,
+                bytes.toRequestBody(mime.toMediaType()),
+            )
+            .addFormDataPart("language", language)
+            .build()
+        val req = Request.Builder()
+            .url("${baseUrl()}/voice/transcribe")
+            .header("Authorization", authHeader())
+            .post(body)
+            .build()
+        return execute(req)
+    }
+
     // ---------- Public API ----------
 
     suspend fun health(): HealthDto = get("/health")

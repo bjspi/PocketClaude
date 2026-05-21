@@ -439,6 +439,21 @@ data class ImageGenerateResponse(
 @Serializable
 data class ImageCredentialsRequest(@SerialName("api_key") val apiKey: String)
 
+// ---------- Voice-Input (Groq Whisper) ----------
+
+@Serializable
+data class VoiceConfigDto(
+    val configured: Boolean = false,
+    @SerialName("api_key_masked") val apiKeyMasked: String? = null,
+    val model: String = "whisper-large-v3-turbo",
+)
+
+@Serializable
+data class VoiceCredentialsRequest(@SerialName("api_key") val apiKey: String)
+
+@Serializable
+data class VoiceTranscribeResponse(val text: String)
+
 // ---------- Auth ----------
 
 @Serializable
