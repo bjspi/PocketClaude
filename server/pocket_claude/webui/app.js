@@ -1574,9 +1574,11 @@ els.settingsModal.addEventListener('click', (e) => {
 
 function _renderTtsProviderHint(status) {
   if (!els.ttsProviderHint) return;
-  const p = status.provider || 'gemini_api';
+  const p = status.provider || 'edge_tts';
   const lines = [];
-  if (p === 'gemini_api') {
+  if (p === 'edge_tts') {
+    lines.push(t('tts_hint_edge_ok'));
+  } else if (p === 'gemini_api') {
     if (status.gemini_api_configured) {
       lines.push(t('tts_hint_gemini_ok'));
     } else {
@@ -1610,8 +1612,21 @@ async function openSettings() {
     _renderTtsProviderHint(s);
     if (!state._ttsLoaded) {
       els.ttsVoice.innerHTML = '';
-      const tiers = ['gemini','studio','neural2','wavenet','standard'];
-      const labels = { gemini:'Gemini 3.1 Flash', studio:'Studio', neural2:'Neural2', wavenet:'Wavenet', standard:'Standard' };
+      // Tier-Reihenfolge wie in der App: erst gratis/AI, dann Premium-Tiers.
+      // edge + chirp3hd fehlten lange — Server liefert sie via /tts/status,
+      // wir haben sie hier aber rausgefiltert und stille im Dropdown
+      // verschwinden lassen. Default-Voice für frisch eingerichtete Server
+      // ist `edge-de-DE-KatjaNeural` — die war damit gar nicht wählbar.
+      const tiers = ['edge','gemini','chirp3hd','studio','neural2','wavenet','standard'];
+      const labels = {
+        edge:'Edge (gratis)',
+        gemini:'Gemini 3.1 Flash',
+        chirp3hd:'Chirp 3 HD (1 Mio Zeichen/Monat gratis)',
+        studio:'Studio',
+        neural2:'Neural2',
+        wavenet:'Wavenet',
+        standard:'Standard',
+      };
       const grouped = {};
       for (const v of (s.voices || [])) (grouped[v.tier]=grouped[v.tier]||[]).push(v);
       for (const t of tiers) {
