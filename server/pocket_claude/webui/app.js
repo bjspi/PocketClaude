@@ -831,6 +831,9 @@ els.moreMenu.addEventListener('click', async (e) => {
       a.download = `${state.title || 'chat'}.md`.replace(/[^\w.-]+/g, '_');
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(a.href);
+    } else if (action === 'auto-mode') {
+      // Auto-Mode toggle — delegiert in den Voice-Block unten.
+      if (window.PocketVoice) window.PocketVoice.toggleAutoMode();
     } else if (action === 'delete') {
       if (!confirm(t('confirm_delete_chat', state.title))) return;
       await api('DELETE', '/conversations/' + state.cid);
@@ -2250,4 +2253,314 @@ if (imgKeyDelete) imgKeyDelete.addEventListener('click', async () => {
       if (s) s.textContent = '';
     });
   }
+})();
+
+// =========================================================
+// Voice-Input (Groq Whisper Large v3 Turbo)
+// =========================================================
+//
+// Spiegelt die App-Logik 1:1 (Recording → Upload → Transcript ins Input;
+// optional Auto-Mode-Loop). Aufnahme über MediaRecorder + getUserMedia
+// (im Browser meist webm/opus); der Server akzeptiert beliebige Audio-
+// Container, Groq erkennt das Format selbst.
+window.PocketVoice = (() => {
+  const $ = (id) => document.getElementById(id);
+  const t = (k, ...args) => (window.PocketI18n ? window.PocketI18n.t(k, ...args) : k);
+
+  const micBtn    = $('mic-btn');
+  const autoPill  = $('auto-mode-pill');
+  const autoLabel = $('auto-mode-label');
+  const input     = $('input');
+
+  let mediaRecorder = null;
+  let mediaStream = null;
+  let chunks = [];
+  let state = 'idle'; // idle | recording | busy
+  let autoMode = false;
+  let autoAbortController = null;
+
+  function setMicState(newState) {
+    state = newState;
+    if (!micBtn) return;
+    micBtn.classList.remove('idle', 'recording', 'busy');
+    micBtn.classList.add(newState);
+    micBtn.title = newState === 'recording'
+        ? t('voice_mic_recording_title')
+        : t('voice_mic_title');
+  }
+
+  function setAutoModeUi(on) {
+    autoMode = on;
+    if (autoPill) autoPill.classList.toggle('hidden', !on);
+    if (autoLabel) autoLabel.textContent = on ? t('auto_mode_stop') : t('auto_mode_start');
+  }
+
+  async function startRecording() {
+    if (state !== 'idle') return false;
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      toast(t('voice_error_no_permission'), { error: true });
+      return false;
+    }
+    chunks = [];
+    // mimeType: webm/opus ist breitester Browser-Support; manche Browser
+    // (Safari) fallen auf default zurück, wenn nicht angegeben.
+    const opts = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? { mimeType: 'audio/webm;codecs=opus' }
+        : {};
+    try {
+      mediaRecorder = new MediaRecorder(mediaStream, opts);
+    } catch (e) {
+      stopStream();
+      toast(t('voice_error_start_failed', e.message), { error: true });
+      return false;
+    }
+    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    mediaRecorder.onstop = () => { /* upload triggert die Caller-Logik */ };
+    mediaRecorder.start();
+    setMicState('recording');
+    return true;
+  }
+
+  function stopStream() {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((t) => t.stop());
+      mediaStream = null;
+    }
+    mediaRecorder = null;
+  }
+
+  /** Stoppt die Aufnahme und lädt das Audio hoch. Liefert den Transkript-Text
+   *  zurück (oder leeren String bei zu kurzer Aufnahme / Fehler). */
+  async function stopAndTranscribe() {
+    if (state !== 'recording' || !mediaRecorder) return '';
+    const rec = mediaRecorder;
+    const done = new Promise((resolve) => {
+      rec.addEventListener('stop', resolve, { once: true });
+    });
+    rec.stop();
+    await done;
+    const mime = rec.mimeType || 'audio/webm';
+    const blob = new Blob(chunks, { type: mime });
+    stopStream();
+    chunks = [];
+    if (blob.size < 1000) {
+      setMicState('idle');
+      return '';
+    }
+    setMicState('busy');
+    try {
+      const locale = (window.localStorage.getItem('pc_locale') || '').trim() ||
+                     (navigator.language || 'en');
+      const fd = new FormData();
+      const ext = mime.includes('webm') ? 'webm' : (mime.includes('mp4') ? 'm4a' : 'wav');
+      fd.append('file', blob, `voice-${Date.now()}.${ext}`);
+      fd.append('language', locale);
+      const r = await fetch('/voice/transcribe', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + (localStorage.getItem('pc.serverToken') || '') },
+        body: fd,
+      });
+      if (!r.ok) {
+        const text = await r.text().catch(() => '');
+        throw new Error(text || ('HTTP ' + r.status));
+      }
+      const data = await r.json();
+      setMicState('idle');
+      return (data.text || '').trim();
+    } catch (e) {
+      setMicState('idle');
+      toast(t('voice_error_transcribe_failed', e.message), { error: true });
+      return '';
+    }
+  }
+
+  function cancelRecording() {
+    if (state !== 'recording') return;
+    try { if (mediaRecorder) mediaRecorder.stop(); } catch (_) {}
+    stopStream();
+    chunks = [];
+    setMicState('idle');
+  }
+
+  function insertTranscript(text) {
+    if (!text || !input) return;
+    if ((input.value || '').trim().length === 0) input.value = text;
+    else input.value = input.value + ' ' + text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+  }
+
+  // ── Auto-Mode ──
+  // Loop: Rec → Stop (User-Tap) → Transcript → submitForm → Stream-Done →
+  // TTS-Vorlesen → audio.ended → wieder Rec. Cancel über Pill-Klick oder
+  // erneutes Menü-Toggle.
+  async function toggleAutoMode() {
+    if (autoMode) {
+      setAutoModeUi(false);
+      if (autoAbortController) autoAbortController.abort();
+      if (state === 'recording') cancelRecording();
+      return;
+    }
+    setAutoModeUi(true);
+    autoAbortController = new AbortController();
+    const signal = autoAbortController.signal;
+    try {
+      while (autoMode) {
+        const ok = await startRecording();
+        if (!ok || signal.aborted) break;
+        // Auf User-Stop warten (er klickt den Mic-Button erneut)
+        await waitForMicIdle(signal);
+        if (signal.aborted) break;
+        // Im Idle-Übergang wurde der Transcript schon hochgeladen und
+        // submitForm() aufgerufen (im Mic-Click-Handler). Auf Stream-Ende
+        // warten dann auf TTS.
+        await waitForStreamSettled(signal);
+        if (signal.aborted) break;
+        await waitForAudioIdle(signal);
+        if (signal.aborted) break;
+      }
+    } catch (_) { /* abort */ }
+    finally { setAutoModeUi(false); }
+  }
+
+  function waitForMicIdle(signal) {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (signal.aborted) return resolve();
+        if (state === 'idle' || state === 'busy') {
+          // bei busy: Upload läuft, warten bis idle (=transcript inserted +
+          // submit ausgelöst). Wir geben dann auch noch ein bisschen Zeit
+          // damit submit-State (Streaming) sich aufbaut.
+          if (state === 'idle') return resolve();
+        }
+        setTimeout(check, 200);
+      };
+      check();
+    });
+  }
+
+  function waitForStreamSettled(signal) {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (signal.aborted) return resolve();
+        // Stream-Status hängt vom restlichen UI ab — wir prüfen ob der
+        // Send-Button im "stop"-Modus ist (Composer-Logik). Falls nicht
+        // erkennbar, beenden wir nach kurzer Wartezeit.
+        const sendBtn = document.getElementById('send-btn');
+        const streaming = sendBtn && sendBtn.classList.contains('streaming');
+        if (!streaming) return resolve();
+        setTimeout(check, 300);
+      };
+      // Erste Wartezeit, damit ein gerade gestartetes Streaming registriert wird
+      setTimeout(check, 500);
+    });
+  }
+
+  function waitForAudioIdle(signal) {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (signal.aborted) return resolve();
+        const audios = Array.from(document.querySelectorAll('audio'));
+        const anyPlaying = audios.some((a) => !a.paused && !a.ended);
+        if (!anyPlaying) return resolve();
+        setTimeout(check, 300);
+      };
+      // kurzes Delay um Auto-Play hochzulaufen
+      setTimeout(check, 400);
+    });
+  }
+
+  // Mic-Click-Handler: tap toggelt Recording↔Upload. Long-Press (>700 ms)
+  // während Recording bricht ab statt zu transkribieren.
+  if (micBtn) {
+    let pressTimer = null;
+    let longPressed = false;
+    micBtn.addEventListener('mousedown', () => {
+      longPressed = false;
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        if (state === 'recording') cancelRecording();
+      }, 700);
+    });
+    micBtn.addEventListener('mouseup', () => {
+      clearTimeout(pressTimer); pressTimer = null;
+    });
+    micBtn.addEventListener('mouseleave', () => {
+      clearTimeout(pressTimer); pressTimer = null;
+    });
+    micBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (longPressed) { longPressed = false; return; }
+      if (state === 'idle') {
+        await startRecording();
+      } else if (state === 'recording') {
+        const text = await stopAndTranscribe();
+        if (text) {
+          insertTranscript(text);
+          if (autoMode) {
+            // Auto-Mode: direkt submitten
+            const form = document.getElementById('input-form');
+            if (form) form.requestSubmit();
+          }
+        }
+      }
+    });
+  }
+
+  // Auto-Mode-Pill: Klick = Loop stoppen.
+  if (autoPill) {
+    autoPill.addEventListener('click', () => toggleAutoMode());
+  }
+
+  // Voice-API-Key Save/Delete
+  const voiceKeyInput  = document.getElementById('voice-api-key-input');
+  const voiceKeySave   = document.getElementById('voice-api-key-save');
+  const voiceKeyDelete = document.getElementById('voice-api-key-delete');
+  const voiceKeyStatus = document.getElementById('voice-api-key-status');
+
+  async function loadVoiceKeyStatus() {
+    if (!voiceKeyStatus) return;
+    try {
+      const cfg = await api('GET', '/voice/config');
+      if (cfg.configured) {
+        voiceKeyStatus.textContent = `✓ ${cfg.api_key_masked || ''} · ${cfg.model || ''}`;
+      } else {
+        voiceKeyStatus.textContent = t('voice_key_not_set');
+      }
+    } catch (_) { /* tolerieren */ }
+  }
+
+  if (voiceKeySave) voiceKeySave.addEventListener('click', async () => {
+    const key = (voiceKeyInput.value || '').trim();
+    if (!key) return;
+    try {
+      await api('PUT', '/voice/credentials', { api_key: key });
+      voiceKeyInput.value = '';
+      toast(t('toast_api_key_saved'));
+      await loadVoiceKeyStatus();
+    } catch (e) {
+      toast(t('toast_save_failed', e.message), { error: true });
+    }
+  });
+  if (voiceKeyDelete) voiceKeyDelete.addEventListener('click', async () => {
+    if (!confirm(t('confirm_remove_api_key'))) return;
+    try {
+      await api('DELETE', '/voice/credentials');
+      voiceKeyInput.value = '';
+      toast(t('toast_removed'));
+      await loadVoiceKeyStatus();
+    } catch (e) {
+      toast(t('toast_error_prefix', e.message), { error: true });
+    }
+  });
+  // beim Öffnen der Settings nachladen
+  const settingsBtn = document.getElementById('settings-btn');
+  if (settingsBtn) settingsBtn.addEventListener('click', loadVoiceKeyStatus);
+  // initial einmal
+  loadVoiceKeyStatus();
+
+  setMicState('idle');
+  return { toggleAutoMode };
 })();

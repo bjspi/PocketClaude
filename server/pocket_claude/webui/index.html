@@ -41,6 +41,8 @@
     <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 17V5M7 10l5-5 5 5M5 21h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="icon-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zM14 3v6h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none"/></symbol>
+    <symbol id="icon-loop" viewBox="0 0 24 24"><path d="M17 2v4h-4M3 12a9 9 0 0 1 14-7l3 3M7 22v-4h4M21 12a9 9 0 0 1-14 7l-3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="icon-sidebar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 4v16" stroke="currentColor" stroke-width="1.6"/></symbol>
     <symbol id="icon-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="9" r="1.5" fill="currentColor"/><path d="M21 16l-5-5-9 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
@@ -187,6 +189,7 @@
         <div id="more-menu" class="dropdown right hidden">
           <button data-action="rename"><svg class="icon"><use href="#icon-edit"/></svg> <span data-i18n="rename">Umbenennen</span></button>
           <button data-action="pin"><svg class="icon"><use href="#icon-pin"/></svg> <span id="pin-label" data-i18n="pin">Anpinnen</span></button>
+          <button data-action="auto-mode"><svg class="icon"><use href="#icon-loop"/></svg> <span id="auto-mode-label" data-i18n="auto_mode_start">Auto-Modus starten</span></button>
           <button data-action="share"><svg class="icon"><use href="#icon-share"/></svg> <span data-i18n="share">Teilen</span></button>
           <hr>
           <button data-action="delete" class="danger"><svg class="icon"><use href="#icon-trash"/></svg> <span data-i18n="delete">Löschen</span></button>
@@ -229,12 +232,25 @@
         <button id="image-mode-btn" type="button" class="composer-btn" data-i18n-title="image_mode_title" title="Image mode (Gemini)">
           <svg class="icon"><use href="#icon-image"/></svg>
         </button>
+        <!-- Mic-Button: tap = Aufnahme starten/stoppen, Doppel-Klick / Esc bricht ab.
+             Visuell drei States via class: idle (default), recording (grüner Pulse), busy (Spinner). -->
+        <button id="mic-btn" type="button" class="composer-btn mic-btn" data-i18n-title="voice_mic_title" title="Voice input">
+          <svg class="icon"><use href="#icon-mic"/></svg>
+          <span class="mic-pulse" aria-hidden="true"></span>
+          <span class="mic-pulse mic-pulse-2" aria-hidden="true"></span>
+        </button>
         <input id="file-input" type="file" hidden multiple accept="image/*,application/pdf,.txt,.md">
         <textarea id="input" rows="1" placeholder="Frag Pocket Claude…" data-i18n-placeholder="compose_placeholder" required></textarea>
         <button id="send-btn" type="submit" class="composer-btn primary" data-i18n-title="send_title" title="Send">
           <svg class="icon"><use href="#icon-send"/></svg>
         </button>
       </form>
+
+      <!-- Auto-Mode-Status-Pill: sichtbar wenn Auto-Loop läuft, Klick stoppt. -->
+      <div id="auto-mode-pill" class="auto-mode-pill hidden" role="status">
+        <svg class="icon icon-sm"><use href="#icon-loop"/></svg>
+        <span data-i18n="auto_mode_pill_active">Auto-Modus aktiv — Klick zum Stoppen</span>
+      </div>
       <p class="composer-hint" id="composer-hint" data-i18n="composer_hint">⌘/Ctrl + Enter zum Senden · Pocket Claude kann Fehler machen.</p>
     </div>
   </main>
@@ -311,6 +327,23 @@
           Key holen: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com/apikey</a>.
           Für Bild-Generation muss das Cloud-Projekt einen Billing-Account haben
           (<a href="https://console.cloud.google.com/billing" target="_blank" rel="noreferrer">Billing aktivieren</a>) — Free-Tier umfasst nur Text.
+        </p>
+      </section>
+
+      <section class="settings-section" id="voice-settings-section">
+        <h3 data-i18n="voice_section_title">Spracheingabe (Groq Whisper)</h3>
+        <p class="hint" data-i18n="voice_section_hint">Dein eigener Groq-API-Key für Whisper Large v3 Turbo. Wird nur für Dich gespeichert, nie geteilt.</p>
+        <div class="row-gap" style="margin-top:8px;flex-wrap:wrap;align-items:center">
+          <input id="voice-api-key-input" type="password" placeholder="gsk_…"
+                 autocomplete="off"
+                 style="flex:1;min-width:240px;padding:9px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;outline:none;font-family:SF Mono,Menlo,monospace;font-size:13px">
+          <button id="voice-api-key-save" type="button" class="btn-secondary" data-i18n="save">Speichern</button>
+          <button id="voice-api-key-delete" type="button" class="btn-ghost" data-i18n="remove">Entfernen</button>
+        </div>
+        <div id="voice-api-key-status" class="backup-status"></div>
+        <p class="hint" style="margin-top:10px" data-i18n-html="voice_get_key_html">
+          Key holen: <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>.
+          Whisper Large v3 Turbo ist im Free Tier mit Rate-Limits für persönlichen Gebrauch enthalten.
         </p>
       </section>
 

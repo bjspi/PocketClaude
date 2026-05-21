@@ -890,6 +890,78 @@ button { cursor: pointer; }
   color: var(--text-muted);
 }
 
+/* ----------- Mic-Button (Voice-Input via Groq Whisper) ----------- */
+/* Drei States:
+ *   .mic-btn.idle       — gray icon
+ *   .mic-btn.recording  — grünes Filling + zwei konzentrische Pulse-Ringe
+ *   .mic-btn.busy       — Spinner während Transcribe
+ * Visuell angelehnt an die WhisperTyper-Pulse + die Android-MicButton-Composable. */
+.mic-btn { position: relative; overflow: visible; }
+.mic-btn .mic-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border-radius: 50%;
+  background: #22C55E;
+  opacity: 0;
+  pointer-events: none;
+}
+.mic-btn.recording {
+  background: #22C55E;
+  color: #fff;
+}
+.mic-btn.recording:hover { background: #16A34A; color: #fff; }
+.mic-btn.recording .mic-pulse {
+  animation: micPulse 1.4s linear infinite;
+}
+.mic-btn.recording .mic-pulse-2 {
+  animation-delay: 0.7s;
+}
+@keyframes micPulse {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  100% { transform: scale(1.7); opacity: 0;    }
+}
+.mic-btn.busy {
+  cursor: progress;
+}
+.mic-btn.busy .icon { opacity: 0.25; }
+.mic-btn.busy::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  margin: -8px 0 0 -8px;
+  width: 16px; height: 16px;
+  border: 2px solid var(--text-muted);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: micSpin 0.7s linear infinite;
+}
+@keyframes micSpin { to { transform: rotate(360deg); } }
+
+/* ----------- Auto-Mode-Pill (sichtbar wenn der Voice-Loop läuft) ----------- */
+.auto-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px auto 0;
+  padding: 4px 12px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  align-self: center;
+}
+.auto-mode-pill:hover {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.composer-wrap { display: flex; flex-direction: column; align-items: stretch; }
+
 /* ----------- Image Mode ----------- */
 /* aktivierter Image-Mode-Knopf bekommt Brand-Akzent — User sieht sofort:
    ah, mein Prompt geht an Gemini, nicht an Claude. */
