@@ -531,8 +531,29 @@ fun ChatScreen(
                                 )
                             }
                         }
-                        items(state.messages, key = { it.id }) { msg ->
-                            when (msg.role) {
+                        // Streaming-Bubble läuft als VIRTUELLES letztes Element
+                        // im gleichen items()-Block. Damit bleibt der LazyColumn-
+                        // Slot über den gesamten Stream-Lebenszyklus stabil:
+                        // beim Done-Event wird derselbe Slot in den finalen
+                        // AssistantBubble rekomponiert — kein Remove-and-Add,
+                        // kein Re-Anchor, kein Sprung der Scrollposition. Aus
+                        // demselben Grund kein `key = { it.id }`: Index-basierte
+                        // Default-Keys machen auch den UserSaved-Id-Swap
+                        // (optimistic → real) slot-stabil.
+                        val msgs = state.messages
+                        val displayCount = msgs.size + (if (state.isStreaming) 1 else 0)
+                        items(count = displayCount) { i ->
+                            val msg = msgs.getOrNull(i)
+                            if (msg == null) {
+                                // Letztes Element während Streaming. Wird beim
+                                // Done durch den realen Assistant-Message im
+                                // selben Slot ersetzt — Compose recomposes nur.
+                                AssistantBubble(
+                                    text = state.streamingText,
+                                    isStreaming = true,
+                                    thinkingText = state.streamingThinking,
+                                )
+                            } else when (msg.role) {
                                 "user" -> UserBubble(
                                     text = msg.content,
                                     attachments = msg.attachments,
@@ -555,15 +576,6 @@ fun ChatScreen(
                                     )
                                 }
                                 else -> Unit
-                            }
-                        }
-                        if (state.isStreaming) {
-                            item("stream") {
-                                AssistantBubble(
-                                    text = state.streamingText,
-                                    isStreaming = true,
-                                    thinkingText = state.streamingThinking,
-                                )
                             }
                         }
                         item { Spacer(Modifier.height(8.dp)) }
