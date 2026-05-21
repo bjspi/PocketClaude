@@ -13,6 +13,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Form,
     Header,
     HTTPException,
     Path as PathParam,
@@ -25,7 +26,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from pocket_claude import (
     __version__, auth_modes, backup, billing, claude_engine, db, image_engine,
-    system_prompts, tts, tts_cache, usage,
+    system_prompts, tts, tts_cache, usage, voice,
 )
 from pocket_claude.auth import (
     require_admin,
@@ -1700,6 +1701,100 @@ async def images_delete_credentials(user=Depends(require_user)):
     # KV-Setting auf leeren String setzen — kein extra delete-Path nötig
     await db.kv_set_many({_KV_IMAGE_API_KEY: ""}, scope=user["id"])
     return JSONResponse(status_code=204, content=None)
+
+
+# ---------- Voice-Input (Groq Whisper Large v3 Turbo) ----------
+
+_KV_VOICE_GROQ_API_KEY = "voice_groq_api_key"
+
+
+@app.get("/voice/config")
+async def voice_config(user=Depends(require_user)):
+    """Liefert den Konfig-Status für Voice-Input (per User).
+
+    `configured=True`, wenn der User einen Groq-Key hinterlegt hat. UI
+    nutzt das, um den Mic-Button erst freizuschalten und sonst ins
+    Settings-Pop-up zu verweisen.
+    """
+    kv = await db.kv_get_all(scope=user["id"])
+    api_key = (kv.get(_KV_VOICE_GROQ_API_KEY) or "").strip()
+    return {
+        "configured": bool(api_key),
+        "api_key_masked": _mask_key(api_key) if api_key else None,
+        "model": voice.GROQ_DEFAULT_MODEL,
+    }
+
+
+@app.put("/voice/credentials")
+async def voice_set_credentials(body: dict, user=Depends(require_user)):
+    """Speichert den Groq-API-Key des Users (per-User, nicht global).
+
+    Body: `{api_key: str}`. Format-Check: Groq-Keys beginnen mit `gsk_`.
+    """
+    key = (body.get("api_key") or "").strip()
+    if not key:
+        raise HTTPException(400, "Leerer API-Key.")
+    if not key.startswith("gsk_"):
+        raise HTTPException(
+            400,
+            "Sieht nicht aus wie ein Groq-API-Key (sollte mit 'gsk_' beginnen).")
+    await db.kv_set_many({_KV_VOICE_GROQ_API_KEY: key}, scope=user["id"])
+    return {"ok": True, "api_key_masked": _mask_key(key)}
+
+
+@app.delete("/voice/credentials", status_code=status.HTTP_204_NO_CONTENT)
+async def voice_delete_credentials(user=Depends(require_user)):
+    await db.kv_set_many({_KV_VOICE_GROQ_API_KEY: ""}, scope=user["id"])
+    return JSONResponse(status_code=204, content=None)
+
+
+@app.post("/voice/transcribe")
+async def voice_transcribe_endpoint(
+    file: UploadFile = File(...),
+    language: str = Form(default="en"),
+    user=Depends(require_user),
+):
+    """Nimmt eine Audio-Datei + UI-Sprache entgegen, schickt sie an Groq
+    Whisper Large v3 Turbo (mit passendem Bias-Prompt für die Sprache),
+    liefert `{text: "..."}` zurück.
+
+    `language`: UI-Locale aus der App (`en`, `de`, `es`, `fr`, `pt-BR`,
+    `zh`, `ja`). Unbekannte Werte fallen auf Englisch zurück.
+    """
+    kv = await db.kv_get_all(scope=user["id"])
+    api_key = (kv.get(_KV_VOICE_GROQ_API_KEY) or "").strip()
+    if not api_key:
+        raise HTTPException(
+            400,
+            "Kein Groq-API-Key gesetzt. In den Einstellungen unter "
+            "'Spracheingabe' eintragen.")
+
+    # Upload-Größe checken — wie bei /attachments
+    raw = await file.read()
+    max_bytes = settings.max_upload_mb * 1024 * 1024
+    if len(raw) > max_bytes:
+        raise HTTPException(
+            413,
+            f"Audio zu groß (max {settings.max_upload_mb} MB).")
+    if not raw:
+        raise HTTPException(400, "Audio-Daten leer.")
+
+    try:
+        text = await voice.transcribe(
+            audio_bytes=raw,
+            filename=file.filename or "audio.m4a",
+            content_type=file.content_type or "audio/mp4",
+            ui_locale=language,
+            api_key=api_key,
+        )
+    except voice.VoiceTranscribeError as e:
+        log.warning("Voice-Transcribe für user=%s fehlgeschlagen: %s",
+                    user["id"], e)
+        raise HTTPException(400, str(e)) from e
+
+    log.info("Voice-Transcribe ok user=%s lang=%s chars=%d",
+             user["id"], language, len(text))
+    return {"text": text}
 
 
 @app.post("/images/generate")
