@@ -39,6 +39,23 @@
 
 > **Note** — this is a self-hosted hobby project, not an Anthropic product. You bring your own Pro/Max subscription. We never see or proxy your conversations.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="assets/screenshots/android-app-04.jpg" alt="Android chat" width="240"><br><sub>Android chat</sub></td>
+    <td align="center" width="25%"><img src="assets/screenshots/android-app-02.jpg" alt="Conversations drawer" width="240"><br><sub>Drawer with recent chats</sub></td>
+    <td align="center" width="25%"><img src="assets/screenshots/android-app-03.jpg" alt="Settings" width="240"><br><sub>Settings — system prompt, skills, providers</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="assets/screenshots/desktop-ui-01.png" alt="Web UI" width="720"><br>
+  <sub>Built-in web UI (desktop)</sub>
+</p>
+
+<sub>More screenshots in <a href="assets/screenshots/"><code>assets/screenshots/</code></a> — 15 phone shots + 6 desktop shots showing TTS, image generation, multi-user admin, backup/restore, etc.</sub>
+
 ## Highlights
 
 - 💬 **Native Android client** (Kotlin + Jetpack Compose, no web wrapper) and a built-in **web UI** as a fallback / desktop option
