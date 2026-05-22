@@ -2,7 +2,7 @@
 
 Architektur:
   - Auth: weiterhin über lokale Claude-Code-Anmeldung (`claude login` → OAuth-Token
-    in `~/.claude/credentials.json`). Kein API-Key nötig.
+    in `~/.claude/.credentials.json`). Kein API-Key nötig.
   - Unter der Haube spawnt die SDK das gleiche `claude`-Binary, das wir vorher
     direkt aufgerufen haben. Die SDK gibt uns aber zwei wichtige Knöpfe an die
     Hand, die das CLI nicht hatte:

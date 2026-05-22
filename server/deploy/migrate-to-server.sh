@@ -10,7 +10,7 @@
 #      - .env                            (server token + model setting)
 #
 #  What does NOT get transferred:
-#      - ~/.claude/credentials.json (claude CLI login) — must be redone on the
+#      - ~/.claude/.credentials.json (claude CLI login) — must be redone on the
 #        target host (`claude login` as the pocket-claude user).
 #        Reason: claude CLI sessions are often bound to device fingerprints.
 #      - Cloudflare tunnel credentials — these are created via

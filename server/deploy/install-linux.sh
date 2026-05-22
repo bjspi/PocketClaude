@@ -109,7 +109,20 @@ set_env_value() {
 }
 
 claude_credentials_present() {
-    sudo -u "$SERVICE_USER" -H bash -c '[[ -f ~/.claude/credentials.json ]] || [[ -f ~/.config/claude/credentials.json ]]' 2>/dev/null
+    sudo -u "$SERVICE_USER" -H bash -lc '
+        if command -v claude >/dev/null 2>&1 && claude auth status >/dev/null 2>&1; then
+            exit 0
+        fi
+        [[ -f ~/.claude/.credentials.json ]] ||
+        [[ -f ~/.claude/credentials.json ]] ||
+        [[ -f ~/.config/claude/credentials.json ]]
+    ' 2>/dev/null
+}
+
+root_claude_credentials_present() {
+    [[ -f /root/.claude/.credentials.json ]] ||
+    [[ -f /root/.claude/credentials.json ]] ||
+    [[ -f /root/.config/claude/credentials.json ]]
 }
 
 resolve_server_source() {
@@ -365,7 +378,7 @@ step "Starting server"
 # loop until the operator has run `claude login` as the pocket-claude user.
 if ! claude_credentials_present; then
     c_yellow "    Claude login is missing for service user '$SERVICE_USER'."
-    if [[ -f /root/.claude/credentials.json || -f /root/.config/claude/credentials.json ]]; then
+    if root_claude_credentials_present; then
         c_yellow "    Root appears to have Claude credentials, but the service runs as '$SERVICE_USER'."
     fi
     echo

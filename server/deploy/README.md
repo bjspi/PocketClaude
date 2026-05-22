@@ -324,7 +324,7 @@ On the server, the old data is **backed up beforehand** into
 
 **What is NOT migrated:**
 
-- `~/.claude/credentials.json` — the Claude CLI login has to be redone
+- `~/.claude/.credentials.json` — the Claude CLI login has to be redone
   (`sudo -u pocket-claude -H claude login` on the server). This is
   intentional: Claude sessions are often tied to device fingerprints.
 - Cloudflare tunnel credentials — these are recreated on the server via
