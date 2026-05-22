@@ -70,6 +70,14 @@ data class AppSettings(
     /** Lange eigene Nachrichten in der Chat-Ansicht einklappen (à la ChatGPT) —
      *  nach 6 Zeilen Fade-Out + „Mehr anzeigen"-Toggle. Default: AN. */
     val collapseLongUserMessages: Boolean = true,
+    /** Auto-Send im Auto-Modus: nach `autoSendSilenceMs` Stille wird die
+     *  Aufnahme automatisch beendet + gesendet. AUS → User muss aktiv tippen,
+     *  um zu senden (manuelles Stoppen). Default: AUS — die VAD-Heuristik ist
+     *  device-abhängig (MediaRecorder.maxAmplitude liefert je nach Encoder
+     *  unterschiedliche Werte), deshalb opt-in statt opt-out. */
+    val autoSendEnabled: Boolean = false,
+    /** Stille-Schwellwert in ms für Auto-Send. Default 3000 (3 s). */
+    val autoSendSilenceMs: Long = 3000L,
 ) {
     /** Aktuell aktives Profil (oder null wenn keins gewählt). */
     val activeProfile: Profile?
@@ -111,6 +119,8 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     private val keySystemPromptMode = stringPreferencesKey("system_prompt_mode")
     private val keyCustomSystemPrompt = stringPreferencesKey("custom_system_prompt")
     private val keyCollapseLongUserMessages = stringPreferencesKey("collapse_long_user_messages")
+    private val keyAutoSendEnabled = stringPreferencesKey("auto_send_enabled")
+    private val keyAutoSendSilenceMs = stringPreferencesKey("auto_send_silence_ms")
     private val keyImageHistoryJson = stringPreferencesKey("image_history_json")
 
     val settingsFlow: Flow<AppSettings> = dataStore.data.map { prefs ->
@@ -133,11 +143,23 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             customSystemPrompt = prefs[keyCustomSystemPrompt].orEmpty(),
             collapseLongUserMessages =
                 (prefs[keyCollapseLongUserMessages] ?: "true").toBooleanStrictOrNull() ?: true,
+            autoSendEnabled =
+                (prefs[keyAutoSendEnabled] ?: "false").toBooleanStrictOrNull() ?: false,
+            autoSendSilenceMs = (prefs[keyAutoSendSilenceMs]?.toLongOrNull() ?: 3000L)
+                .coerceIn(500L, 10_000L),
         )
     }
 
     suspend fun setCollapseLongUserMessages(value: Boolean) {
         dataStore.edit { it[keyCollapseLongUserMessages] = value.toString() }
+    }
+
+    suspend fun setAutoSendEnabled(value: Boolean) {
+        dataStore.edit { it[keyAutoSendEnabled] = value.toString() }
+    }
+
+    suspend fun setAutoSendSilenceMs(value: Long) {
+        dataStore.edit { it[keyAutoSendSilenceMs] = value.coerceIn(500L, 10_000L).toString() }
     }
 
     // ---------- Image-Generation-History (App-lokal) ----------

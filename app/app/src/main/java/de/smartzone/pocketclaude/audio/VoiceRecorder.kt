@@ -3,56 +3,83 @@ package de.smartzone.pocketclaude.audio
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaFormat
+import android.media.MediaMuxer
 import android.media.MediaRecorder
-import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.abs
+import kotlin.concurrent.thread
 
 /**
- * Kapselt eine MediaRecorder-Session für Voice-Input.
+ * Kapselt eine Voice-Input-Aufnahme.
  *
- * Audio-Format: MPEG-4-Container + AAC, 16 kHz, mono — passt 1:1 zu dem
- * Format, das das `AI-Voice-Keyboard`-Projekt an Groq Whisper schickt,
- * dort gut getestet. Datei landet im internen Cache-Ordner (`/voice-XXXXX.m4a`)
- * und wird nach dem Hochladen entsorgt.
+ * Mai 2026 — komplett umgebaut wegen zweier Anforderungen, die sich
+ * gegenseitig zwicken:
+ *
+ *  1) **VAD (Voice Activity Detection)** im Auto-Modus braucht Zugriff
+ *     auf Peak-Amplitude der Samples. `MediaRecorder.getMaxAmplitude()`
+ *     funktioniert offiziell nur mit AMR-Encoder; bei AAC liefert es auf
+ *     vielen Devices durchgehend 0 (verifiziert auf Pixel 8, PC_VAD-Logs
+ *     2026-05-22).
+ *
+ *  2) **Dateigröße** soll klein bleiben fürs Upload zu Groq Whisper.
+ *     Rohes PCM/WAV ist 32 KB/s → 60 s = ~1,9 MB; AAC bei 32 kbps ist
+ *     ~4 KB/s → 60 s = ~240 KB. Faktor 8.
+ *
+ * Lösung: `AudioRecord` liest rohes PCM (für VAD), die Samples werden
+ * gleichzeitig durch einen `MediaCodec`-AAC-Encoder geschoben und mit
+ * `MediaMuxer` in einen MPEG-4-Container gemuxt. Output ist .m4a wie
+ * früher mit MediaRecorder — Groq frisst das unverändert.
  *
  * Lifecycle:
- *   - `start()` legt Datei an, startet MediaRecorder
- *   - `stop()` schließt sauber ab, liefert das File-Handle für den Upload
- *   - `cancel()` bricht ab und löscht die Datei
+ *   - `start()`: AudioRecord + MediaCodec + MediaMuxer öffnen,
+ *     Reader-Thread starten.
+ *   - `stop()`: EOS senden, Encoder ausdrainieren, Muxer schließen,
+ *     File-Handle zurückgeben.
+ *   - `cancel()`: hart abbrechen, Datei löschen.
  *
- * Thread-Safety: start/stop/cancel sind durch eine Atomic-Flag geschützt;
- * mehrfaches stop() ist idempotent.
+ * `currentAmplitude()` ist Lock-frei via AtomicInteger und resettet beim
+ * Lesen — passt zur MediaRecorder-Semantik.
  */
 class VoiceRecorder(private val appContext: Context) {
 
-    private var recorder: MediaRecorder? = null
-    private var outputFile: File? = null
+    @Volatile private var recorder: AudioRecord? = null
+    @Volatile private var outputFile: File? = null
+    @Volatile private var codec: MediaCodec? = null
+    @Volatile private var muxer: MediaMuxer? = null
+    @Volatile private var audioTrackIdx: Int = -1
+    @Volatile private var muxerStarted: Boolean = false
+    @Volatile private var readerThread: Thread? = null
+
     private val active = AtomicBoolean(false)
+    private val lastPeak = AtomicInteger(0)
     private var startedAtMs: Long = 0L
 
     val isRecording: Boolean get() = active.get()
-    /** Dauer der aktuellen Session in ms (0 wenn nicht aktiv). */
     val elapsedMs: Long get() = if (active.get() && startedAtMs > 0) {
         System.currentTimeMillis() - startedAtMs
     } else 0L
+
+    /** Peak seit dem letzten Aufruf (0..32767, monotones Maximum innerhalb
+     *  des Polling-Intervalls). 0 wenn keine Session läuft. */
+    fun currentAmplitude(): Int =
+        if (active.get()) lastPeak.getAndSet(0) else 0
 
     fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(
             appContext, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
 
-    /** Startet die Aufnahme. Wirft `SecurityException` ohne Mikro-Permission;
-     *  eine `IllegalStateException` nur wenn der MediaRecorder selbst nicht
-     *  starten kann (Mikro belegt von einer anderen App o.ä.).
-     *
-     *  Wenn der Recorder noch eine Leftover-Session aus einer vorigen VM
-     *  oder einem schiefgegangenen Cleanup hält (z.B. beim Chat-Wechsel),
-     *  wird die VORHER sauber abgebrochen — sonst würden alle weiteren
-     *  Recordings für immer fehlschlagen, weil der Singleton-Recorder
-     *  als "active" gilt. */
     @Throws(IllegalStateException::class, SecurityException::class)
     fun start() {
         if (active.get()) {
@@ -62,91 +89,301 @@ class VoiceRecorder(private val appContext: Context) {
         if (!hasPermission()) {
             throw SecurityException("RECORD_AUDIO permission missing.")
         }
+
         val cacheDir = File(appContext.cacheDir, "voice").apply { mkdirs() }
         val file = File(cacheDir, "voice-${System.currentTimeMillis()}.m4a")
-        val rec = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            MediaRecorder(appContext)
-        } else {
-            @Suppress("DEPRECATION")
-            MediaRecorder()
+
+        // --- AudioRecord setup ---
+        val minBuf = AudioRecord.getMinBufferSize(
+            SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
+        if (minBuf <= 0) {
+            throw IllegalStateException(
+                "AudioRecord.getMinBufferSize fehlgeschlagen (Rate $SAMPLE_RATE)."
+            )
         }
+        val bufSize = maxOf(minBuf * 2, CHUNK_BYTES * 4)
+        @Suppress("MissingPermission")
+        val rec = try {
+            AudioRecord(
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                bufSize,
+            )
+        } catch (t: Throwable) {
+            throw IllegalStateException("AudioRecord create fehlgeschlagen: ${t.message}", t)
+        }
+        if (rec.state != AudioRecord.STATE_INITIALIZED) {
+            runCatching { rec.release() }
+            throw IllegalStateException("AudioRecord state=${rec.state} (nicht INITIALIZED)")
+        }
+
+        // --- MediaCodec AAC encoder + MediaMuxer setup ---
+        val codec: MediaCodec
+        val muxer: MediaMuxer
         try {
-            // VOICE_RECOGNITION matches what AI-Voice-Keyboard uses by default —
-            // Android wendet keine Anruf-spezifische Echo-/AGC-Postprocessing an,
-            // sondern liefert das rohe Mikro-Signal mit leichter Noise-Suppression.
-            rec.setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
-            rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            rec.setAudioSamplingRate(16_000)
-            rec.setAudioChannels(1)
-            rec.setAudioEncodingBitRate(48_000)
-            rec.setOutputFile(file.absolutePath)
-            rec.prepare()
-            rec.start()
+            val format = MediaFormat.createAudioFormat(
+                MIME_AAC, SAMPLE_RATE, CHANNELS,
+            ).apply {
+                setInteger(
+                    MediaFormat.KEY_AAC_PROFILE,
+                    MediaCodecInfo.CodecProfileLevel.AACObjectLC,
+                )
+                setInteger(MediaFormat.KEY_BIT_RATE, AAC_BITRATE)
+                setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, CHUNK_BYTES * 2)
+            }
+            codec = MediaCodec.createEncoderByType(MIME_AAC).also {
+                it.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                it.start()
+            }
+            muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
         } catch (t: Throwable) {
             runCatching { rec.release() }
             file.delete()
-            throw IllegalStateException("MediaRecorder konnte nicht starten: ${t.message}", t)
+            throw IllegalStateException("AAC-Encoder/Muxer Setup fehlgeschlagen: ${t.message}", t)
         }
-        recorder = rec
-        outputFile = file
-        startedAtMs = System.currentTimeMillis()
-        active.set(true)
+
+        try {
+            rec.startRecording()
+        } catch (t: Throwable) {
+            runCatching { codec.stop(); codec.release() }
+            runCatching { muxer.release() }
+            runCatching { rec.release() }
+            file.delete()
+            throw IllegalStateException("AudioRecord.startRecording fehlgeschlagen: ${t.message}", t)
+        }
+
+        this.recorder = rec
+        this.codec = codec
+        this.muxer = muxer
+        this.outputFile = file
+        this.audioTrackIdx = -1
+        this.muxerStarted = false
+        this.lastPeak.set(0)
+        this.startedAtMs = System.currentTimeMillis()
+        this.active.set(true)
+
+        readerThread = thread(name = "VoiceRecorder-Reader", isDaemon = true) {
+            runReaderLoop(rec, codec, muxer)
+        }
+
         Log.d(TAG, "Recording started → ${file.absolutePath}")
     }
 
-    /** Stoppt die Aufnahme und gibt das fertige File zurück.
-     *  Wenn keine Aufnahme aktiv ist oder die Aufnahme zu kurz war (<200 ms),
-     *  liefert es `null`. Datei muss vom Caller gelöscht werden. */
+    /** Reader-Thread: pollt AudioRecord, tracked Peak, schaufelt Samples in
+     *  den AAC-Encoder, drainiert Encoder-Output in den Muxer. Stoppt
+     *  sobald `active = false` — der Caller (stop()) signalisiert das
+     *  Ende und drainiert den Encoder dann ein letztes Mal. */
+    private fun runReaderLoop(
+        rec: AudioRecord,
+        codec: MediaCodec,
+        muxer: MediaMuxer,
+    ) {
+        val pcmShorts = ShortArray(CHUNK_SHORTS)
+        val pcmBytes = ByteArray(CHUNK_BYTES)
+        val pcmBB = ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN)
+        val info = MediaCodec.BufferInfo()
+        var presentationTimeUs = 0L
+        try {
+            while (active.get()) {
+                val r = rec.read(pcmShorts, 0, pcmShorts.size)
+                if (r <= 0) {
+                    if (r < 0) {
+                        Log.w(TAG, "AudioRecord.read returned $r — stopping reader.")
+                        break
+                    }
+                    continue
+                }
+                // Peak im Chunk berechnen (linearer Scan, vernachlässigbar).
+                var peak = 0
+                for (i in 0 until r) {
+                    val v = abs(pcmShorts[i].toInt())
+                    if (v > peak) peak = v
+                }
+                var prev: Int
+                do {
+                    prev = lastPeak.get()
+                } while (peak > prev && !lastPeak.compareAndSet(prev, peak))
+
+                // PCM in Bytes konvertieren
+                pcmBB.clear()
+                for (i in 0 until r) pcmBB.putShort(pcmShorts[i])
+                val nBytes = r * 2
+
+                // In Encoder einspeisen
+                val inIdx = codec.dequeueInputBuffer(10_000L)
+                if (inIdx >= 0) {
+                    val inBuf = codec.getInputBuffer(inIdx)
+                    inBuf?.let {
+                        it.clear()
+                        it.put(pcmBytes, 0, nBytes)
+                    }
+                    codec.queueInputBuffer(inIdx, 0, nBytes, presentationTimeUs, 0)
+                    presentationTimeUs += (r * 1_000_000L) / SAMPLE_RATE
+                }
+
+                // Encoder-Output abgreifen + an Muxer weiterreichen
+                drainEncoder(codec, muxer, info, endOfStream = false)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Reader-Thread exception", t)
+        }
+    }
+
+    /** Pumpt fertige AAC-Frames aus dem Encoder in den Muxer. Bei EOS
+     *  blockiert es bis der Encoder durch ist. */
+    private fun drainEncoder(
+        codec: MediaCodec,
+        muxer: MediaMuxer,
+        info: MediaCodec.BufferInfo,
+        endOfStream: Boolean,
+    ) {
+        val timeoutUs = if (endOfStream) 10_000L else 0L
+        while (true) {
+            val outIdx = codec.dequeueOutputBuffer(info, timeoutUs)
+            if (outIdx == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                if (!endOfStream) return
+                // bei EOS: weiterpollen bis BUFFER_FLAG_END_OF_STREAM da ist
+                continue
+            }
+            if (outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                if (muxerStarted) {
+                    Log.w(TAG, "Format change after muxer start — ignored.")
+                    continue
+                }
+                val newFormat = codec.outputFormat
+                synchronized(this) {
+                    audioTrackIdx = muxer.addTrack(newFormat)
+                    muxer.start()
+                    muxerStarted = true
+                }
+                continue
+            }
+            if (outIdx < 0) continue
+
+            val outBuf = codec.getOutputBuffer(outIdx)
+            if (outBuf != null && info.size > 0 && muxerStarted &&
+                (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0
+            ) {
+                outBuf.position(info.offset)
+                outBuf.limit(info.offset + info.size)
+                synchronized(this) {
+                    if (muxerStarted && audioTrackIdx >= 0) {
+                        muxer.writeSampleData(audioTrackIdx, outBuf, info)
+                    }
+                }
+            }
+            codec.releaseOutputBuffer(outIdx, false)
+
+            if ((info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) return
+        }
+    }
+
     fun stop(): File? {
         if (!active.compareAndSet(true, false)) return null
-        val rec = recorder
-        val file = outputFile
-        recorder = null
-        outputFile = null
+        val rec = this.recorder
+        val file = this.outputFile
+        val codec = this.codec
+        val muxer = this.muxer
+        val thread = this.readerThread
+        this.recorder = null
+        this.codec = null
+        this.muxer = null
+        this.outputFile = null
+        this.readerThread = null
+
         val durMs = if (startedAtMs > 0) System.currentTimeMillis() - startedAtMs else 0L
         startedAtMs = 0L
-        if (rec == null || file == null) return null
-        try {
-            rec.stop()
-        } catch (t: Throwable) {
-            // `stop()` knallt z.B. wenn der Recorder weniger als 1 valide
-            // Frame aufgenommen hat. Datei ggf. trotzdem da, aber unbrauchbar.
-            Log.w(TAG, "MediaRecorder.stop() failed: $t")
-            runCatching { rec.release() }
+
+        // Reader-Thread joinen (max 500 ms — dann sind alle Samples
+        // garantiert in den Encoder geschoben).
+        try { thread?.join(500) } catch (_: InterruptedException) {}
+
+        // AudioRecord ab jetzt nicht mehr benötigt.
+        runCatching { rec?.stop() }
+        runCatching { rec?.release() }
+
+        // EOS an den Encoder schicken + ausdrainieren.
+        var fileOk = false
+        if (codec != null && muxer != null) {
+            try {
+                val inIdx = codec.dequeueInputBuffer(10_000L)
+                if (inIdx >= 0) {
+                    codec.queueInputBuffer(
+                        inIdx, 0, 0, 0,
+                        MediaCodec.BUFFER_FLAG_END_OF_STREAM,
+                    )
+                }
+                drainEncoder(codec, muxer, MediaCodec.BufferInfo(), endOfStream = true)
+                fileOk = muxerStarted
+            } catch (t: Throwable) {
+                Log.w(TAG, "Stop/drain failed: $t")
+            }
+            runCatching { codec.stop() }
+            runCatching { codec.release() }
+            runCatching { if (muxerStarted) muxer.stop() }
+            runCatching { muxer.release() }
+        }
+        muxerStarted = false
+        audioTrackIdx = -1
+
+        if (file == null) return null
+        if (!fileOk || !file.exists() || file.length() == 0L) {
             file.delete()
             return null
         }
-        runCatching { rec.release() }
         if (durMs < 200) {
             Log.d(TAG, "Recording too short ($durMs ms) — discarded.")
             file.delete()
             return null
         }
-        Log.d(TAG, "Recording stopped — ${file.length()} bytes, ${durMs} ms")
-        return file.takeIf { it.exists() && it.length() > 0 }
+        Log.d(TAG, "Recording stopped — ${file.length()} bytes, ${durMs} ms (AAC ${AAC_BITRATE/1000}kbps)")
+        return file
     }
 
-    /** Bricht die Aufnahme ab, löscht die Datei. */
     fun cancel() {
         if (!active.compareAndSet(true, false)) return
-        val rec = recorder
-        val file = outputFile
-        recorder = null
-        outputFile = null
+        val rec = this.recorder
+        val file = this.outputFile
+        val codec = this.codec
+        val muxer = this.muxer
+        val thread = this.readerThread
+        this.recorder = null
+        this.codec = null
+        this.muxer = null
+        this.outputFile = null
+        this.readerThread = null
         startedAtMs = 0L
-        try { rec?.stop() } catch (_: Throwable) {}
+        try { thread?.join(300) } catch (_: InterruptedException) {}
+        runCatching { rec?.stop() }
         runCatching { rec?.release() }
+        runCatching { codec?.stop() }
+        runCatching { codec?.release() }
+        runCatching { if (muxerStarted) muxer?.stop() }
+        runCatching { muxer?.release() }
+        muxerStarted = false
+        audioTrackIdx = -1
         file?.delete()
         Log.d(TAG, "Recording cancelled.")
     }
 
-    /** Falls die App im Hintergrund gekillt wird, aufräumen. */
     fun release() {
         cancel()
     }
 
     companion object {
         private const val TAG = "VoiceRecorder"
+        private const val MIME_AAC = MediaFormat.MIMETYPE_AUDIO_AAC
+        private const val SAMPLE_RATE = 16_000
+        private const val CHANNELS = 1
+        /** 32 kbps reicht für Sprache, ergibt ~4 KB/s — ein 60-s-Take = ~240 KB. */
+        private const val AAC_BITRATE = 32_000
+        /** 1024 Samples = 64 ms bei 16 kHz. Trade-off zwischen VAD-Polling-Latenz
+         *  und Codec-Overhead. AAC erwartet sowieso 1024-sample-Frames bei LC,
+         *  also matched das perfekt. */
+        private const val CHUNK_SHORTS = 1024
+        private const val CHUNK_BYTES = CHUNK_SHORTS * 2
     }
 }

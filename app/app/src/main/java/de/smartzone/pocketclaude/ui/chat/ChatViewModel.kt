@@ -90,6 +90,10 @@ data class ChatUiState(
     /** Auto-Modus: nach jedem Stream-Done wird automatisch vorgelesen, dann
      *  startet die Aufnahme von alleine wieder. User stoppt mit Toggle aus. */
     val autoMode: Boolean = false,
+    /** Wie lange das Mic in Folge unter dem Silence-Threshold ist, in ms.
+     *  Nur während Auto-Mode + autoSendEnabled relevant. Wenn ≥ silenceTarget,
+     *  wird automatisch gestoppt + gesendet. 0 = Stille noch nicht begonnen. */
+    val silenceProgressMs: Long = 0L,
 ) {
     /** Die aktuell anvisierte Message-ID, oder null wenn kein Treffer. */
     val currentMatchMessageId: Long?
@@ -758,10 +762,75 @@ class ChatViewModel(
                     return
                 }
 
-                // Phase 2 — User stoppt durch Mic-Tap (oder Auto-Mode aus)
+                // Phase 2 — User stoppt durch Mic-Tap, oder (wenn autoSend an)
+                // VAD-Auto-Stop nach `silenceTargetMs` Stille.
+                //
+                // VAD-Schema:
+                //  - MediaRecorder.getMaxAmplitude() liefert Peak seit letztem
+                //    Aufruf (0..32767, -1 bei Fehler). Wir pollen alle 80 ms.
+                //  - Initial-Block 8 s: in dieser Zeit greift VAD GAR NICHT
+                //    — User-Nachdenken am Anfang ist explizit erlaubt.
+                //  - Danach: amp < threshold → silence-counter += 80 ms,
+                //    sonst → reset. Threshold 800 ist empirisch geraten;
+                //    bei VOICE_RECOGNITION-Source mit AAC variieren die
+                //    maxAmplitude-Werte aber stark device-abhängig. Deshalb
+                //    PC_VAD-Logging: User schickt `adb logcat -s PC_VAD`
+                //    nach einem Probelauf, dann tunen wir nach Evidence.
+                //  - silenceProgressMs in den State für UI-Countdown.
+                val curSettings = settingsRepo.current()
+                val autoSend = curSettings.autoSendEnabled
+                val silenceTargetMs = curSettings.autoSendSilenceMs
+                val pollMs = 80L
+                val silenceThreshold = 1500
+                val initialBlockMs = 5_000L  // 5 s Bedenkzeit
+                var silentSinceMs = 0L
+                var vadLogTick = 0
+                var maxSeenAmp = 0
                 while (_state.value.autoMode &&
                        _state.value.voiceState == VoiceState.Recording) {
-                    delay(150)
+                    if (autoSend && voiceRecorder.elapsedMs >= initialBlockMs) {
+                        val amp = voiceRecorder.currentAmplitude()
+                        if (amp > maxSeenAmp) maxSeenAmp = amp
+                        // alle ~500 ms loggen (6 × 80 ms), damit der logcat
+                        // nicht überflutet wird.
+                        if (++vadLogTick % 6 == 0) {
+                            android.util.Log.d(
+                                "PC_VAD",
+                                "amp=$amp max=$maxSeenAmp threshold=$silenceThreshold " +
+                                "silentMs=$silentSinceMs elapsedMs=${voiceRecorder.elapsedMs}"
+                            )
+                        }
+                        // amp < 0 = Fehler von MediaRecorder (z.B. Source noch
+                        // nicht aktiv) — als Stille werten wäre falsch, also
+                        // counter unverändert lassen.
+                        if (amp in 0 until silenceThreshold) {
+                            silentSinceMs += pollMs
+                            if (_state.value.silenceProgressMs != silentSinceMs) {
+                                _state.update { it.copy(silenceProgressMs = silentSinceMs) }
+                            }
+                            if (silentSinceMs >= silenceTargetMs) {
+                                android.util.Log.d("PC_VAD",
+                                    "silence target reached → auto-send (maxAmp=$maxSeenAmp)")
+                                _state.update { it.copy(silenceProgressMs = 0L) }
+                                stopRecordingAndTranscribe()
+                                break
+                            }
+                        } else if (amp >= silenceThreshold) {
+                            // Sprache erkannt → counter reset
+                            if (silentSinceMs != 0L || _state.value.silenceProgressMs != 0L) {
+                                silentSinceMs = 0L
+                                _state.update { it.copy(silenceProgressMs = 0L) }
+                            }
+                        }
+                    } else if (_state.value.silenceProgressMs != 0L) {
+                        _state.update { it.copy(silenceProgressMs = 0L) }
+                    }
+                    delay(pollMs)
+                }
+                // Counter immer zurücksetzen, falls die Loop anders verlassen
+                // wurde (User-Tap, autoMode aus).
+                if (_state.value.silenceProgressMs != 0L) {
+                    _state.update { it.copy(silenceProgressMs = 0L) }
                 }
                 if (!_state.value.autoMode) return
 

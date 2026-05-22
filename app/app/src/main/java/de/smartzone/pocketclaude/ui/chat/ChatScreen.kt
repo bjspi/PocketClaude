@@ -109,6 +109,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -291,6 +293,18 @@ fun ChatScreen(
         state.voiceError?.let { msg ->
             snackbar.showSnackbar(msg)
             vm.clearVoiceError()
+        }
+    }
+
+    // Auto-Mode: Tastatur explizit ausblenden + Fokus weg vom TextField.
+    // Das InputField bleibt vom Composition-Tree weg, solange autoMode an
+    // ist; falls die IME vorher geöffnet war, würde sie sonst noch hängen.
+    val keyboardCtrl = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(state.autoMode) {
+        if (state.autoMode) {
+            focusManager.clearFocus(force = true)
+            keyboardCtrl?.hide()
         }
     }
 
@@ -717,86 +731,75 @@ fun ChatScreen(
                 }
             }
 
-            // Auto-Mode-Status-Pill — sichtbar, solange der Loop läuft, mit
-            // einem Tap aushebelbar. So weiß der User immer, dass das Mikro
-            // sich gleich wieder von selbst meldet, und kann's stoppen.
-            AnimatedVisibility(visible = state.autoMode) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    AssistChip(
-                        onClick = { vm.setAutoMode(false) },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Filled.Loop,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        },
-                        label = {
-                            Text(
-                                stringResource(de.smartzone.pocketclaude.R.string.chat_auto_mode_pill),
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        ),
-                    )
+            // Input: Im Auto-Mode komplett ersetzt durch AutoModeBar (grosser
+            // Mic + Status-Text + Exit-Button). Tastatur ist dort nutzlos,
+            // wird beim Auto-Mode-Start aktiv ausgeblendet (siehe oben).
+            // Image-Mode läuft eh über den eigenen Bilder-Screen (Drawer),
+            // hier deshalb keine Mode-Unterscheidung mehr.
+            val voiceEnabled = !state.isStreaming &&
+                audioState.loadingMessageId == null &&
+                audioState.playingMessageId == null
+            val handleMicTap: () -> Unit = {
+                if (container.voiceRecorder.hasPermission()) {
+                    vm.toggleRecording()
+                } else {
+                    pendingMicAction = true
+                    micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                 }
             }
-
-            // Input — Image-Mode wurde nach images/ ausgelagert, daher keine
-            // Mode-Unterscheidung mehr im Chat. Bilder generieren läuft über
-            // Drawer → „Bilder generieren" → eigener Screen.
-            InputBar(
-                value = input,
-                onChange = { input = it },
-                onSend = {
-                    val text = input
-                    input = ""
-                    vm.send(text)
-                },
-                onStop = { vm.stop() },
-                onAttachImage = {
-                    photoPicker.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                onAttachDocument = {
-                    // Liberal-Liste: Claude kann mit allem umgehen, was Text ist
-                    // (Code, Configs, Logs, Markdown, JSON, YAML, …) oder als
-                    // Bild/PDF erkannt werden kann. Wir lassen den OS-Picker
-                    // alles anbieten (`*/*`) — der Server entscheidet via
-                    // _looks_like_text, ob's inline eingebettet wird oder als
-                    // Binär-Referenz behandelt. Size-Schutz: 20 MB Upload-Limit
-                    // im Server (.env: MAX_UPLOAD_MB).
-                    documentPicker.launch(arrayOf("*/*"))
-                },
-                sending = state.isStreaming,
-                hasContent = input.isNotBlank() || state.pending.any { it.uploaded != null },
-                voiceState = state.voiceState,
-                // Mic deaktivieren wenn LLM busy ist (Stream läuft oder TTS
-                // spielt) — sonst nimmt das Mic die TTS-Wiedergabe vom
-                // Lautsprecher mit auf. Greift in Manual UND Auto-Mode.
-                voiceEnabled = !state.isStreaming &&
-                    audioState.loadingMessageId == null &&
-                    audioState.playingMessageId == null,
-                onMicTap = {
-                    if (container.voiceRecorder.hasPermission()) {
-                        vm.toggleRecording()
-                    } else {
-                        pendingMicAction = true
-                        micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-                    }
-                },
-                onMicCancel = { vm.cancelRecording() },
-            )
+            if (state.autoMode) {
+                de.smartzone.pocketclaude.ui.components.AutoModeBar(
+                    voiceState = state.voiceState,
+                    isStreaming = state.isStreaming,
+                    ttsLoading = audioState.loadingMessageId != null,
+                    ttsPlaying = audioState.playingMessageId != null,
+                    voiceEnabled = voiceEnabled,
+                    autoSendEnabled = appSettings.autoSendEnabled,
+                    autoSendSilenceMs = appSettings.autoSendSilenceMs,
+                    silenceProgressMs = state.silenceProgressMs,
+                    onMicTap = handleMicTap,
+                    onMicCancel = { vm.cancelRecording() },
+                    onExitAutoMode = { vm.setAutoMode(false) },
+                    onAutoSendChange = { enabled ->
+                        scope.launch { container.settingsRepository.setAutoSendEnabled(enabled) }
+                    },
+                )
+            } else {
+                InputBar(
+                    value = input,
+                    onChange = { input = it },
+                    onSend = {
+                        val text = input
+                        input = ""
+                        vm.send(text)
+                    },
+                    onStop = { vm.stop() },
+                    onAttachImage = {
+                        photoPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    onAttachDocument = {
+                        // Liberal-Liste: Claude kann mit allem umgehen, was Text ist
+                        // (Code, Configs, Logs, Markdown, JSON, YAML, …) oder als
+                        // Bild/PDF erkannt werden kann. Wir lassen den OS-Picker
+                        // alles anbieten (`*/*`) — der Server entscheidet via
+                        // _looks_like_text, ob's inline eingebettet wird oder als
+                        // Binär-Referenz behandelt. Size-Schutz: 20 MB Upload-Limit
+                        // im Server (.env: MAX_UPLOAD_MB).
+                        documentPicker.launch(arrayOf("*/*"))
+                    },
+                    sending = state.isStreaming,
+                    hasContent = input.isNotBlank() || state.pending.any { it.uploaded != null },
+                    voiceState = state.voiceState,
+                    // Mic deaktivieren wenn LLM busy ist (Stream läuft oder TTS
+                    // spielt) — sonst nimmt das Mic die TTS-Wiedergabe vom
+                    // Lautsprecher mit auf.
+                    voiceEnabled = voiceEnabled,
+                    onMicTap = handleMicTap,
+                    onMicCancel = { vm.cancelRecording() },
+                )
+            }
         }
     }
     } // ModalNavigationDrawer

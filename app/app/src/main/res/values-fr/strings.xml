@@ -743,6 +743,18 @@
     <string name="chat_auto_mode_start">Démarrer le Mode auto (boucle vocale)</string>
     <string name="chat_auto_mode_stop">Arrêter le Mode auto</string>
     <string name="chat_auto_mode_pill">Mode auto actif — touchez pour arrêter</string>
+    <string name="auto_mode_status_listening">À l\'écoute</string>
+    <string name="auto_mode_status_transcribing">Transcription</string>
+    <string name="auto_mode_status_thinking">Claude réfléchit</string>
+    <string name="auto_mode_status_loading_audio">Chargement audio</string>
+    <string name="auto_mode_status_speaking">Lecture en cours</string>
+    <string name="auto_mode_status_idle">Prêt</string>
+    <string name="auto_mode_hint_listening">Touchez pour envoyer</string>
+    <string name="auto_mode_hint_listening_auto">Pause = envoi · touchez pour envoyer</string>
+    <string name="auto_mode_hint_idle">Touchez pour parler</string>
+    <string name="auto_mode_exit">Quitter le mode auto</string>
+    <string name="auto_mode_status_sending_in">Envoi dans %1$ds</string>
+    <string name="auto_mode_auto_send_label">Envoi auto après pause</string>
     <string name="settings_billing_widget_title">Utilisation Cloud ce mois-ci</string>
     <string name="settings_billing_info_widget_title">Utilisation Cloud — que montre cela ?</string>
     <string name="settings_billing_info_widget_para1">Vous voyez une ESTIMATION de ce que vous avez dépensé en Cloud TTS ce mois-ci. L\'estimation provient du compteur de caractères interne du serveur × prix de la voix par M.</string>
