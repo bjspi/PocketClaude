@@ -148,7 +148,7 @@ prompt_access_type() {
         echo "  1) tailscale-internal  private; Android needs Tailscale VPN app" >&2
         echo "  2) tailscale-funnel    public internet via *.ts.net" >&2
         echo "  3) cloudflare-tunnel   public hostname; requires a Cloudflare-managed domain" >&2
-        echo "  4) skip                install server only" >&2
+        echo "  4) skip                update/install server only; keep existing tunnel untouched" >&2
         read_prompt "Choose access type [1]: " answer || answer="1"
         answer="${answer:-1}"
     else

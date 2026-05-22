@@ -143,12 +143,15 @@ If you installed from a checkout, update with:
 cd PocketClaude
 git pull --ff-only
 cd server
-sudo bash deploy/install-linux.sh
+sudo env ACCESS_TYPE=skip REUSE_EXISTING_ENV=1 bash deploy/install-linux.sh
 ```
 
 The installer is idempotent: it updates `/opt/pocket-claude`, keeps existing
 data and `.env`, refreshes dependencies, and restarts/configures services as
 needed.
+
+For normal updates, `ACCESS_TYPE=skip` keeps the existing Tailscale/Cloudflare
+tunnel untouched and `REUSE_EXISTING_ENV=1` keeps your deployed settings.
 
 ### 3 — Log into Claude with your Pro/Max account
 

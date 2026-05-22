@@ -114,12 +114,17 @@ If you installed from a checkout, update later with:
 cd PocketClaude
 git pull --ff-only
 cd server
-sudo bash deploy/install-linux.sh
+sudo env ACCESS_TYPE=skip REUSE_EXISTING_ENV=1 bash deploy/install-linux.sh
 ```
 
 The installer is idempotent: it keeps existing data and `.env`, updates the
 deployed server files, refreshes dependencies, and restarts/configures services
 as needed.
+
+`ACCESS_TYPE=skip` is the preferred update path when your Tailscale or
+Cloudflare tunnel is already configured. It updates the server without asking
+for an access mode or touching the existing tunnel. `REUSE_EXISTING_ENV=1`
+keeps the deployed `.env` unchanged.
 
 When an existing `/opt/pocket-claude` installation is detected, the installer
 prints its current status first. Choose **fresh install** only if you want to
