@@ -193,6 +193,19 @@ root_claude_credentials_present() {
     [[ -f /root/.config/claude/credentials.json ]]
 }
 
+tailscale_fqdn() {
+    if ! command -v tailscale >/dev/null 2>&1; then
+        return 0
+    fi
+    tailscale status --json 2>/dev/null | python3 -c '
+import json, sys
+try:
+    print((json.load(sys.stdin).get("Self", {}).get("DNSName", "") or "").rstrip("."))
+except Exception:
+    pass
+' 2>/dev/null
+}
+
 resolve_server_source() {
     local candidate="$1"
     if [[ -d "$candidate/pocket_claude" && -f "$candidate/requirements.txt" ]]; then
@@ -650,10 +663,23 @@ case "$ACCESS_TYPE" in
     tailscale-internal)
         echo "   Enter the printed Tailscale internal URL into the Pocket Claude app."
         echo "   Android must be connected to the same Tailscale tailnet."
+        TS_APP_FQDN="$(tailscale_fqdn)"
+        if [[ -n "$TS_APP_FQDN" ]]; then
+            echo "   Server URL:"
+            echo "        https://$TS_APP_FQDN"
+        fi
         ;;
     tailscale-funnel)
         echo "   Enter the printed Tailscale Funnel URL into the Pocket Claude app."
         echo "   This URL is public, so keep the Pocket Claude login password strong."
+        TS_APP_FQDN="$(tailscale_fqdn)"
+        if [[ -n "$TS_APP_FQDN" ]]; then
+            echo "   Server URL:"
+            echo "        https://$TS_APP_FQDN"
+        else
+            echo "   Show the active Funnel URL with:"
+            echo "        sudo tailscale funnel status"
+        fi
         ;;
     cloudflare-tunnel)
         echo "   Enter the printed Cloudflare Tunnel URL into the Pocket Claude app."
