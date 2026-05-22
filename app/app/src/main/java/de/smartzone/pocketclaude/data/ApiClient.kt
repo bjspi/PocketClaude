@@ -45,6 +45,11 @@ class ApiClient(
         encodeDefaults = true
     }
 
+    private fun Request.Builder.cloudflareAccessHeaders(s: AppSettings): Request.Builder {
+        s.cloudflareAccessHeaders().forEach { (name, value) -> header(name, value) }
+        return this
+    }
+
     private suspend fun baseUrl(): String {
         val s = settings.current()
         require(s.isConfigured) { "Server URL and token must be set in settings." }
@@ -56,48 +61,58 @@ class ApiClient(
     }
 
     private suspend inline fun <reified T> get(path: String): T {
+        val s = settings.current()
         val req = Request.Builder()
-            .url("${baseUrl()}$path")
-            .header("Authorization", authHeader())
+            .url("${s.serverUrl}$path")
+            .header("Authorization", "Bearer ${s.serverToken}")
+            .cloudflareAccessHeaders(s)
             .get()
             .build()
         return execute(req)
     }
 
     private suspend inline fun <reified Body, reified R> postJson(path: String, body: Body): R {
+        val s = settings.current()
         val payload = json.encodeToString(body).toRequestBody("application/json".toMediaType())
         val req = Request.Builder()
-            .url("${baseUrl()}$path")
-            .header("Authorization", authHeader())
+            .url("${s.serverUrl}$path")
+            .header("Authorization", "Bearer ${s.serverToken}")
+            .cloudflareAccessHeaders(s)
             .post(payload)
             .build()
         return execute(req)
     }
 
     private suspend inline fun <reified Body, reified R> patchJson(path: String, body: Body): R {
+        val s = settings.current()
         val payload = json.encodeToString(body).toRequestBody("application/json".toMediaType())
         val req = Request.Builder()
-            .url("${baseUrl()}$path")
-            .header("Authorization", authHeader())
+            .url("${s.serverUrl}$path")
+            .header("Authorization", "Bearer ${s.serverToken}")
+            .cloudflareAccessHeaders(s)
             .patch(payload)
             .build()
         return execute(req)
     }
 
     private suspend inline fun <reified Body, reified R> putJson(path: String, body: Body): R {
+        val s = settings.current()
         val payload = json.encodeToString(body).toRequestBody("application/json".toMediaType())
         val req = Request.Builder()
-            .url("${baseUrl()}$path")
-            .header("Authorization", authHeader())
+            .url("${s.serverUrl}$path")
+            .header("Authorization", "Bearer ${s.serverToken}")
+            .cloudflareAccessHeaders(s)
             .put(payload)
             .build()
         return execute(req)
     }
 
     private suspend fun delete(path: String) {
+        val s = settings.current()
         val req = Request.Builder()
-            .url("${baseUrl()}$path")
-            .header("Authorization", authHeader())
+            .url("${s.serverUrl}$path")
+            .header("Authorization", "Bearer ${s.serverToken}")
+            .cloudflareAccessHeaders(s)
             .delete()
             .build()
         execute<Unit>(req)
@@ -144,13 +159,25 @@ class ApiClient(
      * Settings-Repo gespeichert ist — deshalb braucht es URL/User/PW als
      * explizite Parameter und geht NICHT über `authHeader()`/`baseUrl()`.
      */
-    suspend fun login(serverUrl: String, username: String, password: String): LoginResponse {
+    suspend fun login(
+        serverUrl: String,
+        username: String,
+        password: String,
+        cfAccessClientId: String = "",
+        cfAccessClientSecret: String = "",
+    ): LoginResponse {
         val cleanBase = serverUrl.trim().trimEnd('/')
         val payload = json.encodeToString(
             LoginRequest(username = username, password = password)
         ).toRequestBody("application/json".toMediaType())
         val req = Request.Builder()
             .url("$cleanBase/auth/login")
+            .apply {
+                if (cfAccessClientId.isNotBlank() && cfAccessClientSecret.isNotBlank()) {
+                    header("CF-Access-Client-Id", cfAccessClientId.trim())
+                    header("CF-Access-Client-Secret", cfAccessClientSecret.trim())
+                }
+            }
             .post(payload)
             .build()
         return execute(req)
@@ -162,6 +189,7 @@ class ApiClient(
             val req = Request.Builder()
                 .url("${baseUrl()}/auth/logout")
                 .header("Authorization", authHeader())
+                .cloudflareAccessHeaders(settings.current())
                 .post("".toRequestBody("application/json".toMediaType()))
                 .build()
             execute<Unit>(req)
@@ -180,6 +208,7 @@ class ApiClient(
         val req = Request.Builder()
             .url("${baseUrl()}/auth/change-password")
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .post(payload)
             .build()
         execute<Map<String, Boolean>>(req)
@@ -249,6 +278,7 @@ class ApiClient(
         val req = Request.Builder()
             .url("${baseUrl()}/voice/transcribe")
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .post(body)
             .build()
         return execute(req)
@@ -285,6 +315,7 @@ class ApiClient(
         val req = Request.Builder()
             .url(url)
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .get()
             .build()
         return execute(req)
@@ -295,6 +326,7 @@ class ApiClient(
         val req = Request.Builder()
             .url("${baseUrl()}/conversations/$id/export.md")
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .get()
             .build()
         return suspendCancellableCoroutine { cont ->
@@ -327,6 +359,7 @@ class ApiClient(
             Request.Builder()
                 .url("${baseUrl()}/tts/credentials")
                 .header("Authorization", authHeader())
+                .cloudflareAccessHeaders(settings.current())
                 .put(
                     json.encodeToString(TtsCredentialsRequest(credentialsJson))
                         .toRequestBody("application/json".toMediaType())
@@ -348,6 +381,7 @@ class ApiClient(
         val req = Request.Builder()
             .url("${baseUrl()}/tts/api-key")
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .delete()
             .build()
         return execute(req)
@@ -367,6 +401,7 @@ class ApiClient(
         val req = Request.Builder()
             .url("${baseUrl()}/tts/api-keys/$keyId")
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .delete()
             .build()
         return execute(req)
@@ -408,6 +443,7 @@ class ApiClient(
             Request.Builder()
                 .url("${baseUrl()}/tts/provider")
                 .header("Authorization", authHeader())
+                .cloudflareAccessHeaders(settings.current())
                 .put(
                     json.encodeToString(TtsProviderRequest(provider))
                         .toRequestBody("application/json".toMediaType())
@@ -429,6 +465,7 @@ class ApiClient(
             Request.Builder()
                 .url("${baseUrl()}/tts/model")
                 .header("Authorization", authHeader())
+                .cloudflareAccessHeaders(settings.current())
                 .put(
                     json.encodeToString(TtsModelRequest(modelId))
                         .toRequestBody("application/json".toMediaType())
@@ -445,6 +482,7 @@ class ApiClient(
             Request.Builder()
                 .url("${baseUrl()}/tts/chunking")
                 .header("Authorization", authHeader())
+                .cloudflareAccessHeaders(settings.current())
                 .put(
                     json.encodeToString(TtsChunkingRequest(enabled))
                         .toRequestBody("application/json".toMediaType())
@@ -471,8 +509,10 @@ class ApiClient(
     }
 
     /** Auth-Headers für MediaPlayer-Streaming. */
-    suspend fun authHeaders(): Map<String, String> =
-        mapOf("Authorization" to authHeader())
+    suspend fun authHeaders(): Map<String, String> {
+        val s = settings.current()
+        return mapOf("Authorization" to "Bearer ${s.serverToken}") + s.cloudflareAccessHeaders()
+    }
 
     /** Lädt das komplette Server-Backup als ZIP-Bytes herunter. Optional
      *  AES-256 verschlüsselt mit `password`. */
@@ -481,6 +521,7 @@ class ApiClient(
         val req = Request.Builder()
             .url("${baseUrl()}/backup$q")
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .header("Accept", "application/zip")
             .get()
             .build()
@@ -509,6 +550,7 @@ class ApiClient(
         val req = Request.Builder()
             .url("${baseUrl()}/backup/peek$q")
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .post(body)
             .build()
         return execute(req)
@@ -536,6 +578,7 @@ class ApiClient(
         val req = Request.Builder()
             .url("${baseUrl()}/backup/import?${params.joinToString("&")}")
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .post(body)
             .build()
         return execute(req)
@@ -557,6 +600,7 @@ class ApiClient(
         val req = Request.Builder()
             .url("${baseUrl()}/attachments")
             .header("Authorization", authHeader())
+            .cloudflareAccessHeaders(settings.current())
             .post(body)
             .build()
         return execute(req)
@@ -571,12 +615,14 @@ class ApiClient(
     ): Flow<StreamEvent> = callbackFlow {
         val base = baseUrl()
         val auth = authHeader()
+        val s = settings.current()
         val url = "$base/conversations/$conversationId/messages".toHttpUrlOrNull()
             ?: error("Invalid server URL: $base")
 
         val req = Request.Builder()
             .url(url)
             .header("Authorization", auth)
+            .cloudflareAccessHeaders(s)
             .header("Accept", "text/event-stream")
             .post(
                 json.encodeToString(request)

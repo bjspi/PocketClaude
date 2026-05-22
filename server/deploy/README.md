@@ -3,8 +3,9 @@
 This is how you get Pocket Claude **permanently online** on a mini-PC (or any
 Linux host), with a **stable URL** that survives every reboot.
 
-**Default path: Tailscale Funnel.** Persistent `*.ts.net` URL, no domain
-required, free, auto-HTTPS, no port forwarding.
+**Default access path: Tailscale internal-only.** The installer asks which
+access mode you want: private tailnet-only, public Tailscale Funnel, or a
+Cloudflare Named Tunnel.
 
 ---
 
@@ -17,8 +18,11 @@ curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server
 # 2. Log in to Claude (one-time)
 sudo -u pocket-claude -H claude login
 
-# 3. Set up the tunnel — default is Tailscale Funnel
+# 3. Access setup is selected during install
+#    Re-run one of these only if you want to change access later:
+sudo bash /opt/pocket-claude/deploy/setup-tailscale-internal.sh
 sudo bash /opt/pocket-claude/deploy/setup-tailscale-funnel.sh
+sudo bash /opt/pocket-claude/deploy/setup-cloudflare-tunnel.sh
 
 # 4. (optional) Migrate data from a Mac
 # On the MAC, inside the PocketClaude repo, in the server/ subdir:
@@ -27,10 +31,8 @@ sudo bash /opt/pocket-claude/deploy/setup-tailscale-funnel.sh
 
 After that, Pocket Claude runs **always**, even after reboot, power outage, or
 update. The URL is persistent — enter it in the app once and never touch it
-again.
-
-**Power-user alternative:** Cloudflare Named Tunnel with your own domain (see
-below).
+again. For the tightest access control, choose Tailscale internal-only or
+Cloudflare Tunnel with Cloudflare Access Service Auth.
 
 ---
 
@@ -41,7 +43,7 @@ below).
             │
             │  HTTPS — fixed URL, e.g. https://<host>.<tailnet>.ts.net
             ▼
-   Tailscale Edge  (Funnel)
+   Tailscale Serve/Funnel or Cloudflare Tunnel
             │
             │  Tunnel (outbound from the mini-PC, no port forwarding)
             ▼
@@ -49,22 +51,24 @@ below).
    ├─ systemd service: pocket-claude.service
    │   └─ /opt/pocket-claude/.venv/bin/python -m pocket_claude
    │       (FastAPI + uvicorn on localhost:8787)
-   └─ systemd service: tailscaled.service
-       (with `tailscale funnel` enabled)
+   ├─ optional: tailscaled.service
+   │   (with `tailscale serve` or `tailscale funnel`)
+   └─ optional: cloudflared.service
+       (with a Cloudflare named tunnel)
 ```
 
 **Why this setup?**
 
 - **systemd** = auto-start at boot, auto-restart on crash, logs in
   `journalctl`, no babysitter GUI needed.
-- **Tailscale Funnel** = persistent URL of the form `<host>.<tailnet>.ts.net`,
-  auto-HTTPS via Let's Encrypt, free on the Free plan (50 GB of public
-  bandwidth per month — for a personal chat app, easily 100x oversized).
-  No DNS setup, no port forwarding, NAT traversal built in.
+- **Tailscale internal-only** = persistent HTTPS URL of the form
+  `<host>.<tailnet>.ts.net`, but only devices logged into your tailnet can
+  reach it. This is the safest default for a single Android client.
+- **Tailscale Funnel** = the same style of URL, but published to the public
+  internet. No DNS setup, no port forwarding, NAT traversal built in.
 - **Cloudflare Named Tunnel** (alternative) = persistent subdomain under your
   own Cloudflare-managed domain. Use this if you already have a domain there
-  and want more control (e.g. putting Cloudflare Access in front of the app).
-  Higher setup cost.
+  and want Cloudflare Access Service Auth in front of the app.
 - **Service user `pocket-claude`** with restricted privileges: no escalation
   paths if the server is compromised.
 
@@ -90,6 +94,37 @@ On the mini-PC:
 curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
 ```
 
+If you maintain a fork, the most explicit path is to clone it and run the
+installer from the checked-out `server/` directory:
+
+```bash
+# If git is not installed yet on Debian/Ubuntu:
+sudo apt-get update && sudo apt-get install -y git
+
+git clone https://github.com/YOURNAME/PocketClaude.git
+cd PocketClaude/server
+sudo bash deploy/install-linux.sh
+```
+
+The installer detects that local checkout and deploys that code to
+`/opt/pocket-claude`. To update later:
+
+```bash
+cd PocketClaude
+git pull --ff-only
+cd server
+sudo bash deploy/install-linux.sh
+```
+
+For a one-liner that clones your fork internally, pass `REPO_URL` explicitly.
+This matters because a script read from stdin cannot reliably infer which
+repository URL it came from:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YOURNAME/PocketClaude/main/server/deploy/install-linux.sh \
+  | sudo env REPO_URL=https://github.com/YOURNAME/PocketClaude.git bash
+```
+
 The script is **idempotent** — you can run it as often as you want without
 breaking anything. It does:
 
@@ -97,11 +132,13 @@ breaking anything. It does:
 |---|---|
 | 1 | Install Python 3, Node 20, git, curl |
 | 2 | Create the `pocket-claude` user (service account) |
-| 3 | Clone the repo to `/opt/pocket-claude` |
+| 3 | Copy the local checkout or clone `REPO_URL`, then deploy the `server/` subtree to `/opt/pocket-claude` |
 | 4 | Python venv + dependencies |
-| 5 | Install the `claude` CLI via `npm install -g @anthropic-ai/claude-code` |
+| 5 | Re-use an existing `claude` CLI on PATH, otherwise install it via `npm install -g @anthropic-ai/claude-code` |
 | 6 | Generate `.env` with a random `SERVER_TOKEN` |
-| 7 | Install and enable `pocket-claude.service` (systemd) |
+| 7 | Ask whether the built-in web UI should be enabled (`ENABLE_WEBUI`, default yes) |
+| 8 | Ask for the access type and run only the required Tailscale/Cloudflare setup |
+| 9 | Install and enable `pocket-claude.service` (systemd) |
 
 After the script finishes, the service is **not yet running**, because
 `claude` has not been logged in.
@@ -138,9 +175,27 @@ It should show `active (running)`. Users who later add an Anthropic API key
 or AWS credentials in the app's settings will use those instead of OAuth on
 the next message — you don't need to redeploy.
 
-### Step 4: Set up the tunnel
+### Step 4: Access modes
 
-#### Default path: Tailscale Funnel
+The installer asks for one of these modes:
+
+| Mode | Public internet? | Android requirement | Extra account/domain |
+|---|---:|---|---|
+| **Tailscale internal-only** | No | Tailscale Android app in same tailnet | Tailscale account |
+| **Tailscale Funnel** | Yes | None beyond Pocket Claude login | Tailscale account |
+| **Cloudflare Tunnel** | Yes | Optional Cloudflare Access service token in profile | Cloudflare account + Cloudflare-managed domain |
+
+#### Safest default: Tailscale internal-only
+
+```bash
+sudo bash /opt/pocket-claude/deploy/setup-tailscale-internal.sh
+```
+
+This installs/logs in Tailscale if needed, then configures `tailscale serve`.
+The Android device must run the Tailscale app and be logged into the same
+tailnet. Nothing is published to the public internet.
+
+#### Public path: Tailscale Funnel
 
 ```bash
 sudo bash /opt/pocket-claude/deploy/setup-tailscale-funnel.sh
@@ -169,11 +224,15 @@ Free plan limit: 50 GB of public bandwidth per month. A chat reply is a few
 KB; even with audio readback and image generation you will not come anywhere
 close in normal use.
 
-#### Alternative: Cloudflare Named Tunnel (your own domain)
+#### Cloudflare Named Tunnel (your own domain)
 
 Use this only if you already have a domain managed at Cloudflare and want
-more control (e.g. Cloudflare Access as an additional login layer in front
-of the app).
+Cloudflare Access in front of the app.
+
+This does **not** work with plain dynamic DNS or a random
+`*.trycloudflare.com` quick tunnel. Quick tunnels are useful for testing, but
+they are random, development-oriented URLs and are not the persistent,
+Access-protected setup this installer creates.
 
 ```bash
 sudo bash /opt/pocket-claude/deploy/setup-cloudflare-tunnel.sh
@@ -186,6 +245,9 @@ The script:
 4. Asks for the desired subdomain (e.g. `pocket-claude.your-domain.com`)
 5. Creates the DNS record automatically
 6. Installs `cloudflared` as a systemd service
+7. Prints the Android profile values. If you add Cloudflare Access Service
+   Auth in the Zero Trust dashboard, enter the service token Client ID and
+   Client Secret in the Pocket Claude profile.
 
 ### Step 5: App side
 
@@ -453,12 +515,12 @@ sudo systemctl restart pocket-claude
 ## FAQ
 
 **Do I need a domain?**
-No — the default path (Tailscale Funnel) works without a domain. Your own
-domain is only useful if you already have one at Cloudflare and want to put,
-for example, Cloudflare Access as an additional login layer in front of the
-app.
+No. Tailscale internal-only and Tailscale Funnel both work without your own
+domain. Your own domain is only useful if you already have one at Cloudflare
+and want to put Cloudflare Access in front of the app.
 
 **What does all this cost?**
+- Tailscale internal-only: 0 on the Tailscale Free plan.
 - Tailscale Funnel: 0 on the Free plan (50 GB of public bandwidth per month —
   easily 100x more than personal chat usage).
 - Cloudflare Named Tunnel: 0 (if you have a domain at Cloudflare).

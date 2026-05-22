@@ -8,10 +8,15 @@
 #    - Persistent tunnel ID + credentials in /etc/cloudflared/
 #    - Runs as a systemd service -> auto-restart, auto-start on boot
 #    - Survives reboot: same URL, no manual action needed
+#    - Optional Cloudflare Access in front of the app. Access itself is
+#      configured in the Cloudflare Zero Trust dashboard; this script prints
+#      the exact values the Android app needs afterwards.
 #
 #  Requirements:
-#    - You have a domain managed by Cloudflare (free: transfer any domain
-#      there or use Cloudflare as your DNS provider).
+#    - You have a Cloudflare account and a domain managed by Cloudflare DNS.
+#    - You can use any subdomain under that zone, for example
+#      pocket-claude.example.com. Dynamic DNS or trycloudflare.com are not
+#      enough for a persistent Access-protected app.
 #    - You have already run `install-linux.sh`.
 #
 #  If you don't have your own domain: use `setup-tailscale-funnel.sh` instead.
@@ -29,10 +34,63 @@ c_yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 c_red()    { printf '\033[1;31m%s\033[0m\n' "$*" >&2; }
 step()     { echo; c_blue "==> $*"; }
 
+read_prompt() {
+    local prompt="$1"
+    local var_name="$2"
+    if [[ -r /dev/tty ]]; then
+        read -r -p "$prompt" "$var_name" < /dev/tty
+    elif [[ -t 0 ]]; then
+        read -r -p "$prompt" "$var_name"
+    else
+        return 1
+    fi
+}
+
+prompt_yes_no() {
+    local prompt="$1"
+    local default="${2:-n}"
+    local answer
+    if [[ "$default" =~ ^[Yy]$ ]]; then
+        read_prompt "$prompt [Y/n] " answer || answer="y"
+        answer="${answer:-y}"
+    else
+        read_prompt "$prompt [y/N] " answer || answer="n"
+        answer="${answer:-n}"
+    fi
+    [[ "$answer" =~ ^[Yy]$ ]]
+}
+
 # ---------------------------------------------------------------- Root-Check
 if [[ $EUID -ne 0 ]]; then
     c_red "Please run with sudo."
     exit 1
+fi
+
+# ---------------------------------------------------------------- Domain requirement
+step "Cloudflare domain requirement"
+echo
+c_yellow "    Cloudflare Named Tunnel + Access needs a hostname in a domain"
+c_yellow "    that is managed by your Cloudflare account, for example:"
+echo "        pocket-claude.example.com"
+echo
+echo "    Without your own Cloudflare-managed domain, Cloudflare only offers"
+echo "    TryCloudflare quick tunnels on random *.trycloudflare.com names."
+echo "    Those are intended for testing/development, are not stable enough"
+echo "    for this installer, and are not the right place for Access Service Auth."
+echo
+if [[ -z "${TUNNEL_HOSTNAME:-}" ]]; then
+    if ! prompt_yes_no "Do you have a domain managed by Cloudflare DNS?" "n"; then
+        c_red "Cloudflare Tunnel setup cannot continue without a Cloudflare-managed domain."
+        echo
+        echo "Use one of these instead:"
+        echo "  - Tailscale internal-only: sudo bash /opt/pocket-claude/deploy/setup-tailscale-internal.sh"
+        echo "  - Tailscale Funnel:       sudo bash /opt/pocket-claude/deploy/setup-tailscale-funnel.sh"
+        echo
+        echo "If you later add a domain to Cloudflare, re-run this script."
+        exit 1
+    fi
+else
+    c_green "    TUNNEL_HOSTNAME is set: $TUNNEL_HOSTNAME"
 fi
 
 # ---------------------------------------------------------------- cloudflared
@@ -42,7 +100,7 @@ if ! command -v cloudflared >/dev/null 2>&1; then
         mkdir -p --mode=0755 /usr/share/keyrings
         curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
             | tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-        echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" \
+        echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
             | tee /etc/apt/sources.list.d/cloudflared.list
         apt-get update -qq
         apt-get install -y cloudflared
@@ -76,6 +134,24 @@ if [[ ! -f /root/.cloudflared/cert.pem ]]; then
     cloudflared tunnel login
 else
     c_green "    Login already present ($(ls -la /root/.cloudflared/cert.pem | awk '{print $6, $7, $8}'))."
+fi
+
+step "Cloudflare Access option"
+echo
+c_yellow "    Cloudflare Tunnel publishes the hostname. To make it private,"
+c_yellow "    create a Cloudflare Access self-hosted application for this hostname"
+c_yellow "    and add either a user login policy or a Service Auth policy."
+echo
+echo "    For the Android app, Service Auth is the practical option:"
+echo "      1. Zero Trust Dashboard -> Access -> Service Auth -> Service Tokens"
+echo "      2. Create a token and copy Client ID + Client Secret"
+echo "      3. In the Access app policy, add Service Auth for that token"
+echo "      4. Enter the same Client ID + Secret in Pocket Claude's profile"
+echo
+if prompt_yes_no "Will this hostname be protected by Cloudflare Access Service Token?" "n"; then
+    USE_CF_ACCESS="y"
+else
+    USE_CF_ACCESS="n"
 fi
 
 # ---------------------------------------------------------------- Create tunnel
@@ -115,7 +191,15 @@ step "Configure DNS record"
 echo
 echo "Which subdomain should the tunnel use?"
 echo "(Example: pocket-claude.your-domain.com — the domain must be managed by Cloudflare.)"
-read -rp "Hostname: " HOSTNAME
+HOSTNAME="${TUNNEL_HOSTNAME:-}"
+if [[ -z "$HOSTNAME" ]]; then
+    if ! read_prompt "Hostname: " HOSTNAME; then
+        c_red "No hostname provided and no interactive terminal available."
+        echo "Set TUNNEL_HOSTNAME, for example:"
+        echo "    sudo TUNNEL_HOSTNAME=pocket-claude.example.com bash $0"
+        exit 1
+    fi
+fi
 if [[ -z "$HOSTNAME" ]]; then
     c_red "No hostname provided."
     exit 1
@@ -179,6 +263,21 @@ echo "Pocket Claude is now PERMANENTLY reachable at:"
 c_green "  https://$HOSTNAME"
 echo
 echo "This URL survives any reboot — enter it in the Pocket Claude app."
+if [[ "$USE_CF_ACCESS" =~ ^[Yy]$ ]]; then
+    echo
+    c_yellow "Android app profile:"
+    echo "  Server URL:                 https://$HOSTNAME"
+    echo "  Cloudflare Access:          enabled"
+    echo "  CF-Access-Client-Id:        <your Service Token Client ID>"
+    echo "  CF-Access-Client-Secret:    <your Service Token Client Secret>"
+    echo
+    echo "Requests without those headers will be blocked by Cloudflare before"
+    echo "they reach Pocket Claude."
+else
+    echo
+    c_yellow "No Cloudflare Access Service Token selected."
+    echo "Anyone who can reach https://$HOSTNAME can see Pocket Claude's login."
+fi
 echo
 echo "Status:    systemctl status cloudflared"
 echo "Logs:      journalctl -u cloudflared -f"

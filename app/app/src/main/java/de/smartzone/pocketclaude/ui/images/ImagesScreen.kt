@@ -71,6 +71,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil3.compose.AsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
 import de.smartzone.pocketclaude.PocketClaudeApp
 import de.smartzone.pocketclaude.R
 import de.smartzone.pocketclaude.data.AppSettings
@@ -215,6 +218,7 @@ fun ImagesScreen(
                                     entry = entry,
                                     serverBaseUrl = appSettings.serverUrl,
                                     serverToken = appSettings.serverToken,
+                                    accessHeaders = appSettings.cloudflareAccessHeaders(),
                                     onImageClick = { att -> fullscreenAttachment = att },
                                     onDelete = { entryToDelete = entry },
                                 )
@@ -232,6 +236,7 @@ fun ImagesScreen(
             attachment = att,
             serverBaseUrl = appSettings.serverUrl,
             serverToken = appSettings.serverToken,
+            accessHeaders = appSettings.cloudflareAccessHeaders(),
             onDismiss = { fullscreenAttachment = null },
         )
     }
@@ -401,9 +406,11 @@ private fun HistoryRow(
     entry: GeneratedImageEntry,
     serverBaseUrl: String,
     serverToken: String,
+    accessHeaders: Map<String, String>,
     onImageClick: (ImageGenerateAttachment) -> Unit,
     onDelete: () -> Unit,
 ) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -443,8 +450,11 @@ private fun HistoryRow(
                     val url = remember(serverBaseUrl, serverToken, att.id) {
                         "$serverBaseUrl/attachments/${att.id}?token=${android.net.Uri.encode(serverToken)}"
                     }
+                    val imageModel = remember(context, url, accessHeaders) {
+                        imageRequestWithHeaders(context, url, accessHeaders)
+                    }
                     AsyncImage(
-                        model = url,
+                        model = imageModel,
                         contentDescription = att.filename,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -464,11 +474,15 @@ private fun ImageFullscreenDialog(
     attachment: ImageGenerateAttachment,
     serverBaseUrl: String,
     serverToken: String,
+    accessHeaders: Map<String, String>,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     val url = remember(serverBaseUrl, serverToken, attachment.id) {
         "$serverBaseUrl/attachments/${attachment.id}?token=${android.net.Uri.encode(serverToken)}"
+    }
+    val imageModel = remember(context, url, accessHeaders) {
+        imageRequestWithHeaders(context, url, accessHeaders)
     }
     Dialog(onDismissRequest = onDismiss) {
         Box(
@@ -479,7 +493,7 @@ private fun ImageFullscreenDialog(
             contentAlignment = Alignment.Center,
         ) {
             AsyncImage(
-                model = url,
+                model = imageModel,
                 contentDescription = attachment.filename,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
@@ -494,14 +508,14 @@ private fun ImageFullscreenDialog(
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 FilledTonalButton(onClick = {
-                    shareImage(context, serverBaseUrl, serverToken, attachment)
+                    shareImage(context, serverBaseUrl, serverToken, accessHeaders, attachment)
                 }) {
                     Icon(Icons.Filled.IosShare, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.image_share_btn))
                 }
                 FilledTonalButton(onClick = {
-                    saveImageToGallery(context, serverBaseUrl, serverToken, attachment)
+                    saveImageToGallery(context, serverBaseUrl, serverToken, accessHeaders, attachment)
                 }) {
                     Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
@@ -521,10 +535,11 @@ private fun shareImage(
     context: Context,
     serverBaseUrl: String,
     serverToken: String,
+    accessHeaders: Map<String, String>,
     att: ImageGenerateAttachment,
 ) {
     try {
-        val bytes = downloadImageBytes(serverBaseUrl, serverToken, att.id)
+        val bytes = downloadImageBytes(serverBaseUrl, serverToken, accessHeaders, att.id)
         val dir = java.io.File(context.cacheDir, "shared-images").apply { mkdirs() }
         val safeName = att.filename.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val file = java.io.File(dir, safeName).also { it.writeBytes(bytes) }
@@ -551,10 +566,11 @@ private fun saveImageToGallery(
     context: Context,
     serverBaseUrl: String,
     serverToken: String,
+    accessHeaders: Map<String, String>,
     att: ImageGenerateAttachment,
 ) {
     try {
-        val bytes = downloadImageBytes(serverBaseUrl, serverToken, att.id)
+        val bytes = downloadImageBytes(serverBaseUrl, serverToken, accessHeaders, att.id)
         val ts = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(java.util.Date())
         val ext = when {
             att.mimeType.contains("png") -> "png"
@@ -578,9 +594,31 @@ private fun saveImageToGallery(
     }
 }
 
-private fun downloadImageBytes(serverBaseUrl: String, serverToken: String, attId: String): ByteArray {
+private fun imageRequestWithHeaders(
+    context: Context,
+    url: String,
+    accessHeaders: Map<String, String>,
+): Any {
+    if (accessHeaders.isEmpty()) return url
+    val headers = NetworkHeaders.Builder().apply {
+        accessHeaders.forEach { (name, value) -> set(name, value) }
+    }.build()
+    return ImageRequest.Builder(context)
+        .data(url)
+        .httpHeaders(headers)
+        .build()
+}
+
+private fun downloadImageBytes(
+    serverBaseUrl: String,
+    serverToken: String,
+    accessHeaders: Map<String, String>,
+    attId: String,
+): ByteArray {
     val url = java.net.URL(
         "$serverBaseUrl/attachments/$attId?token=${java.net.URLEncoder.encode(serverToken, "UTF-8")}"
     )
-    return url.openStream().use { it.readBytes() }
+    val conn = (url.openConnection() as java.net.HttpURLConnection)
+    accessHeaders.forEach { (name, value) -> conn.setRequestProperty(name, value) }
+    return conn.inputStream.use { it.readBytes() }
 }

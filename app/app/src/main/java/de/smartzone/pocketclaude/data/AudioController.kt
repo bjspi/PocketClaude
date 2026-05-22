@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
 
 /**
  * Steuert die TTS-Wiedergabe über einen MediaSessionService (PocketAudioService).
@@ -144,23 +146,54 @@ class AudioController(
         cacheKey: String? = null,
         headers: Map<String, String> = emptyMap(),
     ) {
-        // headers wird inzwischen ignoriert — Token sitzt in der URL als
-        // ?token=…, weil ExoPlayer keine eigenen Auth-Header mitschicken kann.
-        // cacheKey: stabiler Schlüssel (ohne wechselnden Token-Param) für den
-        // ExoPlayer-Cache. Bei Re-Listen → direkter Disk-Hit.
+        // If Cloudflare Access headers are present, prefetch through OkHttp and
+        // play the local file. ExoPlayer's MediaSession path cannot receive
+        // per-item HTTP headers reliably across process/service boundaries.
         currentJob?.cancel()
         cleanupCurrent()
         _state.value = State(loadingMessageId = messageId)
 
         currentJob = scope.launch {
             try {
+                val playbackUrl = if (headers.keys.any { it.startsWith("CF-Access-", ignoreCase = true) }) {
+                    downloadAudioWithHeaders(url, cacheKey, headers).toURI().toString()
+                } else {
+                    url
+                }
                 withContext(Dispatchers.Main) {
-                    startPlayback(messageId, url, cacheKey)
+                    startPlayback(messageId, playbackUrl, cacheKey)
                 }
             } catch (e: Exception) {
                 _state.value = State(error = e.message ?: e::class.java.simpleName)
             }
         }
+    }
+
+    private fun downloadAudioWithHeaders(
+        url: String,
+        cacheKey: String?,
+        headers: Map<String, String>,
+    ): File {
+        val dir = File(context.cacheDir, "tts_access_cache").also { it.mkdirs() }
+        val safeName = (cacheKey ?: url)
+            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+            .take(160)
+            .ifBlank { "audio" }
+        val file = File(dir, "$safeName.bin")
+        if (file.length() > 0L) return file
+
+        val req = Request.Builder()
+            .url(url)
+            .apply { headers.forEach { (name, value) -> header(name, value) } }
+            .build()
+        httpClient.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                throw java.io.IOException("Audio download failed: HTTP ${resp.code}")
+            }
+            val body = resp.body ?: throw java.io.IOException("Audio download failed: empty body")
+            file.outputStream().use { out -> body.byteStream().copyTo(out) }
+        }
+        return file
     }
 
     private fun startPlayback(messageId: Long, url: String, cacheKey: String?) {

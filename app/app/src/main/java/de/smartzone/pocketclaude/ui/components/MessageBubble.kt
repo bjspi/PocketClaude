@@ -57,6 +57,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
 import de.smartzone.pocketclaude.R
 import de.smartzone.pocketclaude.data.AttachmentRefDto
 import de.smartzone.pocketclaude.ui.theme.PocketTheme
@@ -427,6 +430,20 @@ private fun AttachmentChip(att: AttachmentRefDto) {
             "${settings.serverUrl}/attachments/${att.id}" +
                 "?token=${android.net.Uri.encode(settings.serverToken)}"
         }
+        val accessHeaders = settings.cloudflareAccessHeaders()
+        val imageModel = remember(context, url, accessHeaders) {
+            if (accessHeaders.isEmpty()) {
+                url
+            } else {
+                val headers = NetworkHeaders.Builder().apply {
+                    accessHeaders.forEach { (name, value) -> set(name, value) }
+                }.build()
+                val builder = ImageRequest.Builder(context)
+                    .data(url)
+                    .httpHeaders(headers)
+                builder.build()
+            }
+        }
         // FIX (2026-05-19): Slot mit FESTEN 200×200 dp reservieren statt
         // widthIn/heightIn-MAX. Grund: ohne intrinsische Größe rendert Coil
         // den Slot anfangs mit 0 dp Höhe — sobald das Bild geladen ist, springt
@@ -435,7 +452,7 @@ private fun AttachmentChip(att: AttachmentRefDto) {
         // Ansicht. Mit fester Slot-Größe ist das Layout sofort stabil, Coil
         // füllt den Slot via ContentScale.Crop.
         coil3.compose.AsyncImage(
-            model = url,
+            model = imageModel,
             contentDescription = att.filename,
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             modifier = Modifier

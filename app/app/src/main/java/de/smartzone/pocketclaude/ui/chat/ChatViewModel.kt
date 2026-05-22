@@ -542,7 +542,7 @@ class ChatViewModel(
         try {
             val url = repo.audioUrl(messageId, s.ttsVoice, s.ttsSpeed)
             val cacheKey = "audio-$messageId-${s.ttsVoice}-${s.ttsSpeed}"
-            audio.play(messageId, url, cacheKey)
+            audio.play(messageId, url, cacheKey, repo.audioHeaders())
         } catch (e: Exception) {
             _state.update { it.copy(errorMessage = appContext.getString(R.string.error_speak, e.message ?: "")) }
         }

@@ -42,6 +42,8 @@ data class Profile(
     val serverUrl: String,
     val serverToken: String,
     val username: String = "",
+    val cfAccessClientId: String = "",
+    val cfAccessClientSecret: String = "",
 )
 
 data class AppSettings(
@@ -87,6 +89,8 @@ data class AppSettings(
     val serverUrl: String get() = activeProfile?.serverUrl.orEmpty()
     /** Token des aktiven Profils. */
     val serverToken: String get() = activeProfile?.serverToken.orEmpty()
+    val cfAccessClientId: String get() = activeProfile?.cfAccessClientId.orEmpty()
+    val cfAccessClientSecret: String get() = activeProfile?.cfAccessClientSecret.orEmpty()
 
     val isConfigured: Boolean
         get() = serverUrl.isNotBlank() && serverToken.isNotBlank()
@@ -94,6 +98,15 @@ data class AppSettings(
     /** Den finalen String, der an den Server geschickt wird. */
     val resolvedSystemPrompt: String
         get() = effectiveSystemPrompt(systemPromptMode, customSystemPrompt)
+
+    val hasCloudflareAccess: Boolean
+        get() = cfAccessClientId.isNotBlank() && cfAccessClientSecret.isNotBlank()
+
+    fun cloudflareAccessHeaders(): Map<String, String> =
+        if (hasCloudflareAccess) mapOf(
+            "CF-Access-Client-Id" to cfAccessClientId,
+            "CF-Access-Client-Secret" to cfAccessClientSecret,
+        ) else emptyMap()
 }
 
 class SettingsRepository(private val dataStore: DataStore<Preferences>) {
@@ -199,16 +212,22 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
      *  und macht es aktiv. Returnt die ID. */
     suspend fun upsertProfile(label: String, url: String, token: String,
                               username: String = "",
+                              cfAccessClientId: String = "",
+                              cfAccessClientSecret: String = "",
                               makeActive: Boolean = true): String {
         val cleanUrl = url.trim().trimEnd('/')
         val cleanTok = token.trim()
         val cleanUser = username.trim()
+        val cleanCfId = cfAccessClientId.trim()
+        val cleanCfSecret = cfAccessClientSecret.trim()
         val id = "p_" + (label.lowercase().replace(Regex("[^a-z0-9]+"), "_") + "_" +
             System.currentTimeMillis().toString(36))
         dataStore.edit { prefs ->
             val list = loadProfilesWithMigration(prefs).toMutableList()
             list.add(Profile(id = id, label = label.ifBlank { "Profil" },
-                serverUrl = cleanUrl, serverToken = cleanTok, username = cleanUser))
+                serverUrl = cleanUrl, serverToken = cleanTok, username = cleanUser,
+                cfAccessClientId = cleanCfId,
+                cfAccessClientSecret = cleanCfSecret))
             prefs[keyProfiles] = json.encodeToString(list)
             if (makeActive) prefs[keyActiveProfileId] = id
         }
@@ -216,8 +235,10 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     }
 
     suspend fun updateProfile(id: String, label: String? = null,
-                              url: String? = null, token: String? = null,
-                              username: String? = null) {
+                               url: String? = null, token: String? = null,
+                               username: String? = null,
+                               cfAccessClientId: String? = null,
+                               cfAccessClientSecret: String? = null) {
         dataStore.edit { prefs ->
             val list = loadProfilesWithMigration(prefs).map { p ->
                 if (p.id != id) p else p.copy(
@@ -225,6 +246,8 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
                     serverUrl = (url ?: p.serverUrl).trim().trimEnd('/'),
                     serverToken = (token ?: p.serverToken).trim(),
                     username = (username ?: p.username).trim(),
+                    cfAccessClientId = (cfAccessClientId ?: p.cfAccessClientId).trim(),
+                    cfAccessClientSecret = (cfAccessClientSecret ?: p.cfAccessClientSecret).trim(),
                 )
             }
             prefs[keyProfiles] = json.encodeToString(list)

@@ -18,8 +18,14 @@ class ChatRepository(
     suspend fun health(): HealthDto = api.health()
 
     // Auth
-    suspend fun login(url: String, username: String, password: String): LoginResponse =
-        api.login(url, username, password)
+    suspend fun login(
+        url: String,
+        username: String,
+        password: String,
+        cfAccessClientId: String = "",
+        cfAccessClientSecret: String = "",
+    ): LoginResponse =
+        api.login(url, username, password, cfAccessClientId, cfAccessClientSecret)
     suspend fun logout() = api.logout()
     suspend fun changePassword(oldPw: String?, newPw: String) =
         api.changePassword(oldPw, newPw)

@@ -1,0 +1,3 @@
+# Keep executable scripts portable on Linux/macOS even when contributors use Windows.
+*.sh text eol=lf
+*.command text eol=lf

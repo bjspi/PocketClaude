@@ -374,8 +374,14 @@ private fun ProfileAndServerCard(
 ) {
     var changePwOpen by remember { mutableStateOf(false) }
     var reLoginOpen by remember { mutableStateOf(false) }
+    var cfAccessEnabled by remember(settings.activeProfileId) { mutableStateOf(settings.hasCloudflareAccess) }
+    var cfAccessClientId by remember(settings.activeProfileId) { mutableStateOf(settings.cfAccessClientId) }
+    var cfAccessClientSecret by remember(settings.activeProfileId) { mutableStateOf(settings.cfAccessClientSecret) }
     val activeUsername = settings.activeProfile?.username.orEmpty()
     val sessionOk = settings.serverToken.isNotBlank()
+    val cfAccessChanged = cfAccessClientId != settings.cfAccessClientId ||
+        cfAccessClientSecret != settings.cfAccessClientSecret ||
+        cfAccessEnabled != settings.hasCloudflareAccess
 
     SectionHeader(
         text = stringResource(de.smartzone.pocketclaude.R.string.settings_section_profile_card_title),
@@ -422,6 +428,60 @@ private fun ProfileAndServerCard(
                 shape = RoundedCornerShape(14.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Cloudflare Access Service Token", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Optional headers for Cloudflare Tunnel + Service Auth.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = cfAccessEnabled,
+                    onCheckedChange = { enabled ->
+                        cfAccessEnabled = enabled
+                        if (!enabled) {
+                            cfAccessClientId = ""
+                            cfAccessClientSecret = ""
+                            vm.setCloudflareAccessCredentials("", "")
+                        }
+                    },
+                )
+            }
+            if (cfAccessEnabled) {
+                OutlinedTextField(
+                    value = cfAccessClientId,
+                    onValueChange = { cfAccessClientId = it },
+                    label = { Text("CF-Access-Client-Id") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                )
+                OutlinedTextField(
+                    value = cfAccessClientSecret,
+                    onValueChange = { cfAccessClientSecret = it },
+                    label = { Text("CF-Access-Client-Secret") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                FilledTonalButton(
+                    onClick = {
+                        vm.setCloudflareAccessCredentials(cfAccessClientId, cfAccessClientSecret)
+                    },
+                    enabled = cfAccessChanged && cfAccessClientId.isNotBlank() && cfAccessClientSecret.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp),
+                ) { Text(stringResource(de.smartzone.pocketclaude.R.string.action_save)) }
+            }
+
             // Username + Session-Status als Info-Block (read-only, Editier-Pfad
             // läuft über „Neu anmelden").
             Column(
@@ -2261,6 +2321,9 @@ private fun FirstRunSignInCard(vm: SettingsViewModel) {
     var password by remember { mutableStateOf("") }
     var label by remember { mutableStateOf("") }
     var showPw by remember { mutableStateOf(false) }
+    var cfAccessEnabled by remember { mutableStateOf(false) }
+    var cfAccessClientId by remember { mutableStateOf("") }
+    var cfAccessClientSecret by remember { mutableStateOf("") }
     var attempted by remember { mutableStateOf(false) }
 
     // Clear any stale state on first composition
@@ -2335,6 +2398,47 @@ private fun FirstRunSignInCard(vm: SettingsViewModel) {
                 shape = RoundedCornerShape(12.dp),
                 enabled = !working,
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Cloudflare Access Service Token", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Only for Cloudflare Tunnel protected by Service Auth.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = cfAccessEnabled,
+                    onCheckedChange = { cfAccessEnabled = it },
+                    enabled = !working,
+                )
+            }
+            if (cfAccessEnabled) {
+                OutlinedTextField(
+                    value = cfAccessClientId,
+                    onValueChange = { cfAccessClientId = it },
+                    label = { Text("CF-Access-Client-Id") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = !working,
+                )
+                OutlinedTextField(
+                    value = cfAccessClientSecret,
+                    onValueChange = { cfAccessClientSecret = it },
+                    label = { Text("CF-Access-Client-Secret") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    enabled = !working,
+                )
+            }
 
             val state = loginState
             if (attempted && state is LoginUiState.Failure) {
@@ -2349,10 +2453,16 @@ private fun FirstRunSignInCard(vm: SettingsViewModel) {
                 onClick = {
                     if (url.isNotBlank() && username.isNotBlank() && password.isNotBlank()) {
                         attempted = true
-                        vm.addProfileAndLogin(label, url, username, password)
+                        vm.addProfileAndLogin(
+                            label, url, username, password,
+                            cfAccessClientId = if (cfAccessEnabled) cfAccessClientId else "",
+                            cfAccessClientSecret = if (cfAccessEnabled) cfAccessClientSecret else "",
+                        )
                     }
                 },
-                enabled = !working && url.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
+                enabled = !working &&
+                    url.isNotBlank() && username.isNotBlank() && password.isNotBlank() &&
+                    (!cfAccessEnabled || (cfAccessClientId.isNotBlank() && cfAccessClientSecret.isNotBlank())),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -2516,6 +2626,9 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPw by remember { mutableStateOf(false) }
+    var cfAccessEnabled by remember { mutableStateOf(false) }
+    var cfAccessClientId by remember { mutableStateOf("") }
+    var cfAccessClientSecret by remember { mutableStateOf("") }
     val loginState by vm.loginState.collectAsState()
     val working = loginState is LoginUiState.Working
 
@@ -2585,6 +2698,45 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
                     },
                     enabled = !working,
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Cloudflare Access Service Token", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Use only for Cloudflare Tunnel + Service Auth.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = cfAccessEnabled,
+                        onCheckedChange = { cfAccessEnabled = it },
+                        enabled = !working,
+                    )
+                }
+                if (cfAccessEnabled) {
+                    OutlinedTextField(
+                        value = cfAccessClientId,
+                        onValueChange = { cfAccessClientId = it },
+                        label = { Text("CF-Access-Client-Id") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !working,
+                    )
+                    OutlinedTextField(
+                        value = cfAccessClientSecret,
+                        onValueChange = { cfAccessClientSecret = it },
+                        label = { Text("CF-Access-Client-Secret") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        enabled = !working,
+                    )
+                }
                 val state = loginState
                 if (state is LoginUiState.Failure) {
                     Text(
@@ -2606,11 +2758,17 @@ private fun AddProfileLoginDialog(vm: SettingsViewModel, onDismiss: () -> Unit) 
         },
         confirmButton = {
             TextButton(
-                enabled = !working,
+                enabled = !working &&
+                    url.isNotBlank() && username.isNotBlank() && password.isNotBlank() &&
+                    (!cfAccessEnabled || (cfAccessClientId.isNotBlank() && cfAccessClientSecret.isNotBlank())),
                 onClick = {
                     if (url.isNotBlank() && username.isNotBlank() && password.isNotBlank()) {
                         loginAttempted = true
-                        vm.addProfileAndLogin(label, url, username, password)
+                        vm.addProfileAndLogin(
+                            label, url, username, password,
+                            cfAccessClientId = if (cfAccessEnabled) cfAccessClientId else "",
+                            cfAccessClientSecret = if (cfAccessEnabled) cfAccessClientSecret else "",
+                        )
                     }
                 },
             ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_sign_in_btn)) }

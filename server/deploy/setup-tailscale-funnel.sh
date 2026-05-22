@@ -37,6 +37,18 @@ c_yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 c_red()    { printf '\033[1;31m%s\033[0m\n' "$*" >&2; }
 step()     { echo; c_blue "==> $*"; }
 
+read_prompt() {
+    local prompt="$1"
+    local var_name="$2"
+    if [[ -r /dev/tty ]]; then
+        read -r -p "$prompt" "$var_name" < /dev/tty
+    elif [[ -t 0 ]]; then
+        read -r -p "$prompt" "$var_name"
+    else
+        return 1
+    fi
+}
+
 if [[ $EUID -ne 0 ]]; then
     c_red "Please run with sudo."
     exit 1
@@ -56,7 +68,7 @@ if ! tailscale status --json 2>/dev/null | grep -q '"BackendState":"Running"'; t
     c_yellow "    Starting login flow — you will get a URL to open on another"
     c_yellow "    device that is already in the tailnet."
     echo
-    tailscale up --ssh
+    tailscale up
 fi
 
 # ---------------------------------------------------------------- Determine URL
@@ -94,7 +106,10 @@ if ! tailscale cert --cert-file=/tmp/tspc-probe.crt --key-file=/tmp/tspc-probe.k
     c_yellow "        https://login.tailscale.com/admin/dns"
     echo "        -> \"HTTPS Certificates\" -> Enable"
     echo
-    read -rp "    Enabled? Press Enter to retry... " _
+    if ! read_prompt "    Enabled? Press Enter to retry... " _; then
+        c_red "    No interactive terminal available. Enable HTTPS in the admin and re-run the script."
+        exit 1
+    fi
     if ! tailscale cert --cert-file=/tmp/tspc-probe.crt --key-file=/tmp/tspc-probe.key "$TS_FQDN" >/dev/null 2>&1; then
         c_red "    Still not working — please enable HTTPS in the admin and re-run the script."
         exit 1

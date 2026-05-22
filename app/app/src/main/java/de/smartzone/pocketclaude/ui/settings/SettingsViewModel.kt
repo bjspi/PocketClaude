@@ -189,7 +189,14 @@ class SettingsViewModel(
      * Profil mit dem vom Server zurückgegebenen Session-Token in den Settings,
      * und der `LoginUiState` signalisiert dem UI, ob ein Forced-PW-Change ansteht.
      */
-    fun addProfileAndLogin(label: String, url: String, username: String, password: String) =
+    fun addProfileAndLogin(
+        label: String,
+        url: String,
+        username: String,
+        password: String,
+        cfAccessClientId: String = "",
+        cfAccessClientSecret: String = "",
+    ) =
         viewModelScope.launch {
             if (url.isBlank() || username.isBlank() || password.isBlank()) {
                 _login.value = LoginUiState.Failure("URL, Benutzername und Passwort sind erforderlich.")
@@ -197,13 +204,19 @@ class SettingsViewModel(
             }
             _login.value = LoginUiState.Working
             try {
-                val resp = chatRepo.login(url, username, password)
+                val resp = chatRepo.login(
+                    url, username, password,
+                    cfAccessClientId = cfAccessClientId,
+                    cfAccessClientSecret = cfAccessClientSecret,
+                )
                 // Profil mit Session-Token speichern und aktivieren
                 settingsRepo.upsertProfile(
                     label = label.ifBlank { username },
                     url = url,
                     token = resp.token,
                     username = username,
+                    cfAccessClientId = cfAccessClientId,
+                    cfAccessClientSecret = cfAccessClientSecret,
                     makeActive = true,
                 )
                 _testResult.value = ConnectionTestResult.Idle
@@ -230,7 +243,13 @@ class SettingsViewModel(
         }
         _login.value = LoginUiState.Working
         try {
-            val resp = chatRepo.login(active.serverUrl, active.username, password)
+            val resp = chatRepo.login(
+                active.serverUrl,
+                active.username,
+                password,
+                cfAccessClientId = active.cfAccessClientId,
+                cfAccessClientSecret = active.cfAccessClientSecret,
+            )
             settingsRepo.setActiveSessionToken(resp.token)
             _login.value = LoginUiState.Success(resp.user, resp.user.mustChangePassword)
         } catch (e: Exception) {
@@ -267,6 +286,16 @@ class SettingsViewModel(
 
     fun renameProfile(id: String, newLabel: String) = viewModelScope.launch {
         settingsRepo.updateProfile(id, label = newLabel)
+    }
+
+    fun setCloudflareAccessCredentials(clientId: String, clientSecret: String) = viewModelScope.launch {
+        val active = settingsRepo.current().activeProfile ?: return@launch
+        settingsRepo.updateProfile(
+            active.id,
+            cfAccessClientId = clientId,
+            cfAccessClientSecret = clientSecret,
+        )
+        _testResult.value = ConnectionTestResult.Idle
     }
 
     fun deleteProfile(id: String) = viewModelScope.launch {

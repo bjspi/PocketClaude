@@ -118,7 +118,27 @@ On a fresh Ubuntu / Debian / Fedora box:
 curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
 ```
 
-The installer creates a `pocket-claude` system user, drops the code into `/opt/pocket-claude/`, installs the Claude Code CLI, installs Python dependencies into a venv, writes a systemd unit, and starts it on port `8787` (loopback).
+If you use your own fork, install from a checked-out repo so the installer
+copies your forked server code:
+
+```bash
+# If git is not installed yet on Debian/Ubuntu:
+sudo apt-get update && sudo apt-get install -y git
+
+git clone https://github.com/YOURNAME/PocketClaude.git
+cd PocketClaude/server
+sudo bash deploy/install-linux.sh
+```
+
+For a one-liner from a fork without keeping a checkout on the server, pass
+`REPO_URL` explicitly:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YOURNAME/PocketClaude/main/server/deploy/install-linux.sh \
+  | sudo env REPO_URL=https://github.com/YOURNAME/PocketClaude.git bash
+```
+
+The installer creates a `pocket-claude` system user, drops the code into `/opt/pocket-claude/`, installs the Claude Code CLI, installs Python dependencies into a venv, asks whether the web UI should be enabled, asks for the access mode, writes a systemd unit, and keeps the server bound to loopback for tunnel access.
 
 ### 2 — Log into Claude with your Pro/Max account
 
@@ -128,13 +148,9 @@ sudo -u pocket-claude -H claude login
 
 OAuth flow runs in your terminal. Same login Claude Code uses.
 
-### 3 — Expose the server with a persistent URL (Tailscale Funnel, free)
+### 3 — Choose access
 
-```bash
-sudo bash /opt/pocket-claude/deploy/setup-tailscale-funnel.sh
-```
-
-Prints the public URL when it's done — looks like `https://your-host.your-tailnet.ts.net`. Alternatively, the deploy folder also has a Cloudflare Named Tunnel setup script if you'd rather use a custom domain.
+During install you can choose Tailscale internal-only, Tailscale Funnel, or Cloudflare Tunnel. Internal-only requires the Tailscale Android app and does not publish Pocket Claude to the public internet. Funnel gives you a public `https://your-host.your-tailnet.ts.net` URL. Cloudflare Tunnel uses your own Cloudflare-managed domain and can be protected with Cloudflare Access Service Auth; enter that service token in the Android profile if enabled.
 
 ### 4 — Install the Android app
 
@@ -149,7 +165,7 @@ Open the app → **Add profile** → enter your URL + the initial admin password
 
 ### 5 — (Optional) Use the web UI instead of the app
 
-Just open your tunnel URL in any browser. The web UI is served from the same FastAPI process.
+Just open your tunnel URL in any browser. The web UI is served from the same FastAPI process unless you disabled it during install (`ENABLE_WEBUI=0`).
 
 Full setup including the Cloudflare path, host-to-host migration, daily-update workflow, and troubleshooting: **[`server/deploy/README.md`](server/deploy/README.md)**.
 

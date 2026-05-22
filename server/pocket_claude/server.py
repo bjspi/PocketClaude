@@ -2871,7 +2871,9 @@ class _HttpOnlyStaticFiles(StaticFiles):
         await super().__call__(scope, receive, send)
 
 _webui_dir = _PathLib(__file__).parent / "webui"
-if _webui_dir.exists():
+if not settings.enable_webui:
+    log.info("Web-UI deaktiviert (ENABLE_WEBUI=0).")
+elif _webui_dir.exists():
     app.mount("/", _HttpOnlyStaticFiles(directory=str(_webui_dir), html=True), name="webui")
     log.info("Web-UI gemountet aus %s", _webui_dir)
 else:

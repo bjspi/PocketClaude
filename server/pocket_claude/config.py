@@ -25,9 +25,10 @@ class Settings(BaseSettings):
     claude_model: str | None = None
 
     # Server
-    server_host: str = "0.0.0.0"
+    server_host: str = "127.0.0.1"
     server_port: int = 8787
     dev_reload: bool = False
+    enable_webui: bool = True
 
     # Storage
     data_dir: Path = Path("./data")
