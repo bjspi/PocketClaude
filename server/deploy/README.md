@@ -249,6 +249,22 @@ The script:
    Auth in the Zero Trust dashboard, enter the service token Client ID and
    Client Secret in the Pocket Claude profile.
 
+#### Switch or disable public tunnels
+
+Use `update-tunnel-conf.sh` when you want to disable public exposure or move
+between Tailscale Funnel and Cloudflare Tunnel later:
+
+```bash
+sudo bash /opt/pocket-claude/deploy/update-tunnel-conf.sh status
+sudo bash /opt/pocket-claude/deploy/update-tunnel-conf.sh disable-public
+sudo bash /opt/pocket-claude/deploy/update-tunnel-conf.sh switch-to-funnel
+sudo bash /opt/pocket-claude/deploy/update-tunnel-conf.sh switch-to-cloudflare
+```
+
+This script deliberately does **not** disable Tailscale internal-only access:
+it never runs `tailscale down` and never resets `tailscale serve`. It only
+controls the public surfaces: Tailscale Funnel and the `cloudflared` service.
+
 ### Step 5: App side
 
 Open the Pocket Claude app:
