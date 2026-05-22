@@ -713,6 +713,25 @@
     <string name="settings_voice_remove_btn">Remove</string>
     <string name="settings_voice_help_text">Get a key at console.groq.com/keys. Free tier covers Whisper Large v3 Turbo with rate limits suitable for personal use.</string>
 
+    <!-- Voice language override + auto-translate -->
+    <string name="settings_voice_lang_title">Transcription language</string>
+    <string name="settings_voice_lang_hint">By default Whisper follows the app language. Pick \"Manual\" to override — for languages we don\'t pre-ship, the bias prompt is auto-translated by Claude on demand.</string>
+    <string name="settings_voice_lang_auto">Auto — follow app language</string>
+    <string name="settings_voice_lang_manual">Manual — pick a language</string>
+    <string name="settings_voice_lang_tag_bundled">bundled</string>
+    <string name="settings_voice_lang_tag_translated">translated by Claude</string>
+    <string name="settings_voice_lang_tag_pending">pending translation</string>
+    <string name="settings_voice_lang_tag_fallback">fallback (English)</string>
+    <string name="settings_voice_lang_custom">Other / custom ISO code…</string>
+    <string name="settings_voice_lang_custom_label">ISO 639-1 code</string>
+    <string name="settings_voice_lang_apply">Apply</string>
+    <string name="settings_voice_translate_running">Translating prompt via Claude…</string>
+    <string name="settings_voice_translate_success">✓ Prompt translated</string>
+    <string name="settings_voice_translate_error">Translation failed: %1$s</string>
+    <string name="settings_voice_prompt_preview_label">Bias prompt (%1$s)</string>
+    <string name="settings_voice_retranslate">Re-translate</string>
+    <string name="settings_voice_reset_to_default">Reset to default</string>
+
     <!-- Voice button + chat overflow + runtime errors -->
     <string name="voice_mic_idle_cd">Record voice message</string>
     <string name="voice_mic_recording_cd">Recording — tap to stop, long-press to cancel</string>

@@ -218,6 +218,15 @@ class ApiClient(
 
     suspend fun deleteVoiceApiKey() = delete("/voice/credentials")
 
+    suspend fun setVoiceLangConfig(mode: String, locale: String?): VoiceConfigDto =
+        putJson("/voice/lang-config", VoiceLangConfigRequest(mode, locale))
+
+    suspend fun translateVoicePrompt(locale: String, force: Boolean = false): VoiceTranslateResponse =
+        postJson("/voice/prompt/translate", VoiceTranslateRequest(locale, force))
+
+    suspend fun deleteCachedVoicePrompt(locale: String) =
+        delete("/voice/prompt/cache/$locale")
+
     /** Schickt eine Audio-Datei (m4a/aac, mono 16 kHz) an Groq Whisper,
      *  zurück kommt der Transkript-Text. `language` ist die UI-Locale
      *  (`en`, `de`, `pt-BR`, …) — der Server mappt auf den passenden

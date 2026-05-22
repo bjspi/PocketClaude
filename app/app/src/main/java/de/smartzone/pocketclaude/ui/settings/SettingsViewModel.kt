@@ -617,6 +617,84 @@ class SettingsViewModel(
 
     fun clearVoiceKeyMessage() { _voiceKeyMessage.value = null }
 
+    // ----- Voice-Lang-Override + Auto-Translate via Claude -----
+
+    /** Drei sichtbare UI-States für den Übersetzungs-Status. */
+    enum class TranslateStatus { Idle, Running, Success, Error }
+
+    private val _translateStatus = MutableStateFlow(TranslateStatus.Idle)
+    val translateStatus: StateFlow<TranslateStatus> = _translateStatus.asStateFlow()
+
+    private val _translateMessage = MutableStateFlow<String?>(null)
+    val translateMessage: StateFlow<String?> = _translateMessage.asStateFlow()
+
+    /** Setzt mode=auto und löscht jeden Override. */
+    fun setVoiceLangAuto() = viewModelScope.launch {
+        try {
+            val cfg = chatRepo.setVoiceLangConfig("auto", null)
+            _voiceConfig.value = cfg
+            _translateStatus.value = TranslateStatus.Idle
+            _translateMessage.value = null
+        } catch (e: Exception) {
+            _translateStatus.value = TranslateStatus.Error
+            _translateMessage.value = e.message ?: e::class.java.simpleName
+        }
+    }
+
+    /** Setzt mode=override mit konkreter Locale.
+     *  Wenn die Locale nicht gebundlet ist UND noch nicht im Cache,
+     *  triggert das im Anschluss automatisch eine Übersetzung — UI sieht
+     *  dabei translateStatus=Running. */
+    fun setVoiceLangOverride(locale: String) = viewModelScope.launch {
+        val loc = locale.trim().lowercase()
+        if (loc.isEmpty()) return@launch
+        try {
+            val cfg = chatRepo.setVoiceLangConfig("override", loc)
+            _voiceConfig.value = cfg
+            val isBundled = cfg.bundledLanguages.contains(cfg.currentLang)
+            val cached = cfg.cachedLanguages.contains(cfg.currentLang)
+            if (!isBundled && !cached) {
+                translateVoicePrompt(cfg.currentLang, force = false)
+            } else {
+                _translateStatus.value = TranslateStatus.Idle
+                _translateMessage.value = null
+            }
+        } catch (e: Exception) {
+            _translateStatus.value = TranslateStatus.Error
+            _translateMessage.value = e.message ?: e::class.java.simpleName
+        }
+    }
+
+    /** Triggert eine Claude-Übersetzung; UI zeigt Spinner während Running. */
+    fun translateVoicePrompt(locale: String, force: Boolean = false) = viewModelScope.launch {
+        val loc = locale.trim().lowercase()
+        if (loc.isEmpty()) return@launch
+        _translateStatus.value = TranslateStatus.Running
+        _translateMessage.value = null
+        try {
+            chatRepo.translateVoicePrompt(loc, force)
+            _translateStatus.value = TranslateStatus.Success
+            refreshVoiceConfig().join()
+        } catch (e: Exception) {
+            _translateStatus.value = TranslateStatus.Error
+            _translateMessage.value = e.message ?: e::class.java.simpleName
+        }
+    }
+
+    /** Löscht den Cache-Eintrag — danach greift wieder Bundled-Default
+     *  (oder ein erneuter Translate-Call). */
+    fun resetVoicePromptCache(locale: String) = viewModelScope.launch {
+        runCatching { chatRepo.deleteCachedVoicePrompt(locale.trim().lowercase()) }
+        refreshVoiceConfig().join()
+        _translateStatus.value = TranslateStatus.Idle
+        _translateMessage.value = null
+    }
+
+    fun clearTranslateStatus() {
+        _translateStatus.value = TranslateStatus.Idle
+        _translateMessage.value = null
+    }
+
     // ----- Backup / Import -----
 
     sealed interface BackupState {

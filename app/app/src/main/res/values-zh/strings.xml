@@ -713,6 +713,25 @@
     <string name="settings_voice_remove_btn">移除</string>
     <string name="settings_voice_help_text">在 console.groq.com/keys 获取密钥。免费档覆盖 Whisper Large v3 Turbo,速率限制适合个人使用。</string>
 
+    <!-- Voice language override + auto-translate -->
+    <string name="settings_voice_lang_title">转写语言</string>
+    <string name="settings_voice_lang_hint">默认 Whisper 跟随应用语言。选择「手动」可覆盖 — 对未预置的语言,bias 提示会按需通过 Claude 翻译。</string>
+    <string name="settings_voice_lang_auto">自动 — 跟随应用语言</string>
+    <string name="settings_voice_lang_manual">手动 — 选择语言</string>
+    <string name="settings_voice_lang_tag_bundled">预置</string>
+    <string name="settings_voice_lang_tag_translated">由 Claude 翻译</string>
+    <string name="settings_voice_lang_tag_pending">翻译待定</string>
+    <string name="settings_voice_lang_tag_fallback">回退(英文)</string>
+    <string name="settings_voice_lang_custom">其他 / 自定义 ISO 代码…</string>
+    <string name="settings_voice_lang_custom_label">ISO 639-1 代码</string>
+    <string name="settings_voice_lang_apply">应用</string>
+    <string name="settings_voice_translate_running">正在通过 Claude 翻译提示…</string>
+    <string name="settings_voice_translate_success">✓ 提示翻译成功</string>
+    <string name="settings_voice_translate_error">翻译失败: %1$s</string>
+    <string name="settings_voice_prompt_preview_label">Bias 提示 (%1$s)</string>
+    <string name="settings_voice_retranslate">重新翻译</string>
+    <string name="settings_voice_reset_to_default">重置为默认</string>
+
     <!-- Voice button + chat overflow + runtime errors -->
     <string name="voice_mic_idle_cd">录制语音消息</string>
     <string name="voice_mic_recording_cd">正在录音 — 点击停止,长按取消</string>

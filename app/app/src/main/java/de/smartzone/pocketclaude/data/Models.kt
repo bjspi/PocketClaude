@@ -446,10 +446,46 @@ data class VoiceConfigDto(
     val configured: Boolean = false,
     @SerialName("api_key_masked") val apiKeyMasked: String? = null,
     val model: String = "whisper-large-v3-turbo",
+    /** "auto" oder "override" */
+    @SerialName("lang_mode") val langMode: String = "auto",
+    /** Bei mode=override: ISO-Code (`sv`, `ko`, …); sonst null */
+    @SerialName("lang_override") val langOverride: String? = null,
+    /** Aktuell aufgelöster Whisper-Sprachcode (preview) */
+    @SerialName("current_lang") val currentLang: String = "en",
+    /** Aktueller Bias-Prompt — wird in der UI als Read-Only-Preview gezeigt */
+    @SerialName("current_prompt") val currentPrompt: String = "",
+    /** "bundled" | "cache" | "fallback" — woher der current_prompt kommt */
+    @SerialName("current_prompt_source") val currentPromptSource: String = "fallback",
+    /** Alle Sprachen, für die wir einen Default-Prompt gebundelt haben */
+    @SerialName("bundled_languages") val bundledLanguages: List<String> = emptyList(),
+    /** ISO-Code → englischer Display-Name (Sprache, nicht UI-Label) */
+    @SerialName("language_names") val languageNames: Map<String, String> = emptyMap(),
+    /** Sprachen, für die der User bereits eine Übersetzung im Cache hat */
+    @SerialName("cached_languages") val cachedLanguages: List<String> = emptyList(),
 )
 
 @Serializable
 data class VoiceCredentialsRequest(@SerialName("api_key") val apiKey: String)
+
+@Serializable
+data class VoiceLangConfigRequest(
+    val mode: String,
+    val locale: String? = null,
+)
+
+@Serializable
+data class VoiceTranslateRequest(
+    val locale: String,
+    val force: Boolean = false,
+)
+
+@Serializable
+data class VoiceTranslateResponse(
+    val locale: String,
+    val prompt: String,
+    /** "bundled" | "cache" | "translated" */
+    val source: String,
+)
 
 @Serializable
 data class VoiceTranscribeResponse(val text: String)

@@ -36,6 +36,11 @@ class ChatRepository(
     suspend fun voiceConfig(): VoiceConfigDto = api.voiceConfig()
     suspend fun setVoiceApiKey(key: String) = api.setVoiceApiKey(key)
     suspend fun deleteVoiceApiKey() = api.deleteVoiceApiKey()
+    suspend fun setVoiceLangConfig(mode: String, locale: String?): VoiceConfigDto =
+        api.setVoiceLangConfig(mode, locale)
+    suspend fun translateVoicePrompt(locale: String, force: Boolean = false): VoiceTranslateResponse =
+        api.translateVoicePrompt(locale, force)
+    suspend fun deleteCachedVoicePrompt(locale: String) = api.deleteCachedVoicePrompt(locale)
 
     suspend fun list(): List<ConversationDto> = api.listConversations()
 

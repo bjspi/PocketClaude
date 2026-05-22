@@ -713,6 +713,25 @@
     <string name="settings_voice_remove_btn">Quitar</string>
     <string name="settings_voice_help_text">Consigue una clave en console.groq.com/keys. El free tier cubre Whisper Large v3 Turbo con límites suficientes para uso personal.</string>
 
+    <!-- Voice language override + auto-translate -->
+    <string name="settings_voice_lang_title">Idioma de transcripción</string>
+    <string name="settings_voice_lang_hint">Por defecto Whisper sigue el idioma de la app. Elige «Manual» para sobrescribir — para idiomas no preincluidos, Claude traduce el prompt-bias bajo demanda.</string>
+    <string name="settings_voice_lang_auto">Auto — sigue el idioma de la app</string>
+    <string name="settings_voice_lang_manual">Manual — elige un idioma</string>
+    <string name="settings_voice_lang_tag_bundled">incluido</string>
+    <string name="settings_voice_lang_tag_translated">traducido por Claude</string>
+    <string name="settings_voice_lang_tag_pending">traducción pendiente</string>
+    <string name="settings_voice_lang_tag_fallback">fallback (inglés)</string>
+    <string name="settings_voice_lang_custom">Otro / código ISO personalizado…</string>
+    <string name="settings_voice_lang_custom_label">Código ISO 639-1</string>
+    <string name="settings_voice_lang_apply">Aplicar</string>
+    <string name="settings_voice_translate_running">Traduciendo prompt vía Claude…</string>
+    <string name="settings_voice_translate_success">✓ Prompt traducido</string>
+    <string name="settings_voice_translate_error">Traducción fallida: %1$s</string>
+    <string name="settings_voice_prompt_preview_label">Prompt bias (%1$s)</string>
+    <string name="settings_voice_retranslate">Volver a traducir</string>
+    <string name="settings_voice_reset_to_default">Restablecer al predeterminado</string>
+
     <!-- Voice button + chat overflow + runtime errors -->
     <string name="voice_mic_idle_cd">Grabar mensaje de voz</string>
     <string name="voice_mic_recording_cd">Grabando — toca para parar, mantén pulsado para cancelar</string>

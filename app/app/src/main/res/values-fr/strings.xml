@@ -713,6 +713,25 @@
     <string name="settings_voice_remove_btn">Supprimer</string>
     <string name="settings_voice_help_text">Obtenez une clé sur console.groq.com/keys. Le free tier couvre Whisper Large v3 Turbo avec des limites adaptées à un usage personnel.</string>
 
+    <!-- Voice language override + auto-translate -->
+    <string name="settings_voice_lang_title">Langue de transcription</string>
+    <string name="settings_voice_lang_hint">Par défaut Whisper suit la langue de l\'app. Choisissez « Manuel » pour outrepasser — pour les langues non préchargées, Claude traduit l\'amorce à la volée.</string>
+    <string name="settings_voice_lang_auto">Auto — suit la langue de l\'app</string>
+    <string name="settings_voice_lang_manual">Manuel — choisir une langue</string>
+    <string name="settings_voice_lang_tag_bundled">préchargé</string>
+    <string name="settings_voice_lang_tag_translated">traduit par Claude</string>
+    <string name="settings_voice_lang_tag_pending">traduction en attente</string>
+    <string name="settings_voice_lang_tag_fallback">repli (anglais)</string>
+    <string name="settings_voice_lang_custom">Autre / code ISO personnalisé…</string>
+    <string name="settings_voice_lang_custom_label">Code ISO 639-1</string>
+    <string name="settings_voice_lang_apply">Appliquer</string>
+    <string name="settings_voice_translate_running">Traduction de l\'amorce via Claude…</string>
+    <string name="settings_voice_translate_success">✓ Amorce traduite</string>
+    <string name="settings_voice_translate_error">Échec de la traduction : %1$s</string>
+    <string name="settings_voice_prompt_preview_label">Amorce (%1$s)</string>
+    <string name="settings_voice_retranslate">Re-traduire</string>
+    <string name="settings_voice_reset_to_default">Réinitialiser au défaut</string>
+
     <!-- Voice button + chat overflow + runtime errors -->
     <string name="voice_mic_idle_cd">Enregistrer un message vocal</string>
     <string name="voice_mic_recording_cd">Enregistrement — touchez pour arrêter, maintenez pour annuler</string>

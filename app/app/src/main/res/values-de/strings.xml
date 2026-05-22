@@ -713,6 +713,25 @@
     <string name="settings_voice_remove_btn">Entfernen</string>
     <string name="settings_voice_help_text">Key bei console.groq.com/keys holen. Free Tier deckt Whisper Large v3 Turbo mit Rate-Limits für persönlichen Gebrauch ab.</string>
 
+    <!-- Voice language override + auto-translate -->
+    <string name="settings_voice_lang_title">Transkriptions-Sprache</string>
+    <string name="settings_voice_lang_hint">Standardmäßig folgt Whisper der App-Sprache. „Manuell" für Override — für nicht gebundelte Sprachen wird der Bias-Prompt on-demand von Claude übersetzt.</string>
+    <string name="settings_voice_lang_auto">Auto — folgt der App-Sprache</string>
+    <string name="settings_voice_lang_manual">Manuell — Sprache wählen</string>
+    <string name="settings_voice_lang_tag_bundled">gebundelt</string>
+    <string name="settings_voice_lang_tag_translated">von Claude übersetzt</string>
+    <string name="settings_voice_lang_tag_pending">Übersetzung ausstehend</string>
+    <string name="settings_voice_lang_tag_fallback">Fallback (Englisch)</string>
+    <string name="settings_voice_lang_custom">Andere / Custom-ISO-Code…</string>
+    <string name="settings_voice_lang_custom_label">ISO-639-1-Code</string>
+    <string name="settings_voice_lang_apply">Übernehmen</string>
+    <string name="settings_voice_translate_running">Transkriptionsprompt wird übersetzt …</string>
+    <string name="settings_voice_translate_success">✓ Prompt erfolgreich übersetzt</string>
+    <string name="settings_voice_translate_error">Übersetzung fehlgeschlagen: %1$s</string>
+    <string name="settings_voice_prompt_preview_label">Bias-Prompt (%1$s)</string>
+    <string name="settings_voice_retranslate">Neu übersetzen</string>
+    <string name="settings_voice_reset_to_default">Auf Default zurücksetzen</string>
+
     <!-- Voice button + chat overflow + runtime errors -->
     <string name="voice_mic_idle_cd">Sprachnachricht aufnehmen</string>
     <string name="voice_mic_recording_cd">Aufnahme läuft — Tap stoppt, Long-Press bricht ab</string>

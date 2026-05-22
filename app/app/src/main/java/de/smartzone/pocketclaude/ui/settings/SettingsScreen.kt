@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -63,7 +64,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -3290,15 +3293,19 @@ private fun ImageGenSection(vm: SettingsViewModel) {
 }
 
 /**
- * Voice-Input-Section: Groq-API-Key paste/save/remove, Status-Anzeige.
- * Spiegelt das Pattern von ImageGenSection 1:1 — bewusst, damit beide
- * "User-API-Key"-Widgets sich identisch anfühlen.
+ * Voice-Input-Section: Groq-API-Key + Sprach-Override + Translate-Logik
+ * für nicht-gebundelte Sprachen. Layout:
+ *   1. Key-Block (paste/save/remove, Status)
+ *   2. Sprach-Wahl (Auto / Override-Dropdown / Custom-Locale)
+ *   3. Translate-Status + Prompt-Preview
  */
 @Composable
 private fun VoiceSection(vm: SettingsViewModel) {
     val cfg by vm.voiceConfig.collectAsState()
     val busy by vm.voiceKeyBusy.collectAsState()
     val msg by vm.voiceKeyMessage.collectAsState()
+    val translateStatus by vm.translateStatus.collectAsState()
+    val translateMsg by vm.translateMessage.collectAsState()
     var apiKey by remember { mutableStateOf("") }
     var showKey by remember { mutableStateOf(false) }
 
@@ -3381,6 +3388,212 @@ private fun VoiceSection(vm: SettingsViewModel) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // ── 2. Sprach-Wahl ──
+            cfg?.let { c ->
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                VoiceLanguagePicker(
+                    cfg = c,
+                    translateStatus = translateStatus,
+                    translateMsg = translateMsg,
+                    onSetAuto = { vm.setVoiceLangAuto() },
+                    onSetOverride = { vm.setVoiceLangOverride(it) },
+                    onRetranslate = { loc -> vm.translateVoicePrompt(loc, force = true) },
+                    onResetCache = { loc -> vm.resetVoicePromptCache(loc) },
+                )
+            }
+        }
+    }
+}
+
+/** Picker für die Transkriptions-Sprache + Translate-Status + Prompt-Preview. */
+@Composable
+private fun VoiceLanguagePicker(
+    cfg: de.smartzone.pocketclaude.data.VoiceConfigDto,
+    translateStatus: SettingsViewModel.TranslateStatus,
+    translateMsg: String?,
+    onSetAuto: () -> Unit,
+    onSetOverride: (String) -> Unit,
+    onRetranslate: (String) -> Unit,
+    onResetCache: (String) -> Unit,
+) {
+    val isOverride = cfg.langMode == "override"
+    var modeOverride by remember(cfg.langMode) { mutableStateOf(isOverride) }
+    var dropdownOpen by remember { mutableStateOf(false) }
+    var customMode by remember(cfg.langOverride) {
+        mutableStateOf(isOverride && cfg.langOverride !in cfg.bundledLanguages)
+    }
+    var customLocale by remember(cfg.langOverride) {
+        mutableStateOf(if (customMode) (cfg.langOverride ?: "") else "")
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // Toggle Auto vs. Override
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(
+                selected = !modeOverride,
+                onClick = {
+                    modeOverride = false
+                    customMode = false
+                    onSetAuto()
+                },
+            )
+            Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_auto),
+                 style = MaterialTheme.typography.bodyMedium)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(
+                selected = modeOverride,
+                onClick = { modeOverride = true },
+            )
+            Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_manual),
+                 style = MaterialTheme.typography.bodyMedium)
+        }
+
+        if (modeOverride) {
+            // Bundled-Dropdown
+            val current = cfg.langOverride ?: cfg.currentLang
+            Box {
+                OutlinedButton(
+                    onClick = { dropdownOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    val displayName = cfg.languageNames[current] ?: current
+                    val cached = current in cfg.cachedLanguages
+                    val bundled = current in cfg.bundledLanguages
+                    val tag = when {
+                        bundled -> stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_tag_bundled)
+                        cached -> stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_tag_translated)
+                        else -> stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_tag_pending)
+                    }
+                    Text("$displayName ($current) — $tag",
+                         style = MaterialTheme.typography.bodyMedium,
+                         maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                DropdownMenu(
+                    expanded = dropdownOpen,
+                    onDismissRequest = { dropdownOpen = false },
+                    modifier = Modifier.heightIn(max = 360.dp),
+                ) {
+                    cfg.bundledLanguages.sortedBy {
+                        cfg.languageNames[it]?.lowercase() ?: it
+                    }.forEach { code ->
+                        DropdownMenuItem(
+                            text = { Text("${cfg.languageNames[code] ?: code} ($code)") },
+                            onClick = {
+                                dropdownOpen = false
+                                customMode = false
+                                onSetOverride(code)
+                            },
+                        )
+                    }
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_custom)) },
+                        onClick = {
+                            dropdownOpen = false
+                            customMode = true
+                        },
+                    )
+                }
+            }
+
+            if (customMode) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = customLocale,
+                        onValueChange = { customLocale = it.lowercase().take(6) },
+                        modifier = Modifier.weight(1f),
+                        label = { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_custom_label)) },
+                        placeholder = { Text("sv, ko, eu, …") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                    FilledTonalButton(
+                        onClick = { onSetOverride(customLocale) },
+                        enabled = customLocale.length in 2..6,
+                        shape = RoundedCornerShape(12.dp),
+                    ) { Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_apply)) }
+                }
+            }
+
+            // Translate-Status
+            when (translateStatus) {
+                SettingsViewModel.TranslateStatus.Running -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
+                    Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_translate_running),
+                         style = MaterialTheme.typography.bodySmall)
+                }
+                SettingsViewModel.TranslateStatus.Success -> Text(
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_voice_translate_success),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                SettingsViewModel.TranslateStatus.Error -> Text(
+                    stringResource(de.smartzone.pocketclaude.R.string.settings_voice_translate_error,
+                                   translateMsg ?: ""),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                SettingsViewModel.TranslateStatus.Idle -> Unit
+            }
+        }
+
+        // Prompt-Preview — read-only, monospace-ish, immer sichtbar damit man
+        // sieht was Whisper als Bias kriegt
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        ) {
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(de.smartzone.pocketclaude.R.string.settings_voice_prompt_preview_label,
+                                       cfg.currentLang),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    val srcLabel = when (cfg.currentPromptSource) {
+                        "bundled" -> stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_tag_bundled)
+                        "cache" -> stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_tag_translated)
+                        else -> stringResource(de.smartzone.pocketclaude.R.string.settings_voice_lang_tag_fallback)
+                    }
+                    Text(srcLabel,
+                         style = MaterialTheme.typography.labelSmall,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(cfg.currentPrompt,
+                     style = MaterialTheme.typography.bodySmall,
+                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                if (cfg.currentPromptSource == "cache") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { onRetranslate(cfg.currentLang) }) {
+                            Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_retranslate))
+                        }
+                        TextButton(onClick = { onResetCache(cfg.currentLang) }) {
+                            Text(stringResource(de.smartzone.pocketclaude.R.string.settings_voice_reset_to_default))
+                        }
+                    }
+                }
+            }
         }
     }
 }

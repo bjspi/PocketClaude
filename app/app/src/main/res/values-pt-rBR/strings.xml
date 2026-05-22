@@ -713,6 +713,25 @@
     <string name="settings_voice_remove_btn">Remover</string>
     <string name="settings_voice_help_text">Obtenha uma chave em console.groq.com/keys. O free tier cobre Whisper Large v3 Turbo com limites suficientes para uso pessoal.</string>
 
+    <!-- Voice language override + auto-translate -->
+    <string name="settings_voice_lang_title">Idioma da transcrição</string>
+    <string name="settings_voice_lang_hint">Por padrão, o Whisper segue o idioma do app. Escolha “Manual” para sobrescrever — para idiomas não pré-inclusos, o prompt-bias é traduzido pelo Claude sob demanda.</string>
+    <string name="settings_voice_lang_auto">Auto — segue o idioma do app</string>
+    <string name="settings_voice_lang_manual">Manual — escolha um idioma</string>
+    <string name="settings_voice_lang_tag_bundled">incluído</string>
+    <string name="settings_voice_lang_tag_translated">traduzido pelo Claude</string>
+    <string name="settings_voice_lang_tag_pending">tradução pendente</string>
+    <string name="settings_voice_lang_tag_fallback">fallback (inglês)</string>
+    <string name="settings_voice_lang_custom">Outro / código ISO personalizado…</string>
+    <string name="settings_voice_lang_custom_label">Código ISO 639-1</string>
+    <string name="settings_voice_lang_apply">Aplicar</string>
+    <string name="settings_voice_translate_running">Traduzindo prompt via Claude…</string>
+    <string name="settings_voice_translate_success">✓ Prompt traduzido</string>
+    <string name="settings_voice_translate_error">Falha na tradução: %1$s</string>
+    <string name="settings_voice_prompt_preview_label">Prompt-bias (%1$s)</string>
+    <string name="settings_voice_retranslate">Retraduzir</string>
+    <string name="settings_voice_reset_to_default">Voltar ao padrão</string>
+
     <!-- Voice button + chat overflow + runtime errors -->
     <string name="voice_mic_idle_cd">Gravar mensagem de voz</string>
     <string name="voice_mic_recording_cd">Gravando — toque para parar, segure para cancelar</string>

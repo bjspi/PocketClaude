@@ -713,6 +713,25 @@
     <string name="settings_voice_remove_btn">削除</string>
     <string name="settings_voice_help_text">console.groq.com/keys でキーを取得。無料枠で Whisper Large v3 Turbo を個人利用に十分なレートでカバー。</string>
 
+    <!-- Voice language override + auto-translate -->
+    <string name="settings_voice_lang_title">書き起こし言語</string>
+    <string name="settings_voice_lang_hint">デフォルトでは Whisper はアプリ言語に追従します。「手動」を選ぶと上書きでき、未同梱の言語はバイアスプロンプトを Claude が必要時に翻訳します。</string>
+    <string name="settings_voice_lang_auto">自動 — アプリ言語に追従</string>
+    <string name="settings_voice_lang_manual">手動 — 言語を選択</string>
+    <string name="settings_voice_lang_tag_bundled">同梱</string>
+    <string name="settings_voice_lang_tag_translated">Claude が翻訳</string>
+    <string name="settings_voice_lang_tag_pending">翻訳待ち</string>
+    <string name="settings_voice_lang_tag_fallback">フォールバック（英語）</string>
+    <string name="settings_voice_lang_custom">その他／カスタム ISO コード…</string>
+    <string name="settings_voice_lang_custom_label">ISO 639-1 コード</string>
+    <string name="settings_voice_lang_apply">適用</string>
+    <string name="settings_voice_translate_running">Claude でプロンプト翻訳中…</string>
+    <string name="settings_voice_translate_success">✓ プロンプト翻訳完了</string>
+    <string name="settings_voice_translate_error">翻訳失敗: %1$s</string>
+    <string name="settings_voice_prompt_preview_label">バイアスプロンプト (%1$s)</string>
+    <string name="settings_voice_retranslate">再翻訳</string>
+    <string name="settings_voice_reset_to_default">デフォルトに戻す</string>
+
     <!-- Voice button + chat overflow + runtime errors -->
     <string name="voice_mic_idle_cd">音声メッセージを録音</string>
     <string name="voice_mic_recording_cd">録音中 — タップで停止、長押しでキャンセル</string>
