@@ -4,7 +4,7 @@
 # =============================================================================
 #
 #  Sets up a PERSISTENT Cloudflare tunnel:
-#    - Custom subdomain (e.g. pocket-claude.your-domain.com)
+#    - Custom hostname (e.g. claude.your-domain.com)
 #    - Persistent tunnel ID + credentials in /etc/cloudflared/
 #    - Runs as a systemd service -> auto-restart, auto-start on boot
 #    - Survives reboot: same URL, no manual action needed
@@ -15,7 +15,7 @@
 #  Requirements:
 #    - You have a Cloudflare account and a domain managed by Cloudflare DNS.
 #    - You can use any subdomain under that zone, for example
-#      pocket-claude.example.com. Dynamic DNS or trycloudflare.com are not
+#      claude.example.com. Dynamic DNS or trycloudflare.com are not
 #      enough for a persistent Access-protected app.
 #    - You have already run `install-linux.sh`.
 #
@@ -24,6 +24,7 @@
 set -euo pipefail
 
 TUNNEL_NAME="${TUNNEL_NAME:-pocket-claude}"
+DEFAULT_TUNNEL_SUBDOMAIN="${TUNNEL_SUBDOMAIN:-pocket-claude}"
 LOCAL_TARGET="${LOCAL_TARGET:-http://localhost:8787}"
 CRED_DIR="/etc/cloudflared"
 
@@ -60,6 +61,18 @@ prompt_yes_no() {
     [[ "$answer" =~ ^[Yy]$ ]]
 }
 
+read_prompt_default() {
+    local prompt="$1"
+    local var_name="$2"
+    local default="$3"
+    local answer
+    if ! read_prompt "$prompt" answer; then
+        printf -v "$var_name" '%s' "$default"
+        return 0
+    fi
+    printf -v "$var_name" '%s' "${answer:-$default}"
+}
+
 # ---------------------------------------------------------------- Root-Check
 if [[ $EUID -ne 0 ]]; then
     c_red "Please run with sudo."
@@ -71,14 +84,18 @@ step "Cloudflare domain requirement"
 echo
 c_yellow "    Cloudflare Named Tunnel + Access needs a hostname in a domain"
 c_yellow "    that is managed by your Cloudflare account, for example:"
-echo "        pocket-claude.example.com"
+echo "        claude.example.com"
 echo
 echo "    Without your own Cloudflare-managed domain, Cloudflare only offers"
 echo "    TryCloudflare quick tunnels on random *.trycloudflare.com names."
 echo "    Those are intended for testing/development, are not stable enough"
 echo "    for this installer, and are not the right place for Access Service Auth."
 echo
-if [[ -z "${TUNNEL_HOSTNAME:-}" ]]; then
+if [[ -n "${TUNNEL_HOSTNAME:-}" ]]; then
+    c_green "    TUNNEL_HOSTNAME is set: $TUNNEL_HOSTNAME"
+elif [[ -n "${TUNNEL_DOMAIN:-}" ]]; then
+    c_green "    TUNNEL_DOMAIN is set: $TUNNEL_DOMAIN"
+else
     if ! prompt_yes_no "Do you have a domain managed by Cloudflare DNS?" "n"; then
         c_red "Cloudflare Tunnel setup cannot continue without a Cloudflare-managed domain."
         echo
@@ -89,8 +106,6 @@ if [[ -z "${TUNNEL_HOSTNAME:-}" ]]; then
         echo "If you later add a domain to Cloudflare, re-run this script."
         exit 1
     fi
-else
-    c_green "    TUNNEL_HOSTNAME is set: $TUNNEL_HOSTNAME"
 fi
 
 # ---------------------------------------------------------------- cloudflared
@@ -189,21 +204,62 @@ fi
 # ---------------------------------------------------------------- Hostname prompt
 step "Configure DNS record"
 echo
-echo "Which subdomain should the tunnel use?"
-echo "(Example: pocket-claude.your-domain.com — the domain must be managed by Cloudflare.)"
 HOSTNAME="${TUNNEL_HOSTNAME:-}"
-if [[ -z "$HOSTNAME" ]]; then
-    if ! read_prompt "Hostname: " HOSTNAME; then
-        c_red "No hostname provided and no interactive terminal available."
-        echo "Set TUNNEL_HOSTNAME, for example:"
-        echo "    sudo TUNNEL_HOSTNAME=pocket-claude.example.com bash $0"
+if [[ -n "$HOSTNAME" ]]; then
+    c_green "    Using hostname from TUNNEL_HOSTNAME: $HOSTNAME"
+else
+    echo "Which Cloudflare hostname should the tunnel use?"
+    echo "Enter the Cloudflare-managed domain and the subdomain label separately."
+    echo "Example: domain example.com + subdomain claude -> claude.example.com"
+    echo
+
+    DOMAIN="${TUNNEL_DOMAIN:-}"
+    SUBDOMAIN="$DEFAULT_TUNNEL_SUBDOMAIN"
+
+    if [[ -z "$DOMAIN" ]]; then
+        if ! read_prompt "Cloudflare domain/zone (e.g. example.com): " DOMAIN; then
+            c_red "No hostname provided and no interactive terminal available."
+            echo "Set either TUNNEL_HOSTNAME or TUNNEL_DOMAIN/TUNNEL_SUBDOMAIN, for example:"
+            echo "    sudo TUNNEL_HOSTNAME=claude.example.com bash $0"
+            echo "    sudo TUNNEL_DOMAIN=example.com TUNNEL_SUBDOMAIN=claude bash $0"
+            exit 1
+        fi
+    else
+        c_green "    Using domain from TUNNEL_DOMAIN: $DOMAIN"
+    fi
+
+    if [[ -z "${TUNNEL_SUBDOMAIN:-}" ]]; then
+        if ! read_prompt_default "Subdomain label [$DEFAULT_TUNNEL_SUBDOMAIN] (use @ for root domain): " SUBDOMAIN "$DEFAULT_TUNNEL_SUBDOMAIN"; then
+            c_red "No subdomain provided and no interactive terminal available."
+            echo "Set either TUNNEL_HOSTNAME or TUNNEL_DOMAIN/TUNNEL_SUBDOMAIN, for example:"
+            echo "    sudo TUNNEL_HOSTNAME=claude.example.com bash $0"
+            echo "    sudo TUNNEL_DOMAIN=example.com TUNNEL_SUBDOMAIN=claude bash $0"
+            exit 1
+        fi
+    else
+        c_green "    Using subdomain from TUNNEL_SUBDOMAIN: $SUBDOMAIN"
+    fi
+
+    if [[ -z "$DOMAIN" || -z "$SUBDOMAIN" ]]; then
+        c_red "Domain and subdomain must not be empty."
         exit 1
+    fi
+
+    if [[ "$SUBDOMAIN" == "@" ]]; then
+        HOSTNAME="$DOMAIN"
+    else
+        HOSTNAME="$SUBDOMAIN.$DOMAIN"
     fi
 fi
 if [[ -z "$HOSTNAME" ]]; then
     c_red "No hostname provided."
     exit 1
 fi
+if [[ "$HOSTNAME" == http://* || "$HOSTNAME" == https://* || "$HOSTNAME" == */* ]]; then
+    c_red "Use a hostname only, without https:// and without a path: $HOSTNAME"
+    exit 1
+fi
+c_green "    Cloudflare hostname: $HOSTNAME"
 
 # ---------------------------------------------------------------- Config file
 step "Writing tunnel config"

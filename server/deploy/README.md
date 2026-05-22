@@ -256,12 +256,31 @@ The script:
 1. Installs `cloudflared`
 2. Opens a browser login
 3. Creates a named tunnel `pocket-claude`
-4. Asks for the desired subdomain (e.g. `pocket-claude.your-domain.com`)
+4. Asks for the desired Cloudflare hostname
 5. Creates the DNS record automatically
 6. Installs `cloudflared` as a systemd service
 7. Prints the Android profile values. If you add Cloudflare Access Service
    Auth in the Zero Trust dashboard, enter the service token Client ID and
    Client Secret in the Pocket Claude profile.
+
+The hostname is configurable. Interactively, the script asks for your
+Cloudflare-managed domain and the subdomain label separately. For unattended
+runs, either pass the full hostname:
+
+```bash
+sudo TUNNEL_HOSTNAME=claude.example.com \
+  bash /opt/pocket-claude/deploy/setup-cloudflare-tunnel.sh
+```
+
+Or pass the Cloudflare zone and subdomain label separately:
+
+```bash
+sudo TUNNEL_DOMAIN=example.com TUNNEL_SUBDOMAIN=claude \
+  bash /opt/pocket-claude/deploy/setup-cloudflare-tunnel.sh
+```
+
+Use `TUNNEL_SUBDOMAIN=@` only if you intentionally want to route the zone root
+itself.
 
 #### Switch or disable public tunnels
 
