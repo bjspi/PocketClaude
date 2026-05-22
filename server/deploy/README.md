@@ -90,24 +90,25 @@ ssh-copy-id user@your-host.local
 
 On the mini-PC:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
-```
-
-If you maintain a fork, the most explicit path is to clone it and run the
-installer from the checked-out `server/` directory:
+Preferred: clone the repo first, then run the installer from the checked-out
+`server/` directory. This keeps the source on the mini-PC and makes updates
+simple:
 
 ```bash
 # If git is not installed yet on Debian/Ubuntu:
 sudo apt-get update && sudo apt-get install -y git
 
-git clone https://github.com/YOURNAME/PocketClaude.git
+git clone https://github.com/bjspi/PocketClaude.git
 cd PocketClaude/server
 sudo bash deploy/install-linux.sh
 ```
 
 The installer detects that local checkout and deploys that code to
-`/opt/pocket-claude`. To update later:
+`/opt/pocket-claude`.
+
+#### Step 2b: Update from GitHub
+
+If you installed from a checkout, update later with:
 
 ```bash
 cd PocketClaude
@@ -116,13 +117,17 @@ cd server
 sudo bash deploy/install-linux.sh
 ```
 
+The installer is idempotent: it keeps existing data and `.env`, updates the
+deployed server files, refreshes dependencies, and restarts/configures services
+as needed.
+
 For a one-liner that clones your fork internally, pass `REPO_URL` explicitly.
 This matters because a script read from stdin cannot reliably infer which
 repository URL it came from:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOURNAME/PocketClaude/main/server/deploy/install-linux.sh \
-  | sudo env REPO_URL=https://github.com/YOURNAME/PocketClaude.git bash
+curl -fsSL https://raw.githubusercontent.com/bjspi/PocketClaude/main/server/deploy/install-linux.sh \
+  | sudo env REPO_URL=https://github.com/bjspi/PocketClaude.git bash
 ```
 
 The script is **idempotent** — you can run it as often as you want without

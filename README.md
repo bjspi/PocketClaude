@@ -114,33 +114,43 @@ Two components, one repository:
 
 On a fresh Ubuntu / Debian / Fedora box:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
-```
-
-If you use your own fork, install from a checked-out repo so the installer
-copies your forked server code:
+Preferred: clone the repo first, then run the installer from the checked-out
+`server/` directory. This makes future updates explicit and repeatable.
 
 ```bash
 # If git is not installed yet on Debian/Ubuntu:
 sudo apt-get update && sudo apt-get install -y git
 
-git clone https://github.com/YOURNAME/PocketClaude.git
+git clone https://github.com/bjspi/PocketClaude.git
 cd PocketClaude/server
 sudo bash deploy/install-linux.sh
 ```
 
-For a one-liner from a fork without keeping a checkout on the server, pass
-`REPO_URL` explicitly:
+One-liner alternative if you do not want to keep a checkout on the server:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOURNAME/PocketClaude/main/server/deploy/install-linux.sh \
-  | sudo env REPO_URL=https://github.com/YOURNAME/PocketClaude.git bash
+curl -fsSL https://raw.githubusercontent.com/bjspi/PocketClaude/main/server/deploy/install-linux.sh \
+  | sudo env REPO_URL=https://github.com/bjspi/PocketClaude.git bash
 ```
 
 The installer creates a `pocket-claude` system user, drops the code into `/opt/pocket-claude/`, installs the Claude Code CLI, installs Python dependencies into a venv, asks whether the web UI should be enabled, asks for the access mode, writes a systemd unit, and keeps the server bound to loopback for tunnel access.
 
-### 2 — Log into Claude with your Pro/Max account
+### 2 — Update the server from GitHub
+
+If you installed from a checkout, update with:
+
+```bash
+cd PocketClaude
+git pull --ff-only
+cd server
+sudo bash deploy/install-linux.sh
+```
+
+The installer is idempotent: it updates `/opt/pocket-claude`, keeps existing
+data and `.env`, refreshes dependencies, and restarts/configures services as
+needed.
+
+### 3 — Log into Claude with your Pro/Max account
 
 ```bash
 sudo -u pocket-claude -H claude login
@@ -148,11 +158,11 @@ sudo -u pocket-claude -H claude login
 
 OAuth flow runs in your terminal. Same login Claude Code uses.
 
-### 3 — Choose access
+### 4 — Choose access
 
 During install you can choose Tailscale internal-only, Tailscale Funnel, or Cloudflare Tunnel. Internal-only requires the Tailscale Android app and does not publish Pocket Claude to the public internet. Funnel gives you a public `https://your-host.your-tailnet.ts.net` URL. Cloudflare Tunnel uses your own Cloudflare-managed domain and can be protected with Cloudflare Access Service Auth; enter that service token in the Android profile if enabled.
 
-### 4 — Install the Android app
+### 5 — Install the Android app
 
 Either download the APK from [the latest release](https://github.com/joshtech90/PocketClaude/releases) or build it yourself:
 
@@ -163,7 +173,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 Open the app → **Add profile** → enter your URL + the initial admin password (printed at first server start in `/opt/pocket-claude/data/INITIAL_PASSWORD.txt`). Change the password on first login.
 
-### 5 — (Optional) Use the web UI instead of the app
+### 6 — (Optional) Use the web UI instead of the app
 
 Just open your tunnel URL in any browser. The web UI is served from the same FastAPI process unless you disabled it during install (`ENABLE_WEBUI=0`).
 
