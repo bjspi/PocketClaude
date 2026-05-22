@@ -108,6 +108,10 @@ set_env_value() {
     fi
 }
 
+claude_credentials_present() {
+    sudo -u "$SERVICE_USER" -H bash -c '[[ -f ~/.claude/credentials.json ]] || [[ -f ~/.config/claude/credentials.json ]]' 2>/dev/null
+}
+
 resolve_server_source() {
     local candidate="$1"
     if [[ -d "$candidate/pocket_claude" && -f "$candidate/requirements.txt" ]]; then
@@ -359,7 +363,23 @@ c_green "    Service enabled (starts automatically on boot)."
 step "Starting server"
 # Only start if `claude` is already logged in. Otherwise we end up in a crash
 # loop until the operator has run `claude login` as the pocket-claude user.
-if sudo -u "$SERVICE_USER" -H bash -c '[[ -f ~/.claude/credentials.json ]] || [[ -f ~/.config/claude/credentials.json ]]' 2>/dev/null; then
+if ! claude_credentials_present; then
+    c_yellow "    Claude login is missing for service user '$SERVICE_USER'."
+    if [[ -f /root/.claude/credentials.json || -f /root/.config/claude/credentials.json ]]; then
+        c_yellow "    Root appears to have Claude credentials, but the service runs as '$SERVICE_USER'."
+    fi
+    echo
+    c_yellow "    Run this in a second terminal on this host:"
+    echo "      sudo -u $SERVICE_USER -H claude login"
+    echo
+    if [[ -r /dev/tty || -t 0 ]]; then
+        c_yellow "    After login completes, press Enter here to re-check and start the service."
+        c_yellow "    Press Ctrl+C to stop here and continue later."
+        read_prompt "    Waiting for Claude login... " _
+    fi
+fi
+
+if claude_credentials_present; then
     systemctl restart "$SERVICE_NAME"
     sleep 2
     if systemctl is-active --quiet "$SERVICE_NAME"; then
@@ -369,9 +389,6 @@ if sudo -u "$SERVICE_USER" -H bash -c '[[ -f ~/.claude/credentials.json ]] || [[
     fi
 else
     c_yellow "    Service NOT YET started — claude login is missing."
-    if [[ -f /root/.claude/credentials.json || -f /root/.config/claude/credentials.json ]]; then
-        c_yellow "    Root appears to have Claude credentials, but the service runs as '$SERVICE_USER'."
-    fi
     c_yellow "    Run once:"
     c_yellow "      sudo -u $SERVICE_USER -H claude login"
 fi

@@ -165,6 +165,8 @@ This opens a URL. Open it on another device (phone/Mac), sign in with your
 Claude Pro/Max account, and paste the code back into the mini-PC terminal.
 Logging in as `root` is not enough: the systemd service runs as
 `pocket-claude`, so the OAuth credentials must exist in that user's home.
+During install, the script prints this command and waits so you can run it in
+a second terminal, then press Enter to continue.
 
 After that:
 
