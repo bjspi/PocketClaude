@@ -2514,23 +2514,190 @@ window.PocketVoice = (() => {
     autoPill.addEventListener('click', () => toggleAutoMode());
   }
 
-  // Voice-API-Key Save/Delete
+  // Voice-API-Key Save/Delete + Language-Picker + Translate-Status
   const voiceKeyInput  = document.getElementById('voice-api-key-input');
   const voiceKeySave   = document.getElementById('voice-api-key-save');
   const voiceKeyDelete = document.getElementById('voice-api-key-delete');
   const voiceKeyStatus = document.getElementById('voice-api-key-status');
 
-  async function loadVoiceKeyStatus() {
-    if (!voiceKeyStatus) return;
-    try {
-      const cfg = await api('GET', '/voice/config');
+  const langModeAuto      = document.getElementById('voice-lang-mode-auto');
+  const langModeOverride  = document.getElementById('voice-lang-mode-override');
+  const langOverrideBlock = document.getElementById('voice-lang-override-block');
+  const langSelect        = document.getElementById('voice-lang-select');
+  const langCustomInput   = document.getElementById('voice-lang-custom');
+  const langApplyBtn      = document.getElementById('voice-lang-apply');
+  const translateStatus   = document.getElementById('voice-translate-status');
+  const promptText        = document.getElementById('voice-prompt-text');
+  const promptLabel       = document.getElementById('voice-prompt-label');
+  const promptSource      = document.getElementById('voice-prompt-source');
+  const promptActions     = document.getElementById('voice-prompt-actions');
+  const retranslateBtn    = document.getElementById('voice-retranslate-btn');
+  const resetCacheBtn     = document.getElementById('voice-reset-cache-btn');
+
+  const CUSTOM_SENTINEL = '__custom__';
+  let lastCfg = null;
+
+  function renderVoiceCfg(cfg) {
+    lastCfg = cfg;
+    if (voiceKeyStatus) {
       if (cfg.configured) {
         voiceKeyStatus.textContent = `✓ ${cfg.api_key_masked || ''} · ${cfg.model || ''}`;
       } else {
         voiceKeyStatus.textContent = t('voice_key_not_set');
       }
+    }
+    // Mode-Radios
+    const isOverride = cfg.lang_mode === 'override';
+    if (langModeAuto) langModeAuto.checked = !isOverride;
+    if (langModeOverride) langModeOverride.checked = isOverride;
+    if (langOverrideBlock) langOverrideBlock.classList.toggle('hidden', !isOverride);
+
+    // Dropdown populieren (einmalig pro Render)
+    if (langSelect) {
+      langSelect.innerHTML = '';
+      const langs = (cfg.bundled_languages || []).slice().sort((a, b) => {
+        const an = (cfg.language_names || {})[a] || a;
+        const bn = (cfg.language_names || {})[b] || b;
+        return an.localeCompare(bn);
+      });
+      for (const code of langs) {
+        const name = (cfg.language_names || {})[code] || code;
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = `${name} (${code})`;
+        langSelect.appendChild(opt);
+      }
+      // Cached aber nicht-bundled Sprachen mit "translated"-Marker auflisten
+      for (const code of (cfg.cached_languages || [])) {
+        if (!(cfg.bundled_languages || []).includes(code)) {
+          const opt = document.createElement('option');
+          opt.value = code;
+          opt.textContent = `${code} — ${t('voice_lang_tag_translated')}`;
+          langSelect.appendChild(opt);
+        }
+      }
+      const customOpt = document.createElement('option');
+      customOpt.value = CUSTOM_SENTINEL;
+      customOpt.textContent = t('voice_lang_custom');
+      langSelect.appendChild(customOpt);
+
+      // Auswahl setzen
+      const current = cfg.lang_override || cfg.current_lang || 'en';
+      const isCustom = isOverride && !langs.includes(current) && !(cfg.cached_languages || []).includes(current);
+      if (isCustom) {
+        langSelect.value = CUSTOM_SENTINEL;
+        if (langCustomInput) { langCustomInput.value = current || ''; langCustomInput.classList.remove('hidden'); }
+        if (langApplyBtn) langApplyBtn.classList.remove('hidden');
+      } else {
+        langSelect.value = current;
+        if (langCustomInput) { langCustomInput.classList.add('hidden'); }
+        if (langApplyBtn) langApplyBtn.classList.add('hidden');
+      }
+    }
+
+    // Prompt-Preview
+    if (promptText) promptText.textContent = cfg.current_prompt || '';
+    if (promptLabel) promptLabel.textContent = t('voice_prompt_preview_label', cfg.current_lang || 'en');
+    if (promptSource) {
+      const map = {
+        bundled: t('voice_lang_tag_bundled'),
+        cache: t('voice_lang_tag_translated'),
+        fallback: t('voice_lang_tag_fallback'),
+      };
+      promptSource.textContent = map[cfg.current_prompt_source] || cfg.current_prompt_source || '';
+    }
+    if (promptActions) promptActions.classList.toggle('hidden', cfg.current_prompt_source !== 'cache');
+  }
+
+  async function loadVoiceConfig() {
+    try {
+      const cfg = await api('GET', '/voice/config');
+      renderVoiceCfg(cfg);
     } catch (_) { /* tolerieren */ }
   }
+
+  async function setLangConfig(mode, locale) {
+    try {
+      const cfg = await api('PUT', '/voice/lang-config', { mode, locale: locale || null });
+      renderVoiceCfg(cfg);
+      // Wenn override + nicht-bundled + nicht-cached → automatisch übersetzen
+      if (mode === 'override' && cfg.current_prompt_source === 'fallback') {
+        await translatePrompt(cfg.current_lang, false);
+      } else if (translateStatus) {
+        translateStatus.textContent = '';
+      }
+    } catch (e) {
+      if (translateStatus) {
+        translateStatus.textContent = t('voice_translate_error', e.message);
+        translateStatus.style.color = 'var(--danger, #d33)';
+      }
+    }
+  }
+
+  async function translatePrompt(locale, force) {
+    if (!locale) return;
+    if (translateStatus) {
+      translateStatus.style.color = '';
+      translateStatus.textContent = t('voice_translate_running');
+    }
+    try {
+      await api('POST', '/voice/prompt/translate', { locale, force: !!force });
+      if (translateStatus) {
+        translateStatus.style.color = 'var(--accent)';
+        translateStatus.textContent = t('voice_translate_success');
+      }
+      await loadVoiceConfig();
+    } catch (e) {
+      if (translateStatus) {
+        translateStatus.style.color = 'var(--danger, #d33)';
+        translateStatus.textContent = t('voice_translate_error', e.message);
+      }
+    }
+  }
+
+  // ── Events ──
+  if (langModeAuto) langModeAuto.addEventListener('change', () => {
+    if (langModeAuto.checked) setLangConfig('auto', null);
+  });
+  if (langModeOverride) langModeOverride.addEventListener('change', () => {
+    if (langModeOverride.checked) {
+      // Beim ersten Wechsel auf Override gleich die ausgewählte Locale aus dem
+      // Dropdown anwenden (oder Default zur App-Sprache)
+      const v = (langSelect && langSelect.value && langSelect.value !== CUSTOM_SENTINEL)
+                  ? langSelect.value
+                  : (lastCfg && lastCfg.current_lang) || 'en';
+      setLangConfig('override', v);
+    }
+  });
+  if (langSelect) langSelect.addEventListener('change', () => {
+    const v = langSelect.value;
+    if (v === CUSTOM_SENTINEL) {
+      langCustomInput && langCustomInput.classList.remove('hidden');
+      langApplyBtn && langApplyBtn.classList.remove('hidden');
+      return;
+    }
+    langCustomInput && langCustomInput.classList.add('hidden');
+    langApplyBtn && langApplyBtn.classList.add('hidden');
+    setLangConfig('override', v);
+  });
+  if (langApplyBtn) langApplyBtn.addEventListener('click', () => {
+    const v = (langCustomInput && langCustomInput.value || '').trim().toLowerCase();
+    if (v.length < 2) return;
+    setLangConfig('override', v);
+  });
+  if (retranslateBtn) retranslateBtn.addEventListener('click', () => {
+    if (lastCfg) translatePrompt(lastCfg.current_lang, true);
+  });
+  if (resetCacheBtn) resetCacheBtn.addEventListener('click', async () => {
+    if (!lastCfg) return;
+    try {
+      await api('DELETE', '/voice/prompt/cache/' + encodeURIComponent(lastCfg.current_lang));
+      await loadVoiceConfig();
+      if (translateStatus) translateStatus.textContent = '';
+    } catch (e) {
+      toast(t('toast_error_prefix', e.message), { error: true });
+    }
+  });
 
   if (voiceKeySave) voiceKeySave.addEventListener('click', async () => {
     const key = (voiceKeyInput.value || '').trim();
@@ -2539,7 +2706,7 @@ window.PocketVoice = (() => {
       await api('PUT', '/voice/credentials', { api_key: key });
       voiceKeyInput.value = '';
       toast(t('toast_api_key_saved'));
-      await loadVoiceKeyStatus();
+      await loadVoiceConfig();
     } catch (e) {
       toast(t('toast_save_failed', e.message), { error: true });
     }
@@ -2550,16 +2717,16 @@ window.PocketVoice = (() => {
       await api('DELETE', '/voice/credentials');
       voiceKeyInput.value = '';
       toast(t('toast_removed'));
-      await loadVoiceKeyStatus();
+      await loadVoiceConfig();
     } catch (e) {
       toast(t('toast_error_prefix', e.message), { error: true });
     }
   });
   // beim Öffnen der Settings nachladen
   const settingsBtn = document.getElementById('settings-btn');
-  if (settingsBtn) settingsBtn.addEventListener('click', loadVoiceKeyStatus);
+  if (settingsBtn) settingsBtn.addEventListener('click', loadVoiceConfig);
   // initial einmal
-  loadVoiceKeyStatus();
+  loadVoiceConfig();
 
   setMicState('idle');
   return { toggleAutoMode };

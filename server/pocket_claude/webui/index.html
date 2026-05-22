@@ -345,6 +345,43 @@
           Key holen: <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>.
           Whisper Large v3 Turbo ist im Free Tier mit Rate-Limits für persönlichen Gebrauch enthalten.
         </p>
+
+        <!-- ── Sprach-Override + Auto-Translate ── -->
+        <hr style="margin:14px 0;border:0;border-top:1px solid var(--border)">
+        <h4 style="margin:0 0 4px 0;font-size:13px;color:var(--text)" data-i18n="voice_lang_title">Transkriptions-Sprache</h4>
+        <p class="hint" style="margin:0 0 8px 0" data-i18n="voice_lang_hint">Standardmäßig folgt Whisper der App-Sprache. „Manuell" für Override — für nicht gebundelte Sprachen wird der Bias-Prompt von Claude übersetzt.</p>
+        <div class="row-gap" style="flex-direction:column;align-items:flex-start;gap:6px">
+          <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="voice-lang-mode" value="auto" id="voice-lang-mode-auto" checked>
+            <span data-i18n="voice_lang_auto">Auto — folgt der App-Sprache</span>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="voice-lang-mode" value="override" id="voice-lang-mode-override">
+            <span data-i18n="voice_lang_manual">Manuell — Sprache wählen</span>
+          </label>
+        </div>
+        <div id="voice-lang-override-block" class="hidden" style="margin-top:8px">
+          <div class="row-gap" style="flex-wrap:wrap;align-items:center;gap:6px">
+            <select id="voice-lang-select"
+                    style="flex:1;min-width:200px;padding:8px 10px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;color:var(--text)"></select>
+            <input id="voice-lang-custom" type="text" placeholder="sv, ko, eu …" maxlength="6"
+                   class="hidden"
+                   style="width:90px;padding:8px 10px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;font-family:SF Mono,Menlo,monospace;font-size:13px;color:var(--text)">
+            <button id="voice-lang-apply" type="button" class="btn-secondary hidden" data-i18n="voice_lang_apply">Übernehmen</button>
+          </div>
+          <div id="voice-translate-status" class="backup-status" style="margin-top:6px"></div>
+        </div>
+        <div id="voice-prompt-preview" style="margin-top:10px;padding:8px 10px;background:var(--bg-elev);border-radius:10px;border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span id="voice-prompt-label" style="font-size:11px;color:var(--text-muted)" data-i18n="voice_prompt_preview_label">Bias-Prompt</span>
+            <span id="voice-prompt-source" style="font-size:11px;color:var(--text-muted)"></span>
+          </div>
+          <div id="voice-prompt-text" style="font-size:13px;font-style:italic;color:var(--text)"></div>
+          <div id="voice-prompt-actions" class="hidden" style="margin-top:6px;display:flex;gap:8px">
+            <button id="voice-retranslate-btn" type="button" class="btn-ghost" data-i18n="voice_retranslate">Neu übersetzen</button>
+            <button id="voice-reset-cache-btn" type="button" class="btn-ghost" data-i18n="voice_reset_default">Auf Default zurücksetzen</button>
+          </div>
+        </div>
       </section>
 
       <section class="settings-section">
