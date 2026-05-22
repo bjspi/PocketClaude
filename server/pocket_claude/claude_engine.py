@@ -465,6 +465,7 @@ async def stream_reply(
         cache_read = 0
         cache_write = 0
         emitted_via_stream = False
+        final_assistant_text_seen = False
 
         async for message in query(prompt=prompt, options=options):
             # Session-ID aus jedem Event abfischen (Init, Stream, Result haben sie)
@@ -513,21 +514,21 @@ async def stream_reply(
                 block_types = [type(b).__name__ for b in message.content]
                 if block_types:
                     log.info("AssistantMessage block types: %s", block_types)
-                # Falls Stream-Events nicht greifen, Volltext nachholen.
-                if not emitted_via_stream:
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            text = block.text
-                            if text:
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        text = block.text
+                        if text:
+                            if not emitted_via_stream:
                                 full_text_parts.append(text)
                                 yield {"type": "delta", "text": text}
-                        elif isinstance(block, ThinkingBlock):
-                            # Falls aus irgendeinem Grund thinking nicht über
-                            # Stream-Events kommt, dann mal hier abgreifen:
-                            thinking_str = getattr(block, "thinking", "") or ""
-                            if thinking_str:
-                                log.info("ThinkingBlock im AssistantMessage: %d chars", len(thinking_str))
-                                yield {"type": "thinking_delta", "text": thinking_str}
+                            final_assistant_text_seen = True
+                    elif isinstance(block, ThinkingBlock):
+                        # Falls aus irgendeinem Grund thinking nicht über
+                        # Stream-Events kommt, dann mal hier abgreifen:
+                        thinking_str = getattr(block, "thinking", "") or ""
+                        if thinking_str and not emitted_via_stream:
+                            log.info("ThinkingBlock im AssistantMessage: %d chars", len(thinking_str))
+                            yield {"type": "thinking_delta", "text": thinking_str}
                 # Usage-Stats von AssistantMessage auch ablesen (ResultMessage hat sie
                 # nochmal, aber je nach SDK-Version kann eines davon None sein)
                 _accumulate_usage(message.usage, locals_dict := {})
@@ -535,6 +536,14 @@ async def stream_reply(
                 output_tokens = locals_dict.get("output_tokens", output_tokens)
                 cache_read = locals_dict.get("cache_read", cache_read)
                 cache_write = locals_dict.get("cache_write", cache_write)
+
+                # Some claude-agent-sdk / CLI versions emit the full answer as an
+                # AssistantMessage but then do not reliably deliver a final
+                # ResultMessage in this HTTP streaming context. Finalize once we
+                # have the assistant text so the app receives `done` and the DB
+                # gets an assistant row.
+                if final_assistant_text_seen:
+                    break
 
             elif isinstance(message, ResultMessage):
                 # Final stats — autoritativ wenn vorhanden
@@ -593,6 +602,12 @@ async def stream_reply(
             role="assistant",
             content=full_text,
             tokens=current_context,
+        )
+        log.info(
+            "Assistant reply saved: message_id=%s chars=%d tokens=%d",
+            msg_id,
+            len(full_text),
+            current_context,
         )
         await db.set_total_tokens(cid, current_context)
 
