@@ -121,6 +121,11 @@ The installer is idempotent: it keeps existing data and `.env`, updates the
 deployed server files, refreshes dependencies, and restarts/configures services
 as needed.
 
+When an existing `/opt/pocket-claude` installation is detected, the installer
+prints its current status first. Choose **fresh install** only if you want to
+delete that install directory, including local data. For normal updates, choose
+no and reuse the existing server `.env` to keep all current settings unchanged.
+
 For a one-liner that clones your fork internally, pass `REPO_URL` explicitly.
 This matters because a script read from stdin cannot reliably infer which
 repository URL it came from:
@@ -140,8 +145,8 @@ breaking anything. It does:
 | 3 | Copy the local checkout or clone `REPO_URL`, then deploy the `server/` subtree to `/opt/pocket-claude` |
 | 4 | Python venv + dependencies |
 | 5 | Re-use an existing `claude` CLI on PATH, otherwise install it via `npm install -g @anthropic-ai/claude-code` |
-| 6 | Generate `.env` with a random `SERVER_TOKEN` |
-| 7 | Ask whether the built-in web UI should be enabled (`ENABLE_WEBUI`, default yes) |
+| 6 | Generate `.env` with a random `SERVER_TOKEN`, or reuse the existing server `.env` |
+| 7 | Ask whether the built-in web UI should be enabled (`ENABLE_WEBUI`, default yes) unless the existing `.env` is reused |
 | 8 | Ask for the access type and run only the required Tailscale/Cloudflare setup |
 | 9 | Install and enable `pocket-claude.service` (systemd) |
 

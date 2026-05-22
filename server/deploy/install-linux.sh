@@ -39,6 +39,7 @@ trap cleanup EXIT
 
 # ---------------------------------------------------------------- Pretty-Print
 c_blue()   { printf '\033[1;34m%s\033[0m\n' "$*"; }
+c_cyan()   { printf '\033[1;36m%s\033[0m\n' "$*"; }
 c_green()  { printf '\033[1;32m%s\033[0m\n' "$*"; }
 c_yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 c_red()    { printf '\033[1;31m%s\033[0m\n' "$*" >&2; }
@@ -68,6 +69,73 @@ prompt_yes_no() {
         answer="${answer:-n}"
     fi
     [[ "$answer" =~ ^[Yy]$ ]]
+}
+
+truthy() {
+    case "${1,,}" in
+        1|true|yes|y|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+print_banner() {
+    echo
+    printf '\033[38;5;81m'
+    cat <<'EOF'
+    ____             __        __     ________                __
+   / __ \____  _____/ /_____  / /_   / ____/ /___ ___  ______/ /__
+  / /_/ / __ \/ ___/ //_/ _ \/ __/  / /   / / __ `/ / / / __  / _ \
+ / ____/ /_/ / /__/ ,< /  __/ /_   / /___/ / /_/ / /_/ / /_/ /  __/
+/_/    \____/\___/_/|_|\___/\__/   \____/_/\__,_/\__,_/\__,_/\___/
+EOF
+    printf '\033[0m'
+    c_cyan "             Linux installer - server, tunnels, systemd"
+    echo
+}
+
+service_unit_present() {
+    [[ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]] && return 0
+    command -v systemctl >/dev/null 2>&1 && systemctl cat "$SERVICE_NAME" >/dev/null 2>&1
+}
+
+service_running() {
+    command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet "$SERVICE_NAME"
+}
+
+existing_install_present() {
+    [[ -d "$INSTALL_DIR" ]] || service_unit_present
+}
+
+print_install_status() {
+    step "Current server status"
+    if [[ -d "$INSTALL_DIR" ]]; then
+        c_green "    Install directory: present ($INSTALL_DIR)"
+    else
+        c_yellow "    Install directory: missing ($INSTALL_DIR)"
+    fi
+
+    if [[ -f "$INSTALL_DIR/.env" ]]; then
+        c_green "    Server .env: present"
+    else
+        c_yellow "    Server .env: missing"
+    fi
+
+    if [[ -d "$INSTALL_DIR/data" ]]; then
+        c_green "    Data directory: present"
+    else
+        c_yellow "    Data directory: missing"
+    fi
+
+    if service_unit_present; then
+        c_green "    systemd service: installed"
+        if service_running; then
+            c_green "    Runtime status: running"
+        else
+            c_yellow "    Runtime status: not running"
+        fi
+    else
+        c_yellow "    systemd service: not installed"
+    fi
 }
 
 prompt_access_type() {
@@ -138,6 +206,40 @@ resolve_server_source() {
     return 1
 }
 
+path_is_inside() {
+    local child="$1"
+    local parent="$2"
+    local child_real
+    local parent_real
+    child_real="$(readlink -f "$child" 2>/dev/null || printf '%s\n' "$child")"
+    parent_real="$(readlink -f "$parent" 2>/dev/null || printf '%s\n' "$parent")"
+    [[ "$child_real" == "$parent_real" || "$child_real" == "$parent_real"/* ]]
+}
+
+clean_install_dir() {
+    local target
+    target="$(readlink -f "$INSTALL_DIR" 2>/dev/null || printf '%s\n' "$INSTALL_DIR")"
+    case "$target" in
+        ""|"/"|"/opt"|"/opt/"|"/usr"|"/var"|"/home")
+            c_red "Refusing to clean unsafe install directory: $target"
+            exit 1
+            ;;
+    esac
+    if [[ "$target" != /opt/* && "${ALLOW_CLEAN_INSTALL_DIR:-}" != "1" ]]; then
+        c_red "Refusing to clean non-/opt install directory: $target"
+        c_red "Set ALLOW_CLEAN_INSTALL_DIR=1 if this custom INSTALL_DIR is intentional."
+        exit 1
+    fi
+
+    step "Fresh install: cleaning $target"
+    if service_running; then
+        c_yellow "    Stopping running $SERVICE_NAME service first."
+        systemctl stop "$SERVICE_NAME" || true
+    fi
+    rm -rf --one-file-system "$target"
+    c_green "    Removed old install directory."
+}
+
 # ---------------------------------------------------------------- Root-Check
 if [[ $EUID -ne 0 ]]; then
     c_red "Please run with sudo: sudo bash $0"
@@ -145,21 +247,69 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # ---------------------------------------------------------------- Interactive choices
+print_banner
+print_install_status
+
+CLEAN_INSTALL="${CLEAN_INSTALL:-}"
+REUSE_EXISTING_ENV="${REUSE_EXISTING_ENV:-}"
+
+if existing_install_present; then
+    if [[ -z "$CLEAN_INSTALL" ]]; then
+        if prompt_yes_no "Fresh install and CLEAN $INSTALL_DIR first?" "n"; then
+            CLEAN_INSTALL=1
+        else
+            CLEAN_INSTALL=0
+        fi
+    elif truthy "$CLEAN_INSTALL"; then
+        CLEAN_INSTALL=1
+    else
+        CLEAN_INSTALL=0
+    fi
+else
+    CLEAN_INSTALL=0
+fi
+
+if [[ "$CLEAN_INSTALL" == "1" ]]; then
+    REUSE_EXISTING_ENV=0
+elif [[ -f "$INSTALL_DIR/.env" ]]; then
+    if [[ -z "$REUSE_EXISTING_ENV" ]]; then
+        if prompt_yes_no "Reuse existing server .env and keep the same settings?" "y"; then
+            REUSE_EXISTING_ENV=1
+        else
+            REUSE_EXISTING_ENV=0
+        fi
+    elif truthy "$REUSE_EXISTING_ENV"; then
+        REUSE_EXISTING_ENV=1
+    else
+        REUSE_EXISTING_ENV=0
+    fi
+else
+    REUSE_EXISTING_ENV=0
+fi
+
 WEBUI_ENABLED="${WEBUI_ENABLED:-}"
-if [[ -z "$WEBUI_ENABLED" ]]; then
+if [[ "$REUSE_EXISTING_ENV" == "1" ]]; then
+    c_green "Reusing existing .env: ENABLE_WEBUI and existing settings stay unchanged."
+elif [[ -z "$WEBUI_ENABLED" ]]; then
     if prompt_yes_no "Enable the built-in browser Web UI?" "y"; then
         WEBUI_ENABLED=1
     else
         WEBUI_ENABLED=0
     fi
 fi
-case "${WEBUI_ENABLED,,}" in
-    1|true|yes|y|on) WEBUI_ENABLED=1 ;;
-    *) WEBUI_ENABLED=0 ;;
-esac
+if [[ "$REUSE_EXISTING_ENV" != "1" ]]; then
+    case "${WEBUI_ENABLED,,}" in
+        1|true|yes|y|on) WEBUI_ENABLED=1 ;;
+        *) WEBUI_ENABLED=0 ;;
+    esac
+fi
 
 ACCESS_TYPE="$(prompt_access_type)"
-c_green "Selected Web UI: $([[ "$WEBUI_ENABLED" == "1" ]] && echo enabled || echo disabled)"
+if [[ "$REUSE_EXISTING_ENV" == "1" ]]; then
+    c_green "Selected Web UI: unchanged from existing .env"
+else
+    c_green "Selected Web UI: $([[ "$WEBUI_ENABLED" == "1" ]] && echo enabled || echo disabled)"
+fi
 c_green "Selected access type: $ACCESS_TYPE"
 
 # ---------------------------------------------------------------- OS-Detection
@@ -258,7 +408,6 @@ fi
 
 # ---------------------------------------------------------------- Code deployment
 step "Deploying code to $INSTALL_DIR"
-mkdir -p "$INSTALL_DIR"
 DEPLOY_SOURCE=""
 if DEPLOY_SOURCE="$(resolve_server_source "$SOURCE_DIR")"; then
     c_green "    Local repo detected — copying $DEPLOY_SOURCE -> $INSTALL_DIR"
@@ -276,12 +425,30 @@ else
     exit 1
 fi
 
+if [[ "$CLEAN_INSTALL" == "1" ]]; then
+    if path_is_inside "$DEPLOY_SOURCE" "$INSTALL_DIR"; then
+        TMP_CLONE="$(mktemp -d)"
+        c_yellow "    Installer source is inside $INSTALL_DIR; cloning $REPO_URL before cleaning."
+        git clone "$REPO_URL" "$TMP_CLONE"
+        if ! DEPLOY_SOURCE="$(resolve_server_source "$TMP_CLONE")"; then
+            c_red "Cloned repository does not look like PocketClaude."
+            c_red "Expected either ./server/pocket_claude or ./pocket_claude with requirements.txt."
+            exit 1
+        fi
+    fi
+    clean_install_dir
+fi
+
+mkdir -p "$INSTALL_DIR"
+
 # `--exclude .venv` so we don't copy a local venv with wrong binaries.
 # `--exclude data` so a running server doesn't lose its SQLite DB.
+# `--exclude .env` so updates can re-use the server's token and settings.
 # `--exclude .git` — we don't need repo history on the server.
 rsync -a --delete \
     --exclude '.venv' \
     --exclude 'data' \
+    --exclude '.env' \
     --exclude '.git' \
     --exclude '__pycache__' \
     --exclude '*.pyc' \
@@ -346,21 +513,29 @@ else
     c_green "    .env already exists — leaving it unchanged."
 fi
 
-set_env_value "$INSTALL_DIR/.env" "ENABLE_WEBUI" "$WEBUI_ENABLED"
-if [[ -n "$claude_binary_path" ]] && ! sudo -u "$SERVICE_USER" -H bash -lc 'command -v claude' >/dev/null 2>&1; then
-    if sudo -u "$SERVICE_USER" -H test -x "$claude_binary_path" 2>/dev/null; then
-        set_env_value "$INSTALL_DIR/.env" "CLAUDE_BINARY" "$claude_binary_path"
-        c_green "    CLAUDE_BINARY=$claude_binary_path"
+if [[ "$REUSE_EXISTING_ENV" == "1" ]]; then
+    c_green "    Reused existing .env settings."
+else
+    set_env_value "$INSTALL_DIR/.env" "ENABLE_WEBUI" "$WEBUI_ENABLED"
+    if [[ -n "$claude_binary_path" ]] && ! sudo -u "$SERVICE_USER" -H bash -lc 'command -v claude' >/dev/null 2>&1; then
+        if sudo -u "$SERVICE_USER" -H test -x "$claude_binary_path" 2>/dev/null; then
+            set_env_value "$INSTALL_DIR/.env" "CLAUDE_BINARY" "$claude_binary_path"
+            c_green "    CLAUDE_BINARY=$claude_binary_path"
+        fi
     fi
+    case "$ACCESS_TYPE" in
+        tailscale-internal|tailscale-funnel|cloudflare-tunnel)
+            set_env_value "$INSTALL_DIR/.env" "SERVER_HOST" "127.0.0.1"
+            ;;
+    esac
 fi
-case "$ACCESS_TYPE" in
-    tailscale-internal|tailscale-funnel|cloudflare-tunnel)
-        set_env_value "$INSTALL_DIR/.env" "SERVER_HOST" "127.0.0.1"
-        ;;
-esac
 chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/.env"
 chmod 600 "$INSTALL_DIR/.env"
-c_green "    ENABLE_WEBUI=$WEBUI_ENABLED"
+if [[ "$REUSE_EXISTING_ENV" == "1" ]]; then
+    c_green "    ENABLE_WEBUI unchanged"
+else
+    c_green "    ENABLE_WEBUI=$WEBUI_ENABLED"
+fi
 
 # ---------------------------------------------------------------- systemd unit
 step "Installing systemd service"
