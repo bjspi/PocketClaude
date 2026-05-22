@@ -29,6 +29,14 @@ except Exception:
 ' 2>/dev/null
 }
 
+run_tailscale_cmd() {
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 45s "$@"
+    else
+        "$@"
+    fi
+}
+
 if [[ $EUID -ne 0 ]]; then
     c_red "Please run with sudo."
     exit 1
@@ -72,7 +80,9 @@ c_green "    FQDN: $TS_FQDN"
 step "Serve inside tailnet only -> localhost:$LOCAL_PORT"
 tailscale funnel reset 2>/dev/null || true
 tailscale serve reset 2>/dev/null || true
-if ! serve_output="$(tailscale serve --bg "http://localhost:$LOCAL_PORT" 2>&1)"; then
+serve_rc=0
+serve_output="$(run_tailscale_cmd tailscale serve --bg "http://localhost:$LOCAL_PORT" 2>&1)" || serve_rc=$?
+if [[ "$serve_rc" -ne 0 ]]; then
     echo "$serve_output" | sed 's/^/    /'
     if echo "$serve_output" | grep -qi "Serve is not enabled"; then
         echo
@@ -81,6 +91,13 @@ if ! serve_output="$(tailscale serve --bg "http://localhost:$LOCAL_PORT" 2>&1)";
         echo "        https://login.tailscale.com/admin/dns"
         echo "    Then re-run:"
         echo "        sudo bash $0"
+    elif [[ "$serve_rc" -eq 124 ]]; then
+        echo
+        c_yellow "    tailscale serve did not finish within 45 seconds."
+        echo "    Check in another terminal:"
+        echo "        sudo tailscale serve status"
+        echo "        sudo tailscale status"
+        echo "    If Serve is not enabled, open the Tailscale URL printed by the CLI."
     fi
     exit 1
 fi

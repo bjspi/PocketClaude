@@ -47,6 +47,14 @@ except Exception:
 ' 2>/dev/null
 }
 
+run_tailscale_cmd() {
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 45s "$@"
+    else
+        "$@"
+    fi
+}
+
 read_prompt() {
     local prompt="$1"
     local var_name="$2"
@@ -140,7 +148,9 @@ tailscale funnel reset 2>/dev/null || true
 tailscale serve reset 2>/dev/null || true
 
 # Point Funnel directly at the local target — no separate `serve` needed.
-if ! funnel_output="$(tailscale funnel --bg "http://localhost:$LOCAL_PORT" 2>&1)"; then
+funnel_rc=0
+funnel_output="$(run_tailscale_cmd tailscale funnel --bg "http://localhost:$LOCAL_PORT" 2>&1)" || funnel_rc=$?
+if [[ "$funnel_rc" -ne 0 ]]; then
     echo "$funnel_output" | sed 's/^/    /'
     if echo "$funnel_output" | grep -qi "Funnel is not enabled"; then
         echo
@@ -148,6 +158,12 @@ if ! funnel_output="$(tailscale funnel --bg "http://localhost:$LOCAL_PORT" 2>&1)
         echo "    Check:"
         echo "        https://login.tailscale.com/admin/acls"
         echo "        https://login.tailscale.com/admin/dns"
+    elif [[ "$funnel_rc" -eq 124 ]]; then
+        echo
+        c_yellow "    tailscale funnel did not finish within 45 seconds."
+        echo "    Check in another terminal:"
+        echo "        sudo tailscale funnel status"
+        echo "        sudo tailscale status"
     fi
     exit 1
 fi
