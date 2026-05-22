@@ -646,10 +646,32 @@ case "$ACCESS_TYPE" in
 esac
 echo
 c_blue "4. Configure the app"
-echo "   Enter the printed server URL into the Pocket Claude app, sign in,"
-echo "   and configure Cloudflare Access headers only if you protected the"
-echo "   Cloudflare hostname with a Service Auth policy. The initial admin password is in:"
+case "$ACCESS_TYPE" in
+    tailscale-internal)
+        echo "   Enter the printed Tailscale internal URL into the Pocket Claude app."
+        echo "   Android must be connected to the same Tailscale tailnet."
+        ;;
+    tailscale-funnel)
+        echo "   Enter the printed Tailscale Funnel URL into the Pocket Claude app."
+        echo "   This URL is public, so keep the Pocket Claude login password strong."
+        ;;
+    cloudflare-tunnel)
+        echo "   Enter the printed Cloudflare Tunnel URL into the Pocket Claude app."
+        echo "   Configure Cloudflare Access headers only if you protected the"
+        echo "   Cloudflare hostname with a Service Auth policy."
+        ;;
+    skip)
+        echo "   Tunnel setup was skipped. Configure an access script first, then enter"
+        echo "   the printed server URL into the Pocket Claude app."
+        ;;
+esac
+echo
+echo "   Initial admin password file:"
 echo "        $INSTALL_DIR/data/INITIAL_PASSWORD.txt"
+echo "   Show it:"
+echo "        sudo cat $INSTALL_DIR/data/INITIAL_PASSWORD.txt"
+echo "   Delete it after the password was saved in your password manager:"
+echo "        sudo rm -f $INSTALL_DIR/data/INITIAL_PASSWORD.txt"
 echo
 echo "Tail logs live:    journalctl -u $SERVICE_NAME -f"
 echo "Server status:     systemctl status $SERVICE_NAME"
