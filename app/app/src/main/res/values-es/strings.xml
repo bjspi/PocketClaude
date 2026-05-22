@@ -737,6 +737,7 @@
     <string name="voice_mic_recording_cd">Grabando — toca para parar, mantén pulsado para cancelar</string>
     <string name="voice_error_no_permission">Permiso de micrófono denegado. Concédelo en los ajustes de Android para usar la entrada de voz.</string>
     <string name="voice_error_start_failed">No se pudo iniciar la grabación: %1$s</string>
+    <string name="voice_error_llm_busy">Espera a que Claude termine de responder — la grabación se pausa mientras hay un stream o se lee en voz alta.</string>
     <string name="voice_error_transcribe_failed">Transcripción fallida: %1$s</string>
     <string name="voice_error_auto_loop">Auto-Modo detenido: %1$s</string>
     <string name="chat_auto_mode_start">Iniciar Auto-Modo (bucle de voz)</string>

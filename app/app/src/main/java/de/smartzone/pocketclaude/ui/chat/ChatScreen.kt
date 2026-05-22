@@ -781,6 +781,12 @@ fun ChatScreen(
                 sending = state.isStreaming,
                 hasContent = input.isNotBlank() || state.pending.any { it.uploaded != null },
                 voiceState = state.voiceState,
+                // Mic deaktivieren wenn LLM busy ist (Stream läuft oder TTS
+                // spielt) — sonst nimmt das Mic die TTS-Wiedergabe vom
+                // Lautsprecher mit auf. Greift in Manual UND Auto-Mode.
+                voiceEnabled = !state.isStreaming &&
+                    audioState.loadingMessageId == null &&
+                    audioState.playingMessageId == null,
                 onMicTap = {
                     if (container.voiceRecorder.hasPermission()) {
                         vm.toggleRecording()
@@ -1212,6 +1218,7 @@ private fun InputBar(
     sending: Boolean,
     hasContent: Boolean,
     voiceState: VoiceState,
+    voiceEnabled: Boolean,
     onMicTap: () -> Unit,
     onMicCancel: () -> Unit,
 ) {
@@ -1256,7 +1263,12 @@ private fun InputBar(
             },
             onTap = onMicTap,
             onCancel = onMicCancel,
-            enabled = !sending && voiceState != VoiceState.Transcribing,
+            // Erlaubt wenn der User wirklich was tun darf: nicht senden,
+            // nicht transkribieren, LLM nicht busy (Stream/TTS). Während
+            // einer aktiven Recording-Phase bleibt der Button enabled, damit
+            // der User stoppen kann.
+            enabled = voiceState == VoiceState.Recording ||
+                (voiceEnabled && voiceState != VoiceState.Transcribing),
         )
 
         Box(modifier = Modifier.weight(1f)) {

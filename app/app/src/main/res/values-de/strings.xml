@@ -737,6 +737,7 @@
     <string name="voice_mic_recording_cd">Aufnahme läuft — Tap stoppt, Long-Press bricht ab</string>
     <string name="voice_error_no_permission">Mikrofon-Berechtigung verweigert. In den Android-Einstellungen erteilen, um Spracheingabe zu nutzen.</string>
     <string name="voice_error_start_failed">Aufnahme konnte nicht gestartet werden: %1$s</string>
+    <string name="voice_error_llm_busy">Erst warten bis Claude fertig geantwortet hat — die Aufnahme pausiert, solange ein Stream läuft oder vorgelesen wird.</string>
     <string name="voice_error_transcribe_failed">Transkription fehlgeschlagen: %1$s</string>
     <string name="voice_error_auto_loop">Auto-Modus gestoppt: %1$s</string>
     <string name="chat_auto_mode_start">Auto-Modus starten (Voice-Loop)</string>

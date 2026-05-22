@@ -132,6 +132,30 @@ class ChatViewModel(
         refresh()
         loadSkills()
         loadAutoSpeakOverride()
+        startVoiceGuard()
+    }
+
+    /** Defensive Watchdog: wenn der LLM gerade beschäftigt ist (Stream läuft
+     *  oder TTS spielt), darf NIE eine Voice-Aufnahme aktiv sein. Falls doch,
+     *  brechen wir sie ab — sonst würde das Mikro die TTS-Wiedergabe vom
+     *  Lautsprecher mit aufnehmen und Müll in die nächste Transkription
+     *  einbauen. Wirkt in Manual UND Auto-Mode. */
+    private fun startVoiceGuard() {
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(state, audio.state) { s, a ->
+                s.voiceState == VoiceState.Recording &&
+                    (s.isStreaming ||
+                        a.loadingMessageId != null ||
+                        a.playingMessageId != null)
+            }.collect { needsAbort ->
+                if (needsAbort) {
+                    android.util.Log.w("ChatVM", "Voice guard: LLM busy " +
+                        "while recording — auto-cancel.")
+                    runCatching { voiceRecorder.cancel() }
+                    _state.update { it.copy(voiceState = VoiceState.Idle) }
+                }
+            }
+        }
     }
 
     private fun loadAutoSpeakOverride() = viewModelScope.launch {
@@ -550,10 +574,16 @@ class ChatViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        // Voice-Cleanup ZUERST: bei Chat-Wechsel hängt sonst die laufende
+        // Aufnahme + der Auto-Mode-Loop. Singleton-Recorder bleibt damit
+        // belegt → das nächste Mic-Tap im neuen Chat-VM scheitert mit
+        // "Recording already in progress".
+        autoModeJob?.cancel()
+        autoModeJob = null
+        runCatching { voiceRecorder.cancel() }
+
         streamJob?.cancel()
         audio.stop()
-        // Service stoppen, falls noch aktiv (z.B. wenn der User aus dem Chat
-        // navigiert ohne abzuwarten — die Notification soll dann verschwinden).
         if (_state.value.isStreaming) {
             runCatching { StreamingService.stop(appContext) }
         }
@@ -598,6 +628,16 @@ class ChatViewModel(
             }
             return
         }
+        // Sicherheitsnetz: wenn das LLM grade beschäftigt ist, NICHT aufnehmen.
+        // Manual-Path würde das sonst übergehen (Auto-Mode hat eigenen Guard).
+        val s = _state.value
+        val a = audio.state.value
+        if (s.isStreaming || a.loadingMessageId != null || a.playingMessageId != null) {
+            _state.update {
+                it.copy(voiceError = appContext.getString(R.string.voice_error_llm_busy))
+            }
+            return
+        }
         try {
             voiceRecorder.start()
             _state.update { it.copy(voiceState = VoiceState.Recording, voiceError = null) }
@@ -637,12 +677,22 @@ class ChatViewModel(
                     language = locale,
                 )
                 val text = resp.text.trim()
-                _state.update { it.copy(voiceState = VoiceState.Idle) }
-                if (text.isEmpty()) return@launch
+                if (text.isEmpty()) {
+                    _state.update { it.copy(voiceState = VoiceState.Idle) }
+                    return@launch
+                }
                 if (_state.value.autoMode) {
-                    // Direkt schicken — kein Input-Detour
+                    // KRITISCH die Reihenfolge: send() FIRST — setzt isStreaming=true
+                    // atomar via _state.update. ERST DANACH voiceState → Idle. So
+                    // sieht der Auto-Mode-Loop den Übergang voiceState=Idle in einem
+                    // Snapshot, der bereits isStreaming=true enthält — der Loop
+                    // wartet dann korrekt auf das Stream-Ende statt vorher
+                    // schon das nächste Recording zu starten und damit den
+                    // send() durch die `if (isStreaming) return`-Wache zu killen.
                     send(text)
+                    _state.update { it.copy(voiceState = VoiceState.Idle) }
                 } else {
+                    _state.update { it.copy(voiceState = VoiceState.Idle) }
                     _transcriptToInsert.emit(text)
                 }
             } catch (e: Exception) {
@@ -676,71 +726,104 @@ class ChatViewModel(
         }
     }
 
-    /** Der Loop: Recording → User stoppt → Transkript → auto-Send →
-     *  Stream-Done → TTS-Vorlesen → wieder Recording, und so weiter. Bricht
-     *  bei autoMode=false oder Fehler ab. */
+    /** Auto-Mode-Loop. Phasen:
+     *   0) waitUntilSettled — kein Stream läuft, kein Audio spielt,
+     *      voiceState=Idle. Garantiert dass wir NIE während LLM-Aktivität
+     *      ein Recording starten (sonst nimmt das Mic die TTS-Wiedergabe
+     *      auf und sendet die als nächste Frage).
+     *   1) startRecordingInternal — Mic an.
+     *   2) Warten bis User mic tappt oder Auto-Modus aus geht.
+     *   3) Warten bis Transcribe fertig — voiceState=Idle.
+     *   4) Kurzer Buffer-Delay, damit der durch transcribe ausgelöste send()
+     *      seine State-Updates (isStreaming=true, neue Message) atomar
+     *      landen lassen kann, BEVOR wir auf Stream-Ende warten.
+     *   5) Warten bis Stream zu Ende ist (isStreaming=false).
+     *   6) Warten bis TTS-Wiedergabe komplett durch ist.
+     *   → zurück zu Phase 0.
+     *
+     *  Polling statt Flow.first() weil StateFlow-Snapshots beim Phase-Wechsel
+     *  race-empfindlich sind und der Polling-Overhead (200ms) zu vernachlässigen
+     *  ist — Phase-Wechsel sind ohnehin sub-sekündlich. */
     private suspend fun runAutoModeLoop() {
-        // Erste Phase: alles ruhig kriegen (kein Stream, kein Audio).
-        try {
-            waitForStreamSettled()
-            waitForAudioIdle()
-            while (_state.value.autoMode) {
-                // 1) Recording starten (sobald Mic + Stream frei)
-                if (_state.value.voiceState != VoiceState.Idle) {
-                    state.first { it.voiceState == VoiceState.Idle || !it.autoMode }
-                }
+        while (_state.value.autoMode) {
+            try {
+                // Phase 0 — alles ruhig kriegen
+                waitUntilSettled()
                 if (!_state.value.autoMode) return
+
+                // Phase 1 — Recording starten
                 startRecordingInternal()
                 if (_state.value.voiceState != VoiceState.Recording) {
-                    // Permission / Mikro fehlgeschlagen — Auto-Mode abbrechen
                     _state.update { it.copy(autoMode = false) }
                     return
                 }
-                // 2) Auf User-Stop warten (er tippt Mic erneut → Transcribing)
-                state.first {
-                    it.voiceState != VoiceState.Recording || !it.autoMode
+
+                // Phase 2 — User stoppt durch Mic-Tap (oder Auto-Mode aus)
+                while (_state.value.autoMode &&
+                       _state.value.voiceState == VoiceState.Recording) {
+                    delay(150)
                 }
                 if (!_state.value.autoMode) return
-                // 3) Auf Transcribe-Ende warten (entweder Idle wegen Fehler
-                //    oder Idle UND wir senden gleich)
-                state.first { it.voiceState == VoiceState.Idle || !it.autoMode }
-                if (!_state.value.autoMode) return
-                // 4) Falls send() ausgelöst hat → auf Stream-Ende warten
-                if (_state.value.isStreaming) {
-                    state.first { !it.isStreaming || !_state.value.autoMode }
+
+                // Phase 3 — Transcribe-Ende abwarten
+                while (_state.value.autoMode &&
+                       _state.value.voiceState == VoiceState.Transcribing) {
+                    delay(150)
                 }
                 if (!_state.value.autoMode) return
-                // 5) TTS startet asynchron im Done-Handler (wir forcen das
-                //    da). Kurz warten, dann auf Audio-Idle.
-                delay(200)
-                waitForAudioIdle()
-            }
-        } catch (e: Exception) {
-            _state.update {
-                it.copy(
-                    autoMode = false,
-                    voiceError = appContext.getString(
-                        R.string.voice_error_auto_loop, e.message ?: ""
-                    ),
-                )
+
+                // Phase 4 — send() (im Transcribe-Callback) hat schon
+                // isStreaming=true gesetzt BEVOR voiceState=Idle wurde
+                // (siehe Reihenfolge in stopRecordingAndTranscribe). Kurzer
+                // Buffer-Delay schadet trotzdem nicht — gibt den Co-Routinen
+                // Zeit ihre Emissions zu propagieren.
+                delay(250)
+
+                // Phase 5 — Stream-Ende abwarten
+                while (_state.value.autoMode && _state.value.isStreaming) {
+                    delay(200)
+                }
+                if (!_state.value.autoMode) return
+
+                // Phase 6 — TTS-Wiedergabe abwarten. Done-Handler triggert
+                // auto-speak() asynchron — kurz warten dass der State sich
+                // aufgebaut hat, dann auf Idle pollen.
+                delay(400)
+                while (_state.value.autoMode &&
+                       (audio.state.value.loadingMessageId != null ||
+                        audio.state.value.playingMessageId != null)) {
+                    delay(300)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e  // niemals swallowen — sonst setAutoMode(false)
+                         // killt den Loop nicht mehr
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        autoMode = false,
+                        voiceError = appContext.getString(
+                            R.string.voice_error_auto_loop, e.message ?: ""
+                        ),
+                    )
+                }
+                return
             }
         }
     }
 
-    private suspend fun waitForStreamSettled() {
-        if (_state.value.isStreaming) {
-            state.first { !it.isStreaming || !_state.value.autoMode }
-        }
-    }
-
-    private suspend fun waitForAudioIdle() {
-        val s = audio.state.value
-        val busy = s.loadingMessageId != null || s.playingMessageId != null
-        if (busy) {
-            audio.state.first {
-                (it.loadingMessageId == null && it.playingMessageId == null) ||
-                    !_state.value.autoMode
-            }
+    /** Wartet bis alle drei Bedingungen erfüllt sind: voiceState=Idle,
+     *  isStreaming=false, kein Audio in Loading/Playing. */
+    private suspend fun waitUntilSettled() {
+        while (_state.value.autoMode) {
+            val s = _state.value
+            val a = audio.state.value
+            val settled =
+                s.voiceState == VoiceState.Idle &&
+                !s.isStreaming &&
+                a.loadingMessageId == null &&
+                a.playingMessageId == null
+            if (settled) return
+            delay(200)
         }
     }
 

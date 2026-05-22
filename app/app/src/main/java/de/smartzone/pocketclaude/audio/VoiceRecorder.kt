@@ -44,13 +44,20 @@ class VoiceRecorder(private val appContext: Context) {
             appContext, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
 
-    /** Startet die Aufnahme. Wirft eine Exception, wenn schon eine läuft
-     *  oder das Mikro nicht verfügbar ist. Permission muss vorher
-     *  per Launcher abgefragt sein. */
+    /** Startet die Aufnahme. Wirft `SecurityException` ohne Mikro-Permission;
+     *  eine `IllegalStateException` nur wenn der MediaRecorder selbst nicht
+     *  starten kann (Mikro belegt von einer anderen App o.ä.).
+     *
+     *  Wenn der Recorder noch eine Leftover-Session aus einer vorigen VM
+     *  oder einem schiefgegangenen Cleanup hält (z.B. beim Chat-Wechsel),
+     *  wird die VORHER sauber abgebrochen — sonst würden alle weiteren
+     *  Recordings für immer fehlschlagen, weil der Singleton-Recorder
+     *  als "active" gilt. */
     @Throws(IllegalStateException::class, SecurityException::class)
     fun start() {
         if (active.get()) {
-            throw IllegalStateException("Recording already in progress.")
+            Log.w(TAG, "Leftover recording detected on start() — cancelling first.")
+            cancel()
         }
         if (!hasPermission()) {
             throw SecurityException("RECORD_AUDIO permission missing.")

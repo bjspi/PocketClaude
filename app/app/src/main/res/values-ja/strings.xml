@@ -737,6 +737,7 @@
     <string name="voice_mic_recording_cd">録音中 — タップで停止、長押しでキャンセル</string>
     <string name="voice_error_no_permission">マイクの権限が拒否されました。音声入力を使うには Android 設定で許可してください。</string>
     <string name="voice_error_start_failed">録音を開始できません: %1$s</string>
+    <string name="voice_error_llm_busy">Claude の応答が終わるまでお待ちください — ストリーミング中または読み上げ中は録音が一時停止されます。</string>
     <string name="voice_error_transcribe_failed">書き起こしに失敗: %1$s</string>
     <string name="voice_error_auto_loop">オートモード停止: %1$s</string>
     <string name="chat_auto_mode_start">オートモード開始（音声ループ）</string>

@@ -737,6 +737,7 @@
     <string name="voice_mic_recording_cd">Recording — tap to stop, long-press to cancel</string>
     <string name="voice_error_no_permission">Microphone permission denied. Grant it in Android settings to use voice input.</string>
     <string name="voice_error_start_failed">Could not start recording: %1$s</string>
+    <string name="voice_error_llm_busy">Wait until Claude finished replying — recording is paused while a response streams or is being read aloud.</string>
     <string name="voice_error_transcribe_failed">Transcription failed: %1$s</string>
     <string name="voice_error_auto_loop">Auto-mode stopped: %1$s</string>
     <string name="chat_auto_mode_start">Start Auto-mode (voice loop)</string>

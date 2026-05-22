@@ -737,6 +737,7 @@
     <string name="voice_mic_recording_cd">Enregistrement — touchez pour arrêter, maintenez pour annuler</string>
     <string name="voice_error_no_permission">Permission micro refusée. Accordez-la dans les réglages Android pour utiliser la saisie vocale.</string>
     <string name="voice_error_start_failed">Impossible de démarrer l\'enregistrement : %1$s</string>
+    <string name="voice_error_llm_busy">Attendez que Claude ait terminé de répondre — l\'enregistrement est mis en pause pendant qu\'un stream ou une lecture vocale est en cours.</string>
     <string name="voice_error_transcribe_failed">Transcription échouée : %1$s</string>
     <string name="voice_error_auto_loop">Mode auto arrêté : %1$s</string>
     <string name="chat_auto_mode_start">Démarrer le Mode auto (boucle vocale)</string>

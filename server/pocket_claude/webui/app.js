@@ -692,6 +692,15 @@ async function openChat(cid, opts = {}) {
     return;
   }
   abortStream();
+  // Voice-Cleanup beim Chat-Wechsel — sonst hängt eine laufende Aufnahme
+  // bzw. ein Auto-Mode-Loop weiter aus dem alten Chat. Audio (TTS-Playback)
+  // ebenfalls stoppen, sonst spielt's beim Switch weiter.
+  if (window.PocketVoice) {
+    try { window.PocketVoice.resetForChatSwitch(); } catch (_) {}
+  }
+  document.querySelectorAll('audio').forEach((a) => {
+    try { a.pause(); a.currentTime = 0; } catch (_) {}
+  });
   state.cid = cid;
   localStorage.setItem(LS.lastCid, cid);
   // URL aktualisieren — bei direkter Navigation oder beim Stellen einer
@@ -2275,18 +2284,36 @@ window.PocketVoice = (() => {
   let mediaRecorder = null;
   let mediaStream = null;
   let chunks = [];
-  let state = 'idle'; // idle | recording | busy
+  let micState = 'idle'; // idle | recording | busy
   let autoMode = false;
   let autoAbortController = null;
 
+  // ── LLM-Busy-Check ──
+  // `state` ist der globale Chat-State aus app.js (selber File-Scope).
+  // Wir greifen direkt drauf zu. isStreaming = Stream läuft;
+  // state.audio.playing = TTS spielt grade.
+  function isLlmBusy() {
+    return !!(state && (state.isStreaming || (state.audio && state.audio.playing)));
+  }
+
   function setMicState(newState) {
-    state = newState;
+    micState = newState;
     if (!micBtn) return;
     micBtn.classList.remove('idle', 'recording', 'busy');
     micBtn.classList.add(newState);
     micBtn.title = newState === 'recording'
         ? t('voice_mic_recording_title')
         : t('voice_mic_title');
+    updateMicEnabled();
+  }
+
+  /** Mic-Button visuell + funktional disablen wenn LLM busy. Recording
+   *  läuft DARF weiter klickbar bleiben (User muss stoppen können). */
+  function updateMicEnabled() {
+    if (!micBtn) return;
+    const shouldDisable = isLlmBusy() && micState !== 'recording';
+    micBtn.disabled = shouldDisable;
+    micBtn.classList.toggle('mic-disabled', shouldDisable);
   }
 
   function setAutoModeUi(on) {
@@ -2296,7 +2323,11 @@ window.PocketVoice = (() => {
   }
 
   async function startRecording() {
-    if (state !== 'idle') return false;
+    if (micState !== 'idle') return false;
+    if (isLlmBusy()) {
+      toast(t('voice_error_llm_busy'), { error: true });
+      return false;
+    }
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (e) {
@@ -2304,8 +2335,6 @@ window.PocketVoice = (() => {
       return false;
     }
     chunks = [];
-    // mimeType: webm/opus ist breitester Browser-Support; manche Browser
-    // (Safari) fallen auf default zurück, wenn nicht angegeben.
     const opts = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? { mimeType: 'audio/webm;codecs=opus' }
         : {};
@@ -2325,7 +2354,7 @@ window.PocketVoice = (() => {
 
   function stopStream() {
     if (mediaStream) {
-      mediaStream.getTracks().forEach((t) => t.stop());
+      mediaStream.getTracks().forEach((tr) => tr.stop());
       mediaStream = null;
     }
     mediaRecorder = null;
@@ -2334,7 +2363,7 @@ window.PocketVoice = (() => {
   /** Stoppt die Aufnahme und lädt das Audio hoch. Liefert den Transkript-Text
    *  zurück (oder leeren String bei zu kurzer Aufnahme / Fehler). */
   async function stopAndTranscribe() {
-    if (state !== 'recording' || !mediaRecorder) return '';
+    if (micState !== 'recording' || !mediaRecorder) return '';
     const rec = mediaRecorder;
     const done = new Promise((resolve) => {
       rec.addEventListener('stop', resolve, { once: true });
@@ -2377,7 +2406,7 @@ window.PocketVoice = (() => {
   }
 
   function cancelRecording() {
-    if (state !== 'recording') return;
+    if (micState !== 'recording' && micState !== 'busy') return;
     try { if (mediaRecorder) mediaRecorder.stop(); } catch (_) {}
     stopStream();
     chunks = [];
@@ -2392,84 +2421,99 @@ window.PocketVoice = (() => {
     input.focus();
   }
 
+  /** Vom openChat-Aufrufer beim Chat-Wechsel: AUFNAHME ABBRECHEN + Auto-Mode
+   *  ausschalten + jedes laufende Upload-Promise auflösen. Sonst hängt der
+   *  Singleton-Recorder weiter im alten Chat. */
+  function resetForChatSwitch() {
+    if (autoMode) {
+      setAutoModeUi(false);
+      if (autoAbortController) autoAbortController.abort();
+    }
+    if (micState === 'recording' || micState === 'busy') cancelRecording();
+    setMicState('idle');
+  }
+
   // ── Auto-Mode ──
-  // Loop: Rec → Stop (User-Tap) → Transcript → submitForm → Stream-Done →
-  // TTS-Vorlesen → audio.ended → wieder Rec. Cancel über Pill-Klick oder
-  // erneutes Menü-Toggle.
+  // Phasen analog zur App: 0) waitUntilSettled (kein Stream / kein TTS)
+  //   1) Recording starten 2) auf User-Stop warten 3) auf Transcribe-Idle
+  //   4) Buffer 5) auf Stream-Ende 6) auf TTS-Ende → loop.
+  // Wichtig: NIE während LLM-Busy starten — sonst landet die TTS-Ausgabe
+  // im nächsten Recording.
   async function toggleAutoMode() {
     if (autoMode) {
       setAutoModeUi(false);
       if (autoAbortController) autoAbortController.abort();
-      if (state === 'recording') cancelRecording();
+      if (micState === 'recording' || micState === 'busy') cancelRecording();
       return;
     }
     setAutoModeUi(true);
     autoAbortController = new AbortController();
     const signal = autoAbortController.signal;
     try {
-      while (autoMode) {
+      while (autoMode && !signal.aborted) {
+        // Phase 0: alles ruhig kriegen
+        await waitUntilSettled(signal);
+        if (signal.aborted) break;
+
+        // Phase 1: Recording starten
         const ok = await startRecording();
         if (!ok || signal.aborted) break;
-        // Auf User-Stop warten (er klickt den Mic-Button erneut)
-        await waitForMicIdle(signal);
+
+        // Phase 2: User-Stop abwarten (er klickt Mic erneut → busy → idle)
+        await pollUntil(() => micState !== 'recording' || signal.aborted, 150);
         if (signal.aborted) break;
-        // Im Idle-Übergang wurde der Transcript schon hochgeladen und
-        // submitForm() aufgerufen (im Mic-Click-Handler). Auf Stream-Ende
-        // warten dann auf TTS.
-        await waitForStreamSettled(signal);
+
+        // Phase 3: Transcribe-Ende abwarten
+        await pollUntil(() => micState !== 'busy' || signal.aborted, 150);
         if (signal.aborted) break;
-        await waitForAudioIdle(signal);
+
+        // Phase 4: Buffer — der Mic-Click-Handler ruft form.requestSubmit()
+        // erst NACH stopAndTranscribe. Wir warten kurz dass submitForm()
+        // seinen Stream gestartet hat (state.isStreaming = true).
+        await sleep(400);
+
+        // Phase 5: Stream-Ende
+        await pollUntil(() => !state.isStreaming || signal.aborted, 200);
         if (signal.aborted) break;
+
+        // Phase 6: TTS-Wiedergabe abwarten (auto-speak via Done-Event)
+        await sleep(400);
+        await pollUntil(() => {
+          if (signal.aborted) return true;
+          const audios = Array.from(document.querySelectorAll('audio'));
+          const anyPlaying = audios.some((a) => !a.paused && !a.ended);
+          return !anyPlaying && !(state.audio && state.audio.playing);
+        }, 300);
       }
     } catch (_) { /* abort */ }
     finally { setAutoModeUi(false); }
   }
 
-  function waitForMicIdle(signal) {
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  function pollUntil(predicate, intervalMs) {
     return new Promise((resolve) => {
       const check = () => {
-        if (signal.aborted) return resolve();
-        if (state === 'idle' || state === 'busy') {
-          // bei busy: Upload läuft, warten bis idle (=transcript inserted +
-          // submit ausgelöst). Wir geben dann auch noch ein bisschen Zeit
-          // damit submit-State (Streaming) sich aufbaut.
-          if (state === 'idle') return resolve();
-        }
-        setTimeout(check, 200);
+        try { if (predicate()) return resolve(); } catch (_) { return resolve(); }
+        setTimeout(check, intervalMs);
       };
       check();
     });
   }
 
-  function waitForStreamSettled(signal) {
-    return new Promise((resolve) => {
-      const check = () => {
-        if (signal.aborted) return resolve();
-        // Stream-Status hängt vom restlichen UI ab — wir prüfen ob der
-        // Send-Button im "stop"-Modus ist (Composer-Logik). Falls nicht
-        // erkennbar, beenden wir nach kurzer Wartezeit.
-        const sendBtn = document.getElementById('send-btn');
-        const streaming = sendBtn && sendBtn.classList.contains('streaming');
-        if (!streaming) return resolve();
-        setTimeout(check, 300);
-      };
-      // Erste Wartezeit, damit ein gerade gestartetes Streaming registriert wird
-      setTimeout(check, 500);
-    });
-  }
-
-  function waitForAudioIdle(signal) {
-    return new Promise((resolve) => {
-      const check = () => {
-        if (signal.aborted) return resolve();
-        const audios = Array.from(document.querySelectorAll('audio'));
-        const anyPlaying = audios.some((a) => !a.paused && !a.ended);
-        if (!anyPlaying) return resolve();
-        setTimeout(check, 300);
-      };
-      // kurzes Delay um Auto-Play hochzulaufen
-      setTimeout(check, 400);
-    });
+  async function waitUntilSettled(signal) {
+    return pollUntil(() => {
+      if (signal && signal.aborted) return true;
+      if (micState !== 'idle') return false;
+      if (state.isStreaming) return false;
+      if (state.audio && state.audio.playing) return false;
+      // Auch HTML-<audio>-Elemente checken, falls TTS via DOM-Audio läuft
+      const audios = Array.from(document.querySelectorAll('audio'));
+      if (audios.some((a) => !a.paused && !a.ended)) return false;
+      return true;
+    }, 200);
   }
 
   // Mic-Click-Handler: tap toggelt Recording↔Upload. Long-Press (>700 ms)
@@ -2481,7 +2525,7 @@ window.PocketVoice = (() => {
       longPressed = false;
       pressTimer = setTimeout(() => {
         longPressed = true;
-        if (state === 'recording') cancelRecording();
+        if (micState === 'recording') cancelRecording();
       }, 700);
     });
     micBtn.addEventListener('mouseup', () => {
@@ -2493,14 +2537,18 @@ window.PocketVoice = (() => {
     micBtn.addEventListener('click', async (e) => {
       e.preventDefault();
       if (longPressed) { longPressed = false; return; }
-      if (state === 'idle') {
+      if (micState === 'idle') {
+        if (isLlmBusy()) {
+          toast(t('voice_error_llm_busy'), { error: true });
+          return;
+        }
         await startRecording();
-      } else if (state === 'recording') {
+      } else if (micState === 'recording') {
         const text = await stopAndTranscribe();
         if (text) {
           insertTranscript(text);
-          if (autoMode) {
-            // Auto-Mode: direkt submitten
+          // submit nur wenn nicht grade ein Stream läuft (Race-Schutz)
+          if (!state.isStreaming) {
             const form = document.getElementById('input-form');
             if (form) form.requestSubmit();
           }
@@ -2513,6 +2561,11 @@ window.PocketVoice = (() => {
   if (autoPill) {
     autoPill.addEventListener('click', () => toggleAutoMode());
   }
+
+  // Polling-Watcher: alle 400 ms updateMicEnabled aufrufen, damit der Button
+  // bei Stream-Ende / TTS-Ende wieder freigeschaltet wird ohne dass wir
+  // jeden State-Setter patchen muessen.
+  setInterval(updateMicEnabled, 400);
 
   // Voice-API-Key Save/Delete + Language-Picker + Translate-Status
   const voiceKeyInput  = document.getElementById('voice-api-key-input');
@@ -2729,5 +2782,5 @@ window.PocketVoice = (() => {
   loadVoiceConfig();
 
   setMicState('idle');
-  return { toggleAutoMode };
+  return { toggleAutoMode, resetForChatSwitch };
 })();

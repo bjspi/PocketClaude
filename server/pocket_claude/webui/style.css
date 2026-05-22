@@ -928,6 +928,12 @@ button { cursor: pointer; }
   cursor: progress;
 }
 .mic-btn.busy .icon { opacity: 0.25; }
+.mic-btn.mic-disabled,
+.mic-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 .mic-btn.busy::after {
   content: "";
   position: absolute;
