@@ -57,6 +57,25 @@ Add the new language to the README highlights line ("7 languages" → "8 languag
 4. Open the PR against `main`. Use the template (it auto-loads).
 5. Describe **what** and **why**; how-tested is enough on the verification side.
 
+## Optional local hooks
+
+This repo includes an optional pre-commit hook that keeps install and clone
+snippets pointed at your checkout's `origin` remote. This is useful for forks:
+a fork checkout will show that fork's install URLs, while an upstream checkout
+will show upstream install URLs.
+
+Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+You can also run the sync manually:
+
+```bash
+bash server/deploy/helpers/sync-repo-url.sh
+```
+
 ## Bug reports
 
 Please include:

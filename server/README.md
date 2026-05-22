@@ -42,7 +42,7 @@ Server listens on `http://127.0.0.1:8787`. First start prints the initial admin 
 See [`deploy/README.md`](deploy/README.md). One-line install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/bjspi/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
 ```
 
 ## API surface

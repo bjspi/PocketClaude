@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+
+"$ROOT_DIR/server/deploy/helpers/sync-repo-url.sh"
+
+git -C "$ROOT_DIR" add \
+    README.md \
+    server/README.md \
+    server/deploy/README.md \
+    server/deploy/install-linux.sh \
+    docs/i18n

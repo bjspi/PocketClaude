@@ -13,7 +13,7 @@ Cloudflare Named Tunnel.
 
 ```bash
 # 1. On the server: one-shot install
-curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/bjspi/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
 
 # 2. Log in to Claude (one-time)
 sudo -u pocket-claude -H claude login

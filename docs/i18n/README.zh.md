@@ -98,7 +98,7 @@
 在一台全新的 Ubuntu / Debian / Fedora 主机上：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/bjspi/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
 ```
 
 安装脚本会创建系统用户 `pocket-claude`、将代码放到 `/opt/pocket-claude/`、安装 Claude Code CLI、把 Python 依赖装到 venv，写入一个 systemd 单元，并在端口 `8787`（loopback）上启动。

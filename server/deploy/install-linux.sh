@@ -24,7 +24,7 @@ set -euo pipefail
 INSTALL_DIR="${INSTALL_DIR:-/opt/pocket-claude}"
 SERVICE_USER="${SERVICE_USER:-pocket-claude}"
 SERVICE_NAME="pocket-claude"
-REPO_URL="${REPO_URL:-https://github.com/joshtech90/PocketClaude.git}"
+REPO_URL="${REPO_URL:-https://github.com/bjspi/PocketClaude.git}"
 
 # Source directory: either the repo where the script lives (dev path), or
 # a fresh clone from GitHub (fresh-install path).

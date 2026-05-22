@@ -98,7 +98,7 @@ Dos componentes, un repositorio:
 En una máquina Ubuntu / Debian / Fedora nueva:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/bjspi/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
 ```
 
 El instalador crea un usuario de sistema `pocket-claude`, coloca el código en `/opt/pocket-claude/`, instala la CLI de Claude Code, instala las dependencias de Python en un venv, escribe una unidad systemd y la inicia en el puerto `8787` (loopback).

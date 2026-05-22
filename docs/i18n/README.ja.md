@@ -98,7 +98,7 @@
 新しい Ubuntu / Debian / Fedora マシンで実行します。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/bjspi/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
 ```
 
 インストーラーは `pocket-claude` システムユーザーを作成し、コードを `/opt/pocket-claude/` に配置し、Claude Code CLI をインストールし、Python の依存関係を venv にインストールし、systemd ユニットを書き込み、ポート `8787`（ループバック）で起動します。
