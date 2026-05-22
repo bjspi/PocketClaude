@@ -1,7 +1,7 @@
 # Pocket Claude — Production Deployment
 
-This is how you get Pocket Claude **permanently online** on a mini-PC (or any
-Linux host), with a **stable URL** that survives every reboot.
+This is how you get Pocket Claude **permanently online** on a Linux server,
+with a **stable URL** that survives every reboot.
 
 **Default access path: Tailscale internal-only.** The installer asks which
 access mode you want: private tailnet-only, public Tailscale Funnel, or a
@@ -12,7 +12,7 @@ Cloudflare Named Tunnel.
 ## TL;DR
 
 ```bash
-# 1. On the mini-PC: one-shot install
+# 1. On the server: one-shot install
 curl -fsSL https://raw.githubusercontent.com/joshtech90/PocketClaude/main/server/deploy/install-linux.sh | sudo bash
 
 # 2. Log in to Claude (one-time)
@@ -45,9 +45,9 @@ Cloudflare Tunnel with Cloudflare Access Service Auth.
             ▼
    Tailscale Serve/Funnel or Cloudflare Tunnel
             │
-            │  Tunnel (outbound from the mini-PC, no port forwarding)
+            │  Tunnel (outbound from the server, no port forwarding)
             ▼
-   Mini-PC (Ubuntu / Debian / Fedora)
+   Linux server (Ubuntu / Debian / Fedora)
    ├─ systemd service: pocket-claude.service
    │   └─ /opt/pocket-claude/.venv/bin/python -m pocket_claude
    │       (FastAPI + uvicorn on localhost:8787)
@@ -76,7 +76,7 @@ Cloudflare Tunnel with Cloudflare Access Service Auth.
 
 ## Step by step
 
-### Step 1: Prepare the Linux mini-PC
+### Step 1: Prepare the Linux server
 
 Fresh Ubuntu Server / Desktop or Debian. Make sure SSH access works (this
 makes later migration from a Mac easier):
@@ -88,10 +88,10 @@ ssh-copy-id user@your-host.local
 
 ### Step 2: Install Pocket Claude
 
-On the mini-PC:
+On the server:
 
 Preferred: clone the repo first, then run the installer from the checked-out
-`server/` directory. This keeps the source on the mini-PC and makes updates
+`server/` directory. This keeps the source on the server and makes updates
 simple:
 
 ```bash
@@ -167,7 +167,7 @@ sudo -u pocket-claude -H claude login
 ```
 
 This opens a URL. Open it on another device (phone/Mac), sign in with your
-Claude Pro/Max account, and paste the code back into the mini-PC terminal.
+Claude Pro/Max account, and paste the code back into the server terminal.
 Logging in as `root` is not enough: the systemd service runs as
 `pocket-claude`, so the OAuth credentials must exist in that user's home.
 During install, the script prints this command and waits so you can run it in
@@ -217,7 +217,7 @@ sudo bash /opt/pocket-claude/deploy/setup-tailscale-funnel.sh
 
 The script:
 1. Checks whether Tailscale is running (if not: installs it + runs `tailscale up`)
-2. Reads the mini-PC's FQDN from the tailnet (e.g. `<host>.<tailnet>.ts.net`)
+2. Reads the server's FQDN from the tailnet (e.g. `<host>.<tailnet>.ts.net`)
 3. Verifies that HTTPS certificate provisioning is enabled
 4. Activates Funnel on port 443 → localhost:8787
 5. Prints the URL you enter into the app
@@ -285,7 +285,7 @@ Open the Pocket Claude app:
 1. **Add profile**
 2. Server URL = your new tunnel URL from step 4
 3. Username = `Admin`
-4. Password = stored in `/opt/pocket-claude/data/INITIAL_PASSWORD.txt` on the mini-PC:
+4. Password = stored in `/opt/pocket-claude/data/INITIAL_PASSWORD.txt` on the server:
    ```bash
    sudo cat /opt/pocket-claude/data/INITIAL_PASSWORD.txt
    ```
@@ -294,10 +294,10 @@ Open the Pocket Claude app:
 
 ---
 
-## Migration from a Mac to the mini-PC
+## Migration from a Mac to the server
 
 If you have been running Pocket Claude on a Mac and want to move it to the
-mini-PC — no double setup needed.
+server — no double setup needed.
 
 **On the Mac** (inside the `server/` subdirectory of the PocketClaude repo):
 
@@ -309,8 +309,8 @@ mini-PC — no double setup needed.
 ./deploy/migrate-to-server.sh
 ```
 
-Or even easier: **double-click `Deploy to Mini-PC.command`** in the repo root —
-interactive prompt, calls the migration script.
+Or use the macOS deployment helper in the repo root; it provides an
+interactive prompt and calls the migration script.
 
 This transfers:
 
@@ -319,15 +319,15 @@ This transfers:
 - `data/google_tts_credentials.json` — Cloud TTS service account (if present)
 - `.env` — server token
 
-On the mini-PC, the old data is **backed up beforehand** into
+On the server, the old data is **backed up beforehand** into
 `data/.pre-migration-backup-<timestamp>/`, in case anything goes wrong.
 
 **What is NOT migrated:**
 
 - `~/.claude/credentials.json` — the Claude CLI login has to be redone
-  (`sudo -u pocket-claude -H claude login` on the mini-PC). This is
+  (`sudo -u pocket-claude -H claude login` on the server). This is
   intentional: Claude sessions are often tied to device fingerprints.
-- Cloudflare tunnel credentials — these are recreated on the mini-PC via
+- Cloudflare tunnel credentials — these are recreated on the server via
   `setup-cloudflare-tunnel.sh`. Advantage: the old Mac tunnel can stay
   around as a failover.
 
@@ -337,7 +337,7 @@ After the migration:
 ssh user@your-host.local 'sudo systemctl status pocket-claude'
 ```
 
-And in the app: switch the server URL to the mini-PC tunnel URL. Done.
+And in the app: switch the server URL to the new server tunnel URL. Done.
 
 ---
 
@@ -385,7 +385,7 @@ Built into the server itself — the admin user can export an encrypted ZIP
 from the app via *Settings → Back up data → Chat backup*. Recommended:
 periodically save that ZIP somewhere (rsync to a NAS, cloud storage, etc.).
 
-Alternatively, directly from the mini-PC:
+Alternatively, directly from the server:
 
 ```bash
 sudo cp /opt/pocket-claude/data/pocket_claude.db ~/pocket-claude-backup-$(date +%Y%m%d).db
@@ -458,7 +458,7 @@ If that also fails: check your subscription status at claude.com, and re-run
 ### "Migration from the Mac fails"
 
 - SSH access working? `ssh user@your-host.local 'echo OK'`
-- Pocket Claude installed on the mini-PC? `ssh ... 'ls /opt/pocket-claude'`
+- Pocket Claude installed on the server? `ssh ... 'ls /opt/pocket-claude'`
 - Passwordless `sudo`? If not, edit `sudoers` once or enter the password by
   hand (the migration script prompts).
 

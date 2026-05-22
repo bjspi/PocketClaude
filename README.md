@@ -19,7 +19,7 @@
 
 ## About
 
-**Pocket Claude** is a self-hosted chat front-end for Anthropic's [Claude](https://claude.ai). A small Python server runs on your own Linux box (Mini-PC, Raspberry Pi, old laptop, NAS); a native Android app and a built-in web UI talk to it from anywhere via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) or a Cloudflare tunnel.
+**Pocket Claude** is a self-hosted chat front-end for Anthropic's [Claude](https://claude.ai). A small Python server runs on your own Linux server; a native Android app and a built-in web UI talk to it from anywhere via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) or a Cloudflare tunnel.
 
 **Pick the backend per user**, switchable any time in the app:
 

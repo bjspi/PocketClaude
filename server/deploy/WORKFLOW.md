@@ -1,13 +1,13 @@
 # Daily Workflow
 
 Recommended workflow for continued development of Pocket Claude after
-the initial setup is complete (server running on your mini-PC, app
+the initial setup is complete (server running on your Linux server, app
 installed on your phone, your own Tailnet FQDN active).
 
 ## What lives where
 
 ```
-                    Mac (dev machine)             Mini-PC (production)
+                    Mac (dev machine)             Linux server (production)
                     ─────────────────             ──────────────────────
 PocketClaude/server  ✏️ code edits                🚀 runs as systemd
   ├─ pocket_claude/  master                       read-only copy
@@ -22,7 +22,7 @@ PocketClaude/app     ✏️ code edits                —
 ```
 
 **Rule:** Data (SQLite DB, uploads, service-account JSON, .env) lives
-**only on the mini-PC**. The Mac and the repo stay data-free.
+**only on the server**. The Mac and the repo stay data-free.
 
 ---
 
@@ -45,11 +45,11 @@ Open a new shell and you're ready to go.
 When you change a `.py` file:
 
 ```
-Double-click: Update Mini-PC.command
+Double-click the macOS update helper in the repo root.
 ```
 
 What happens in ~3 seconds:
-1. rsync from the Mac repo to `<your-mini-pc>:/opt/pocket-claude/` (code only,
+1. rsync from the Mac repo to `<your-server>:/opt/pocket-claude/` (code only,
    no data/, no .env, no .venv)
 2. If `requirements.txt` changed: `pip install` in the server venv
 3. `sudo systemctl restart pocket-claude` (no password prompt thanks to NOPASSWD)
@@ -77,7 +77,7 @@ cd ~/Projects/PocketClaude/app
 
 ## When should you push to GitHub?
 
-GitHub plays **no role** in the daily loop — the Mac → mini-PC sync runs
+GitHub plays **no role** in the daily loop — the Mac → server sync runs
 directly via rsync, not through `git pull`. But for version tracking and
 backup, you should commit regularly:
 
@@ -114,7 +114,7 @@ In the app: *Settings → Back up data → Chat backup → Export* — lands
 directly as a ZIP in the Downloads folder of your phone. Encrypted with a
 password of your choice.
 
-### Reboot the mini-PC
+### Reboot the server
 ```bash
 ssh me@your-host 'sudo reboot'
 ```
@@ -127,16 +127,16 @@ funnel URL stays the same.
 
 | File | Purpose |
 |---|---|
-| `Update Mini-PC.command` | Double-click → code + restart, ~3 sec |
+| macOS update helper | Double-click -> code + restart, ~3 sec |
 | `deploy/push-to-minipc.sh` | What the `.command` calls (handles the systemctl restart) |
 | `deploy/install-linux.sh` | First-time setup of a fresh Linux host |
 | `deploy/setup-tailscale-funnel.sh` | Set up the tunnel |
 | `deploy/migrate-to-server.sh` | One-shot data transfer from old host → new host |
-| `deploy/helpers/update.sh` | On the mini-PC: `git pull`-based update (fallback) |
-| `deploy/helpers/uninstall.sh` | On the mini-PC: tear everything down |
+| `deploy/helpers/update.sh` | On the server: `git pull`-based update (fallback) |
+| `deploy/helpers/uninstall.sh` | On the server: tear everything down |
 | `Build & Install PocketClaude.command` (app repo) | Push APK to Android device |
 | `Find Server URL.command` | Resolve Tailscale URL + copy to clipboard |
-| `Deploy to Mini-PC.command` | First-time migration (mostly historical) |
+| macOS deployment helper | First-time migration (mostly historical) |
 
-**In the daily loop you'll almost only need `Update Mini-PC.command` and
-the app install script.** The rest is setup and emergency tooling.
+**In the daily loop you'll almost only need the macOS update helper and the
+app install script.** The rest is setup and emergency tooling.
