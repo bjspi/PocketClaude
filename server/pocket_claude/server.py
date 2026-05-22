@@ -1705,24 +1705,45 @@ async def images_delete_credentials(user=Depends(require_user)):
 
 # ---------- Voice-Input (Groq Whisper Large v3 Turbo) ----------
 
-_KV_VOICE_GROQ_API_KEY = "voice_groq_api_key"
+_KV_VOICE_GROQ_API_KEY = voice.KV_GROQ_API_KEY
 
 
-@app.get("/voice/config")
-async def voice_config(user=Depends(require_user)):
-    """Liefert den Konfig-Status für Voice-Input (per User).
-
-    `configured=True`, wenn der User einen Groq-Key hinterlegt hat. UI
-    nutzt das, um den Mic-Button erst freizuschalten und sonst ins
-    Settings-Pop-up zu verweisen.
-    """
-    kv = await db.kv_get_all(scope=user["id"])
+def _voice_status_payload(kv: dict) -> dict:
+    """Baut den vollen Voice-Status — Key-Status + Lang-Settings + aktueller
+    effektiver Bias-Prompt. Geteilt zwischen GET /voice/config und allen PUT/
+    POST-Endpoints, damit der Client immer eine konsistente Snapshot bekommt."""
     api_key = (kv.get(_KV_VOICE_GROQ_API_KEY) or "").strip()
+    mode = (kv.get(voice.KV_LANG_MODE) or "auto").strip().lower()
+    if mode not in ("auto", "override"):
+        mode = "auto"
+    override = (kv.get(voice.KV_LANG_OVERRIDE) or "").strip()
+    cache = voice.get_prompt_cache(kv)
+    # Für die Preview ohne explizite Request-Locale: nehmen wir den Override
+    # bzw. „en" als sinnvolle Default-Anzeige.
+    preview_lang = voice._to_whisper_code(override or "en")
+    prompt_text, prompt_source = voice.resolve_prompt(kv=kv, lang=preview_lang)
     return {
         "configured": bool(api_key),
         "api_key_masked": _mask_key(api_key) if api_key else None,
         "model": voice.GROQ_DEFAULT_MODEL,
+        "lang_mode": mode,
+        "lang_override": override or None,
+        "current_lang": preview_lang,
+        "current_prompt": prompt_text,
+        "current_prompt_source": prompt_source,
+        "bundled_languages": sorted(voice.BUNDLED_PROMPTS.keys()),
+        "language_names": voice.LANG_DISPLAY_NAMES,
+        "cached_languages": sorted(cache.keys()),
     }
+
+
+@app.get("/voice/config")
+async def voice_config(user=Depends(require_user)):
+    """Per-User Voice-Setup: API-Key-Status, Sprach-Override, aktueller
+    Bias-Prompt. Wird vom App- + WebUI-Settings-Screen + vom Mic-Button-Check
+    benutzt."""
+    kv = await db.kv_get_all(scope=user["id"])
+    return _voice_status_payload(kv)
 
 
 @app.put("/voice/credentials")
@@ -1748,18 +1769,131 @@ async def voice_delete_credentials(user=Depends(require_user)):
     return JSONResponse(status_code=204, content=None)
 
 
+@app.put("/voice/lang-config")
+async def voice_set_lang_config(body: dict, user=Depends(require_user)):
+    """Setzt die per-User-Sprache für Voice-Input.
+
+    Body: `{mode: "auto"|"override", locale?: str}`. Bei `auto` folgt
+    Whisper der UI-Sprache des Requests; bei `override` wird die angegebene
+    Locale verwendet (egal welche Sprache die App grade hat). Locale-Codes
+    sind 2-stellig ISO 639-1 (`en`, `de`, `sv`, `ko`, …).
+    """
+    mode = (body.get("mode") or "").strip().lower()
+    if mode not in ("auto", "override"):
+        raise HTTPException(400, "mode muss 'auto' oder 'override' sein.")
+    locale = (body.get("locale") or "").strip().lower()
+    if mode == "override" and not locale:
+        raise HTTPException(400, "override braucht eine 'locale'.")
+    if locale and not locale.replace("-", "").isalpha():
+        raise HTTPException(400, "Ungültiger locale-Code.")
+    await db.kv_set_many(
+        {
+            voice.KV_LANG_MODE: mode,
+            voice.KV_LANG_OVERRIDE: locale if mode == "override" else "",
+        },
+        scope=user["id"],
+    )
+    kv = await db.kv_get_all(scope=user["id"])
+    return _voice_status_payload(kv)
+
+
+@app.post("/voice/prompt/translate")
+async def voice_translate_prompt(body: dict, user=Depends(require_user)):
+    """Übersetzt den englischen Default-Bias-Prompt in die angegebene Sprache
+    via Anthropic Claude (oneshot, kein Conversation-State).
+
+    Body: `{locale: str, force?: bool}`. `force=true` ignoriert den Cache
+    und triggert eine frische Übersetzung. Das Ergebnis landet im Cache
+    (KV `voice_prompt_cache`) und kann sofort von /voice/transcribe genutzt
+    werden.
+    """
+    locale = (body.get("locale") or "").strip().lower()
+    force = bool(body.get("force"))
+    if not locale:
+        raise HTTPException(400, "Locale fehlt.")
+    if not locale.replace("-", "").isalpha():
+        raise HTTPException(400, "Ungültiger locale-Code.")
+    lang = voice._to_whisper_code(locale)
+
+    kv = await db.kv_get_all(scope=user["id"])
+    if not force:
+        cache = voice.get_prompt_cache(kv)
+        if lang in cache and cache[lang].strip():
+            return {
+                "locale": lang,
+                "prompt": cache[lang],
+                "source": "cache",
+            }
+
+    # Bundled? Dann bleibt der Default — kein Claude-Roundtrip nötig.
+    if lang in voice.BUNDLED_PROMPTS and not force:
+        return {
+            "locale": lang,
+            "prompt": voice.BUNDLED_PROMPTS[lang],
+            "source": "bundled",
+        }
+
+    try:
+        translated = await voice.translate_bias_prompt(
+            target_lang=lang,
+            user_id=user["id"],
+        )
+    except Exception as e:  # noqa: BLE001 — Claude-Fehler werden direkt durchgereicht
+        log.warning("Voice-Prompt-Translate user=%s lang=%s failed: %s",
+                    user["id"], lang, e)
+        raise HTTPException(
+            502, f"Übersetzung fehlgeschlagen: {e}"
+        ) from e
+
+    # In den per-User-Cache schreiben (merge, nicht überschreiben)
+    cache = voice.get_prompt_cache(kv)
+    cache[lang] = translated
+    import json as _json
+    await db.kv_set_many(
+        {voice.KV_PROMPT_CACHE: _json.dumps(cache, ensure_ascii=False)},
+        scope=user["id"],
+    )
+    log.info("Voice-Prompt für user=%s lang=%s frisch übersetzt (%d chars)",
+             user["id"], lang, len(translated))
+    return {
+        "locale": lang,
+        "prompt": translated,
+        "source": "translated",
+    }
+
+
+@app.delete("/voice/prompt/cache/{locale}",
+            status_code=status.HTTP_204_NO_CONTENT)
+async def voice_delete_cached_prompt(locale: str, user=Depends(require_user)):
+    """Löscht einen einzelnen Cache-Eintrag — danach greift wieder der
+    Bundled-Default (oder eine frische Übersetzung beim nächsten Translate-
+    Call)."""
+    kv = await db.kv_get_all(scope=user["id"])
+    cache = voice.get_prompt_cache(kv)
+    lang = voice._to_whisper_code(locale)
+    if lang in cache:
+        cache.pop(lang)
+        import json as _json
+        await db.kv_set_many(
+            {voice.KV_PROMPT_CACHE: _json.dumps(cache, ensure_ascii=False)
+                                    if cache else ""},
+            scope=user["id"],
+        )
+    return JSONResponse(status_code=204, content=None)
+
+
 @app.post("/voice/transcribe")
 async def voice_transcribe_endpoint(
     file: UploadFile = File(...),
     language: str = Form(default="en"),
     user=Depends(require_user),
 ):
-    """Nimmt eine Audio-Datei + UI-Sprache entgegen, schickt sie an Groq
-    Whisper Large v3 Turbo (mit passendem Bias-Prompt für die Sprache),
-    liefert `{text: "..."}` zurück.
+    """Audio → Transkript via Groq Whisper Large v3 Turbo.
 
-    `language`: UI-Locale aus der App (`en`, `de`, `es`, `fr`, `pt-BR`,
-    `zh`, `ja`). Unbekannte Werte fallen auf Englisch zurück.
+    `language`: UI-Locale aus dem Client (`en`, `de`, `pt-BR`, …). Server
+    resolved daraus + dem User-Setting (auto vs. override) die effektive
+    Whisper-Sprache + den passenden Bias-Prompt (bundled oder aus dem
+    Translation-Cache).
     """
     kv = await db.kv_get_all(scope=user["id"])
     api_key = (kv.get(_KV_VOICE_GROQ_API_KEY) or "").strip()
@@ -1769,7 +1903,6 @@ async def voice_transcribe_endpoint(
             "Kein Groq-API-Key gesetzt. In den Einstellungen unter "
             "'Spracheingabe' eintragen.")
 
-    # Upload-Größe checken — wie bei /attachments
     raw = await file.read()
     max_bytes = settings.max_upload_mb * 1024 * 1024
     if len(raw) > max_bytes:
@@ -1779,21 +1912,27 @@ async def voice_transcribe_endpoint(
     if not raw:
         raise HTTPException(400, "Audio-Daten leer.")
 
+    effective_lang = voice.resolve_effective_lang(
+        kv=kv, request_locale=language,
+    )
+    bias_prompt, _src = voice.resolve_prompt(kv=kv, lang=effective_lang)
+
     try:
         text = await voice.transcribe(
             audio_bytes=raw,
             filename=file.filename or "audio.m4a",
             content_type=file.content_type or "audio/mp4",
-            ui_locale=language,
             api_key=api_key,
+            whisper_lang=effective_lang,
+            bias_prompt=bias_prompt,
         )
     except voice.VoiceTranscribeError as e:
         log.warning("Voice-Transcribe für user=%s fehlgeschlagen: %s",
                     user["id"], e)
         raise HTTPException(400, str(e)) from e
 
-    log.info("Voice-Transcribe ok user=%s lang=%s chars=%d",
-             user["id"], language, len(text))
+    log.info("Voice-Transcribe ok user=%s req-lang=%s effective=%s chars=%d",
+             user["id"], language, effective_lang, len(text))
     return {"text": text}
 
 

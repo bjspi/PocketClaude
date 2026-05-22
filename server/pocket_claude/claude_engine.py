@@ -19,6 +19,7 @@ wie zuvor). Bilder/PDFs werden via Read-Tool referenziert.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -226,6 +227,83 @@ def _has_binary_attachments(
         if not _looks_like_text(a["filename"], a["mime_type"]):
             return True
     return False
+
+
+# ---------- One-shot non-streaming Claude call ----------
+
+async def oneshot_text(
+    *,
+    system_prompt: str,
+    user_message: str,
+    user_id: str | None = None,
+    timeout_sec: float = 30.0,
+    allowed_tools: list[str] | None = None,
+) -> str:
+    """Schickt EINEN Prompt an Claude, sammelt den vollen Antwort-Text und gibt
+    ihn zurück. Keine Session, keine Tools (per default), kein Streaming-State.
+
+    Nutzt den User-Auth-Kontext (Pro/Max OAuth, API-Key oder Bedrock) wenn
+    `user_id` gesetzt ist; sonst läuft's gegen die Operator-Session (`claude
+    login` auf dem Server). Geeignet für kurze interne Tasks wie
+    Prompt-Übersetzungen, wo wir kein Conversation-State brauchen.
+
+    Wirft `RuntimeError` bei Timeout / SDK-Fehler / leerer Antwort, damit
+    der Caller das in eine sprechende UI-Meldung wickeln kann.
+    """
+    # Auth-Env (Bedrock-Override, API-Key-Mode etc.) wie im stream_reply
+    engine_env: dict[str, str] = {}
+    model_override: str | None = None
+    if user_id is not None:
+        provider_env, model_override = await auth_modes.build_provider_env(user_id)
+        if provider_env:
+            engine_env.update(provider_env)
+
+    effective_model = model_override or (settings.claude_model or None)
+    sandbox_cwd = settings.data_dir / "claude-sandbox"
+    sandbox_cwd.mkdir(parents=True, exist_ok=True)
+
+    options_kwargs: dict = dict(
+        system_prompt=system_prompt,
+        allowed_tools=allowed_tools or [],
+        permission_mode="bypassPermissions",
+        cwd=str(sandbox_cwd),
+        include_partial_messages=False,
+        model=effective_model,
+        setting_sources=[],
+        env=engine_env,
+    )
+    resolved_cli = settings.claude_binary or shutil.which("claude")
+    if resolved_cli:
+        options_kwargs["cli_path"] = resolved_cli
+    options = ClaudeAgentOptions(**options_kwargs)
+
+    text_parts: list[str] = []
+
+    async def _run() -> None:
+        async for message in query(prompt=user_message, options=options):
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, TextBlock) and block.text:
+                        text_parts.append(block.text)
+            # SystemMessage / ResultMessage / StreamEvent → ignoriert
+
+    try:
+        await asyncio.wait_for(_run(), timeout=timeout_sec)
+    except asyncio.TimeoutError as e:
+        raise RuntimeError(
+            f"Claude antwortete nicht innerhalb von {int(timeout_sec)}s."
+        ) from e
+    except CLINotFoundError as e:
+        raise RuntimeError(f"Claude-CLI nicht gefunden: {e}") from e
+    except ProcessError as e:
+        raise RuntimeError(f"Claude-Subprozess-Fehler: {e}") from e
+    except Exception as e:  # noqa: BLE001 — alle anderen Fehler weiterreichen
+        raise RuntimeError(f"Claude-Aufruf fehlgeschlagen: {e}") from e
+
+    out = "".join(text_parts).strip()
+    if not out:
+        raise RuntimeError("Claude lieferte einen leeren Text-Output.")
+    return out
 
 
 # ---------- Streaming via claude-agent-sdk ----------
