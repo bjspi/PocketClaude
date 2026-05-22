@@ -163,6 +163,8 @@ sudo -u pocket-claude -H claude login
 
 This opens a URL. Open it on another device (phone/Mac), sign in with your
 Claude Pro/Max account, and paste the code back into the mini-PC terminal.
+Logging in as `root` is not enough: the systemd service runs as
+`pocket-claude`, so the OAuth credentials must exist in that user's home.
 
 After that:
 
@@ -194,6 +196,11 @@ sudo bash /opt/pocket-claude/deploy/setup-tailscale-internal.sh
 This installs/logs in Tailscale if needed, then configures `tailscale serve`.
 The Android device must run the Tailscale app and be logged into the same
 tailnet. Nothing is published to the public internet.
+
+If Tailscale prints "Serve is not enabled on your tailnet", open the printed
+Tailscale URL and approve Serve once. Re-run the script afterwards. This is a
+tailnet-level feature gate, not a Linux-user problem; Tailscale itself is
+system-wide on the host.
 
 #### Public path: Tailscale Funnel
 

@@ -369,6 +369,11 @@ if sudo -u "$SERVICE_USER" -H bash -c '[[ -f ~/.claude/credentials.json ]] || [[
     fi
 else
     c_yellow "    Service NOT YET started — claude login is missing."
+    if [[ -f /root/.claude/credentials.json || -f /root/.config/claude/credentials.json ]]; then
+        c_yellow "    Root appears to have Claude credentials, but the service runs as '$SERVICE_USER'."
+    fi
+    c_yellow "    Run once:"
+    c_yellow "      sudo -u $SERVICE_USER -H claude login"
 fi
 
 # ---------------------------------------------------------------- Access setup

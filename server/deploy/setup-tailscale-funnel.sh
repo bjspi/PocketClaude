@@ -37,6 +37,16 @@ c_yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 c_red()    { printf '\033[1;31m%s\033[0m\n' "$*" >&2; }
 step()     { echo; c_blue "==> $*"; }
 
+tailscale_backend_state() {
+    tailscale status --json 2>/dev/null | python3 -c '
+import json, sys
+try:
+    print(json.load(sys.stdin).get("BackendState", ""))
+except Exception:
+    pass
+' 2>/dev/null
+}
+
 read_prompt() {
     local prompt="$1"
     local var_name="$2"
@@ -62,13 +72,16 @@ if ! command -v tailscale >/dev/null 2>&1; then
 fi
 
 # Backend must be "Running" — i.e. `tailscale up` has been run at least once.
-if ! tailscale status --json 2>/dev/null | grep -q '"BackendState":"Running"'; then
+TS_BACKEND="$(tailscale_backend_state)"
+if [[ "$TS_BACKEND" != "Running" ]]; then
     echo
-    c_yellow "    Tailscale is not running / the host is not in the tailnet."
+    c_yellow "    Tailscale backend state is '${TS_BACKEND:-unknown}', not Running."
     c_yellow "    Starting login flow — you will get a URL to open on another"
     c_yellow "    device that is already in the tailnet."
     echo
     tailscale up
+else
+    c_green "    Tailscale is already running."
 fi
 
 # ---------------------------------------------------------------- Determine URL
@@ -127,7 +140,17 @@ tailscale funnel reset 2>/dev/null || true
 tailscale serve reset 2>/dev/null || true
 
 # Point Funnel directly at the local target — no separate `serve` needed.
-tailscale funnel --bg "http://localhost:$LOCAL_PORT"
+if ! funnel_output="$(tailscale funnel --bg "http://localhost:$LOCAL_PORT" 2>&1)"; then
+    echo "$funnel_output" | sed 's/^/    /'
+    if echo "$funnel_output" | grep -qi "Funnel is not enabled"; then
+        echo
+        c_yellow "    Tailscale Funnel must be allowed once in the tailnet admin/ACLs."
+        echo "    Check:"
+        echo "        https://login.tailscale.com/admin/acls"
+        echo "        https://login.tailscale.com/admin/dns"
+    fi
+    exit 1
+fi
 
 # ---------------------------------------------------------------- Verification
 step "Verification"
