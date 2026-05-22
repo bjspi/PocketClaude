@@ -1091,6 +1091,11 @@ def _synthesize_edge_tts(
         # tot, Voice-Name unbekannt, Netzwerk-Glitch).
         short = str(exc).splitlines()[0][:200]
         log.warning("edge-tts error: %s (type=%s)", short, type(exc).__name__)
+        if "403" in short or type(exc).__name__ == "WSServerHandshakeError":
+            raise RuntimeError(
+                "Edge-TTS wurde vom Microsoft ReadAloud-Dienst abgelehnt "
+                f"({short}). Bitte Auto-Speak deaktivieren oder Gemini/Cloud-TTS verwenden."
+            ) from exc
         # Als Transient klassifizieren — Retry kann klappen.
         raise TtsTransientError(
             api_key="",
